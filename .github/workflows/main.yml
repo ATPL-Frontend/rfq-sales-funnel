@@ -1,0 +1,93 @@
+name: Deploy to CPanel (client + backend in same root)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: "Production – atpl-dhaka"
+
+    steps:
+      # 0) Checkout
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # 1) Node for build steps
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22
+
+      # -------------------- CLIENT (React @ /) --------------------
+      - name: Inject .env for Vite
+        working-directory: client
+        run: |
+          echo "VITE_API_URL=${{ vars.VITE_API_URL }}" > .env
+
+      - name: Install dependencies & build (client)
+        working-directory: client
+        run: |
+          npm ci
+          npm run build
+
+      - name: 📂 Sync CLIENT using FTP (to root)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: 21
+          protocol: ftps
+          local-dir: client/dist/         # upload built SPA
+          server-dir: /                   # <-- document root of the subdomain
+          timeout: 1200
+          # DO NOT touch the backend directory
+          exclude: |
+            **/.git*
+            **/.github*
+            **/.DS_Store
+            .htaccess
+            api/**
+
+      # -------------------- BACKEND (Node @ /api) --------------------
+      - name: Install & (optionally) build server
+        working-directory: server
+        run: |
+          if [ -f package.json ]; then
+            npm ci || true
+            # If you have a build step (e.g., TypeScript) uncomment:
+            # npm run build || true
+          fi
+
+      # Touch restart.txt so Passenger restarts after deploy
+      - name: Prepare Passenger restart trigger
+        working-directory: server
+        run: |
+          mkdir -p tmp
+          date +%s > tmp/restart.txt
+
+      - name: 📂 Sync BACKEND using FTP (to /api)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: 21
+          protocol: ftps
+          local-dir: server/             # runtime files only
+          server-dir: /api/               # <-- server lives here
+          timeout: 1200
+          exclude: |
+            **/.git*
+            **/.github*
+            **/node_modules/**
+            **/.env*
+            **/README.md
+            **/tests/**
+            **/test/**
+            **/.DS_Store
+            **/.vscode/**
+            **/.idea/**
