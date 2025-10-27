@@ -53,6 +53,21 @@ jobs:
             api/**
 
       # -------------------- BACKEND (Node @ /api) --------------------
+      - name: Inject .env for Vite
+        working-directory: server
+        run: |
+          echo "DB_HOST=${{ vars.DB_HOST }}" > .env
+          echo "DB_NAME=${{ vars.DB_NAME }}" > .env
+          echo "DB_PASSWORD=${{ vars.DB_PASSWORD }}" > .env
+          echo "DB_USER=${{ vars.DB_USER }}" > .env
+          echo "EMAIL_HOST=${{ vars.DB_NAME }}" > .env
+          echo "EMAIL_PASS=${{ vars.EMAIL_PASS }}" > .env
+          echo "EMAIL_PORT=${{ vars.EMAIL_PORT }}" > .env
+          echo "EMAIL_USER=${{ vars.EMAIL_USER }}" > .env
+          echo "JWT_SECRET=${{ vars.JWT_SECRET }}" > .env
+          echo "NODE_ENV=${{ vars.NODE_ENV }}" > .env
+          echo "CLIENT_URL=${{ vars.VITE_API_URL }}" > .env
+          
       - name: Install & (optionally) build server
         working-directory: server
         run: |
