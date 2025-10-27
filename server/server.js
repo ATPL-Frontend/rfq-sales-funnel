@@ -48,7 +48,7 @@ app.use("/api/auth", authLimiter);
 
 /* ------------------- Health check --------------------- */
 app.get("/api/alive", (_req, res) => res.json({ message: "Server is alive" }));
-
+app.use("/api/auth/test", (_req, res) => res.json({ message: "Testing the API" }));
 /* -------------------- API Routes ---------------------- */
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
