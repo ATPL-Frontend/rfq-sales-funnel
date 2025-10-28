@@ -61,16 +61,16 @@ jobs:
           cat > .env << 'EOF'
           DB_HOST=${{ secrets.DB_HOST }}
           DB_NAME=${{ secrets.DB_NAME }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
           DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
           DB_PORT=${{ secrets.DB_PORT }}
           EMAIL_HOST=${{ secrets.EMAIL_HOST }}
+          EMAIL_USER=${{ secrets.EMAIL_USER }}
           EMAIL_PASS=${{ secrets.EMAIL_PASS }}
           EMAIL_PORT=${{ secrets.EMAIL_PORT }}
-          EMAIL_USER=${{ secrets.EMAIL_USER }}
           JWT_SECRET=${{ secrets.JWT_SECRET }}
-          NODE_ENV=production
           CLIENT_URL=${{ secrets.CLIENT_URL }}
+          NODE_ENV=production
           EOF
           
       - name: Install & (optionally) build server
@@ -104,7 +104,6 @@ jobs:
             **/.git*
             **/.github*
             **/node_modules/**
-            **/.env*
             **/README.md
             **/tests/**
             **/test/**
