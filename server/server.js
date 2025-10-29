@@ -9,26 +9,46 @@ import { connectDB } from "./lib/dbconnect-mysql.js";
 
 // Table initializers (ensure these exist as we wrote earlier)
 import { createCustomerTable } from "./models/customer.model.js";
-import { createRFQPreparedPeopleTable, createRFQTable } from "./models/rfq.model.js";
+import {
+  createRFQPreparedPeopleTable,
+  createRFQTable,
+} from "./models/rfq.model.js";
 import { createSalesFunnelTable } from "./models/salesFunnel.model.js";
 import { createUserTable } from "./models/user.model.js";
 
 // Routers
 import authRoutes from "./routes/auth.routes.js";
-import userRoutes from "./routes/user.routes.js";
 import customerRoutes from "./routes/customer.routes.js";
 import rfqRoutes from "./routes/rfq.routes.js";
 import salesFunnelRoutes from "./routes/salesFunnel.routes.js";
+import userRoutes from "./routes/user.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 /* ---------- Security, CORS, parsers, logging ---------- */
 app.set("trust proxy", 1); // for rate limit & cookies behind proxy
+
+const allowlist = [
+  process.env.CLIENT_URL, // e.g. https://rfq.atpldhaka.com (prod app)
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:8080",
+];
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || true,
+    origin(origin, cb) {
+      // allow server-to-server/CLI tools with no origin
+      if (!origin) return cb(null, true);
+      // exact match only (avoid "*")
+      if (allowlist.includes(origin)) return cb(null, true);
+      return cb(new Error(`Not allowed by CORS: ${origin}`));
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 app.use(express.json({ limit: "1mb" }));
