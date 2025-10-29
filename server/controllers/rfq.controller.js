@@ -50,7 +50,7 @@ export async function createRFQ(req, res) {
       rfq_location = null,
       remarks = null,
     } = req.body || {};
-    
+
     const preparedIds = normalizePreparedIds(prepared_by);
 
     if (
@@ -137,12 +137,13 @@ export async function listRFQs(req, res) {
     const progress = (req.query.progress || "").trim();
     const date_from = (req.query.date_from || "").trim();
     const date_to = (req.query.date_to || "").trim();
-    const limit = Math.min(parseInt(req.query.limit || "50", 10), 200);
-    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
+    const limit  = Math.min(Math.max(parseInt(req.query.limit || "50", 10), 1), 200);
+    const page   = Math.max(parseInt(req.query.page || "1", 10), 1);
     const offset = (page - 1) * limit;
 
     const where = [];
     const params = [];
+
     if (q) {
       where.push("(c.name LIKE ? OR r.progress LIKE ?)");
       params.push(`%${q}%`, `%${q}%`);
@@ -166,27 +167,48 @@ export async function listRFQs(req, res) {
 
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
-    const [rows] = await pool.query(
-      `SELECT r.*,
-              c.name AS customer_name,
-              JSON_ARRAYAGG(
-                CASE WHEN u.id IS NULL THEN NULL
-                     ELSE JSON_OBJECT('id', u.id, 'name', u.name, 'email', u.email, 'short_form', u.short_form)
-                END
-              ) AS prepared_by
-       FROM rfq r
-       JOIN customers c ON c.id = r.customer_id
-       LEFT JOIN rfq_prepared_people rpp ON rpp.rfq_id = r.id
-       LEFT JOIN users u ON u.id = rpp.user_id
-       ${whereSql}
-       GROUP BY r.id
-       ORDER BY r.id DESC
-       LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
-    );
+    // Subquery for the latest funnel per RFQ (by last_updated)
+    const latestSF = `
+      SELECT sf.*
+      FROM sales_funnel sf
+      JOIN (
+        SELECT rfq_id, MAX(last_updated) AS lu
+        FROM sales_funnel
+        GROUP BY rfq_id
+      ) x
+        ON x.rfq_id = sf.rfq_id
+       AND x.lu     = sf.last_updated
+    `;
 
-    const [countRows] = await pool.query(
-      `SELECT COUNT(*) as total
+    // Inline LIMIT/OFFSET to avoid placeholder issues
+    const sql = `
+      SELECT
+        r.*,
+        c.name AS customer_name,
+        JSON_ARRAYAGG(
+          CASE WHEN u.id IS NULL THEN NULL
+               ELSE JSON_OBJECT('id', u.id, 'name', u.name, 'email', u.email, 'short_form', u.short_form)
+          END
+        ) AS prepared_by,
+        EXISTS(SELECT 1 FROM sales_funnel s WHERE s.rfq_id = r.id) AS has_sales_funnel,
+        lsf.id           AS latest_sales_funnel_id,
+        lsf.status       AS latest_sales_funnel_status,
+        lsf.last_updated AS latest_sales_funnel_last_updated
+      FROM rfq r
+      JOIN customers c ON c.id = r.customer_id
+      LEFT JOIN (${latestSF}) lsf ON lsf.rfq_id = r.id
+      LEFT JOIN rfq_prepared_people rpp ON rpp.rfq_id = r.id
+      LEFT JOIN users u ON u.id = rpp.user_id
+      ${whereSql}
+      GROUP BY r.id
+      ORDER BY r.id DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+
+    const [rows] = await pool.query(sql, params);
+
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total
        FROM rfq r
        JOIN customers c ON c.id = r.customer_id
        ${whereSql}`,
@@ -199,14 +221,15 @@ export async function listRFQs(req, res) {
       prepared_by: Array.isArray(r.prepared_by)
         ? r.prepared_by
         : JSON.parse(r.prepared_by || "[]").filter(Boolean),
+      has_sales_funnel: !!r.has_sales_funnel,
     }));
 
     res.json({
       results,
       page,
       limit,
-      total: countRows[0].total,
-      total_pages: Math.ceil(countRows[0].total / limit),
+      total,
+      total_pages: Math.ceil(total / limit),
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -217,28 +240,55 @@ export async function listRFQs(req, res) {
 export async function getRFQById(req, res) {
   try {
     const id = Number(req.params.id);
+
+    const latestSF = `
+      SELECT sf.*
+      FROM sales_funnel sf
+      JOIN (
+        SELECT rfq_id, MAX(last_updated) AS lu
+        FROM sales_funnel
+        GROUP BY rfq_id
+      ) x
+        ON x.rfq_id = sf.rfq_id
+       AND x.lu     = sf.last_updated
+    `;
+
     const [rows] = await pool.query(
-      `SELECT r.*,
-              c.name AS customer_name,
-              u1.name AS salesperson_name,
-              JSON_ARRAYAGG(JSON_OBJECT('id', u.id, 'name', u.name, 'email', u.email, 'short_form', u.short_form)) AS prepared_by
+      `SELECT
+         r.*,
+         c.name AS customer_name,
+         u1.name AS salesperson_name,
+         JSON_ARRAYAGG(
+           CASE WHEN u.id IS NULL THEN NULL
+                ELSE JSON_OBJECT('id', u.id, 'name', u.name, 'email', u.email, 'short_form', u.short_form)
+           END
+         ) AS prepared_by,
+         EXISTS(SELECT 1 FROM sales_funnel s WHERE s.rfq_id = r.id) AS has_sales_funnel,
+         lsf.id           AS latest_sales_funnel_id,
+         lsf.status       AS latest_sales_funnel_status,
+         lsf.last_updated AS latest_sales_funnel_last_updated
        FROM rfq r
        JOIN customers c ON c.id = r.customer_id
        JOIN users u1     ON u1.id = r.salesperson_id
+       LEFT JOIN (${latestSF}) lsf ON lsf.rfq_id = r.id
        LEFT JOIN rfq_prepared_people rpp ON rpp.rfq_id = r.id
        LEFT JOIN users u ON u.id = rpp.user_id
        WHERE r.id = ?
        GROUP BY r.id`,
       [id]
     );
+
     if (!rows.length) return res.status(404).json({ message: "RFQ not found" });
 
     const row = rows[0];
     row.prepared_by = Array.isArray(row.prepared_by)
       ? row.prepared_by
       : JSON.parse(row.prepared_by || "[]").filter(Boolean);
+    row.has_sales_funnel = !!row.has_sales_funnel;
+
     res.json(row);
   } catch (err) {
+    console.error("getRFQById error:", err);
     res.status(500).json({ message: err.message });
   }
 }

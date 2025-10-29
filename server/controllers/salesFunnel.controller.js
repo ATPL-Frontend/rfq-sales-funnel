@@ -25,11 +25,9 @@ export async function createSalesFunnel(req, res) {
     } = req.body;
 
     if (!rfq_id || !quote_date || !sent_by || !exp_win_date) {
-      return res
-        .status(400)
-        .json({
-          message: "rfq_id, quote_date, sent_by, exp_win_date are required",
-        });
+      return res.status(400).json({
+        message: "rfq_id, quote_date, sent_by, exp_win_date are required",
+      });
     }
 
     // Check RFQ and its progress
@@ -80,6 +78,7 @@ export async function createSalesFunnel(req, res) {
 export async function listSalesFunnels(req, res) {
   try {
     const rfq_id = req.query.rfq_id ? Number(req.query.rfq_id) : null;
+    const status = (req.query.status || "").trim();
     const limit = Math.min(parseInt(req.query.limit || "50", 10), 200);
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
     const offset = (page - 1) * limit;
@@ -87,34 +86,70 @@ export async function listSalesFunnels(req, res) {
     const where = [];
     const params = [];
     if (rfq_id) {
-      where.push("sf.rfq_id=?");
+      where.push("sf.rfq_id = ?");
       params.push(rfq_id);
+    }
+    if (status) {
+      where.push("sf.status  = ?");
+      params.push(status);
     }
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
     const [rows] = await pool.query(
-      `SELECT sf.*, r.progress AS rfq_progress
+      `SELECT
+         sf.*,
+         -- RFQ basics
+         r.receive_date, r.start_date, r.quantity, r.price, r.end_date,
+         r.rfq_location, r.remarks AS rfq_remarks,
+         r.progress AS rfq_progress,
+         -- Related entities
+         c.id   AS customer_id,
+         c.name AS customer_name,
+         c.email AS customer_email,
+         c.code  AS customer_code,
+         u1.id   AS salesperson_user_id,
+         u1.name AS salesperson_name,
+         u1.email AS salesperson_email,
+         -- prepared_by aggregation from junction table
+         JSON_ARRAYAGG(
+           CASE WHEN u.id IS NULL THEN NULL
+                ELSE JSON_OBJECT('id', u.id, 'name', u.name, 'email', u.email, 'short_form', u.short_form)
+           END
+         ) AS prepared_by
        FROM sales_funnel sf
-       JOIN rfq r ON r.id = sf.rfq_id
+       JOIN rfq r       ON r.id = sf.rfq_id
+       JOIN customers c ON c.id = r.customer_id
+       JOIN users u1    ON u1.id = r.salesperson_id
+       LEFT JOIN rfq_prepared_people rpp ON rpp.rfq_id = r.id
+       LEFT JOIN users u ON u.id = rpp.user_id
        ${whereSql}
-       ORDER BY sf.id DESC
+       GROUP BY sf.id
+       ORDER BY sf.last_updated DESC, sf.id DESC
        LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
 
-    const [countRows] = await pool.query(
-      `SELECT COUNT(*) as total
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total
        FROM sales_funnel sf
-       ${rfq_id ? "WHERE sf.rfq_id=?" : ""}`,
-      rfq_id ? [rfq_id] : []
+       ${whereSql ? whereSql : ""}`,
+      params
     );
 
+    // normalize prepared_by to a clean array
+    const results = rows.map((r) => ({
+      ...r,
+      prepared_by: Array.isArray(r.prepared_by)
+        ? r.prepared_by
+        : JSON.parse(r.prepared_by || "[]").filter(Boolean),
+    }));
+
     res.json({
-      results: rows,
+      results,
       page,
       limit,
-      total: countRows[0].total,
-      total_pages: Math.ceil(countRows[0].total / limit),
+      total,
+      total_pages: Math.ceil(total / limit),
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -125,16 +160,49 @@ export async function listSalesFunnels(req, res) {
 export async function getSalesFunnelById(req, res) {
   try {
     const id = Number(req.params.id);
+
     const [rows] = await pool.query(
-      `SELECT sf.*, r.progress AS rfq_progress
+      `SELECT
+         sf.*,
+         -- RFQ basics
+         r.receive_date, r.start_date, r.quantity, r.price, r.end_date,
+         r.rfq_location, r.remarks AS rfq_remarks,
+         r.progress AS rfq_progress,
+         -- Related entities
+         c.id   AS customer_id,
+         c.name AS customer_name,
+         c.email AS customer_email,
+         c.code  AS customer_code,
+         u1.id   AS salesperson_user_id,
+         u1.name AS salesperson_name,
+         u1.email AS salesperson_email,
+         -- prepared_by aggregation from junction table
+         JSON_ARRAYAGG(
+           CASE WHEN u.id IS NULL THEN NULL
+                ELSE JSON_OBJECT('id', u.id, 'name', u.name, 'email', u.email, 'short_form', u.short_form)
+           END
+         ) AS prepared_by
        FROM sales_funnel sf
-       JOIN rfq r ON r.id = sf.rfq_id
-       WHERE sf.id = ?`,
+       JOIN rfq r       ON r.id = sf.rfq_id
+       JOIN customers c ON c.id = r.customer_id
+       JOIN users u1    ON u1.id = r.salesperson_id
+       LEFT JOIN rfq_prepared_people rpp ON rpp.rfq_id = r.id
+       LEFT JOIN users u ON u.id = rpp.user_id
+       WHERE sf.id = ?
+       GROUP BY sf.id`,
       [id]
     );
-    if (!rows.length)
+
+    if (!rows.length) {
       return res.status(404).json({ message: "Sales Funnel not found" });
-    res.json(rows[0]);
+    }
+
+    const row = rows[0];
+    row.prepared_by = Array.isArray(row.prepared_by)
+      ? row.prepared_by
+      : JSON.parse(row.prepared_by || "[]").filter(Boolean);
+
+    res.json(row);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

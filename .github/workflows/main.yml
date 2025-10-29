@@ -110,3 +110,4 @@ jobs:
             **/.DS_Store
             **/.vscode/**
             **/.idea/**
+            .htaccess

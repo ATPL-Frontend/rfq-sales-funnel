@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import { pool } from "../lib/dbconnect-mysql.js";
+import { cookieOpts } from "../utils/authMiddleware.js";
 
 /** GET /api/users  (admin/super-admin) */
 export async function listUsers(req, res) {

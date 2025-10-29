@@ -3,8 +3,7 @@ import cors from "cors";
 import "dotenv/config";
 import express from "express";
 import rateLimit from "express-rate-limit";
-// import helmet from "helmet";
-// import morgan from "morgan";
+import morgan from "morgan";
 
 import { connectDB } from "./lib/dbconnect-mysql.js";
 
@@ -26,7 +25,6 @@ const PORT = process.env.PORT || 5000;
 
 /* ---------- Security, CORS, parsers, logging ---------- */
 app.set("trust proxy", 1); // for rate limit & cookies behind proxy
-// app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(
   cors({
     origin: process.env.CLIENT_URL || true,
@@ -35,7 +33,7 @@ app.use(
 );
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
-// app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
+app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
 // Rate-limit auth endpoints (helps against OTP/JWT abuse)
 const authLimiter = rateLimit({
@@ -48,7 +46,7 @@ app.use("/api/auth", authLimiter);
 
 /* ------------------- Health check --------------------- */
 app.get("/api/alive", (_req, res) => res.json({ message: "Server is alive" }));
-app.use("/api/auth/test", (_req, res) => res.json({ message: "Testing the API" }));
+
 /* -------------------- API Routes ---------------------- */
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
