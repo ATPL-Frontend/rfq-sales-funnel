@@ -25,6 +25,14 @@ export async function register(req, res) {
   if (!password) errors.password = "Password is required";
   if (!short_form) errors.short_form = "Short form is required";
 
+  let normalizedRole = "user";
+
+  try {
+    normalizedRole = normalizeRoles(role);
+  } catch (e) {
+    errors.role = e.message;
+  }
+
   if (Object.keys(errors).length > 0) {
     return res.status(400).json({
       success: false,
@@ -36,11 +44,16 @@ export async function register(req, res) {
   const hashed = await bcrypt.hash(password, 10);
   try {
     await pool.query(
-      "INSERT INTO users (name, email, short_form, password, role) VALUES (?, ?, ?, ?, ?)",
-      [name, email, short_form, hashed, JSON.stringify(role)]
+      "INSERT INTO users (name, email, short_form, password, role) VALUES (?, ?, ?, ?, JSON_ARRAY(?))",
+      [name, email, short_form, hashed, normalizedRole]
     );
     res.status(201).json({ success: true, message: "User registered" });
   } catch (err) {
+    if (err && err.code === "ER_DUP_ENTRY") {
+      return res
+        .status(409)
+        .json({ success: false, message: "Email already exists" });
+    }
     res.status(500).json({ success: false, message: err.message });
   }
 }

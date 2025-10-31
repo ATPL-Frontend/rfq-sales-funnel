@@ -1,16 +1,38 @@
-// utils/role.js
-export function normalizeRoles(raw) {
-  if (raw == null) return ["user"];
-  if (Array.isArray(raw)) return raw;
-  const s = String(raw).trim();
-  if (!s) return ["user"];
-  // try JSON first
-  if (s.startsWith("[") || s.startsWith("{")) {
-    try { 
-      const v = JSON.parse(s); 
-      return Array.isArray(v) ? v : [String(v)];
-    } catch {}
+const ALLOWED_ROLES = new Set(["admin", "super-admin", "sales-person", "user"]);
+
+export function normalizeRoles(input) {
+  if (input == null) return "sales-person";
+
+  let value = input;
+
+  if (typeof value === "string") {
+    // Could be a raw string OR a JSON stringified array
+    const trimmed = value.trim();
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        value = parsed;
+      } catch {
+        // fall through; treat as plain string
+        value = trimmed;
+      }
+    } else {
+      value = trimmed;
+    }
   }
-  // fallback: comma/space separated string -> array
-  return s.split(",").map(x => x.trim()).filter(Boolean);
+
+  if (Array.isArray(value)) {
+    if (value.length !== 1) {
+      throw new Error("Only one role is allowed.");
+    }
+    value = String(value[0]).trim();
+  }
+
+  const role = String(value).toLowerCase();
+  if (!ALLOWED_ROLES.has(role)) {
+    throw new Error(
+      "Invalid role. Must be one of: admin, super-admin, sales-person."
+    );
+  }
+  return role;
 }
