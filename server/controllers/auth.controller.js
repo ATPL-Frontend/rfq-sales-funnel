@@ -4,14 +4,14 @@ import { pool } from "../lib/dbconnect-mysql.js";
 import { sendMail } from "../utils/email.js";
 import { normalizeRoles } from "../utils/role.js";
 
-const cookieOpts = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production", // true on HTTPS
-  sameSite: "lax", // or "strict"; use "none" if cross-site
-  maxAge: 2 * 60 * 60 * 1000, // 2 hours
-  // domain: ".atpldhaka.com",                   // uncomment if using subdomains
-  path: "/", // cookie valid for whole site
-};
+// const cookieOpts = {
+//   httpOnly: true,
+//   secure: process.env.NODE_ENV === "production", // true on HTTPS
+//   sameSite: "lax", // or "strict"; use "none" if cross-site
+//   maxAge: 2 * 60 * 60 * 1000, // 2 hours
+//   // domain: ".atpldhaka.com",                   // uncomment if using subdomains
+//   path: "/", // cookie valid for whole site
+// };
 
 const generateOTP = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
@@ -106,7 +106,7 @@ export async function verifyOTP(req, res) {
   const token = jwt.sign(
     { id: user.id, email: user.email, role },
     process.env.JWT_SECRET,
-    { expiresIn: "2h" }
+    { expiresIn: "24h" }
   );
 
   await pool.query(
@@ -115,7 +115,17 @@ export async function verifyOTP(req, res) {
   );
 
   // 🔐 Set cookie
-  res.cookie("access_token", token, cookieOpts);
+  // res.cookie("access_token", token, cookieOpts);
 
-  res.json({ success: true, message: "Logged in" });
+  res.json({
+    success: true,
+    message: "Logged in",
+    token,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role,
+    },
+  });
 }

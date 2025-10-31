@@ -1,6 +1,6 @@
 import bcrypt from "bcrypt";
 import { pool } from "../lib/dbconnect-mysql.js";
-import { cookieOpts } from "../utils/authMiddleware.js";
+// import { cookieOpts } from "../utils/authMiddleware.js";
 
 /** GET /api/users  (admin/super-admin) */
 export async function listUsers(req, res) {
@@ -179,13 +179,13 @@ export async function logout(req, res) {
       await pool.query("UPDATE users SET token=NULL WHERE id=?", [req.user.id]);
     }
     // Clear the cookie using the SAME attributes you set it with
-    res.clearCookie("access_token", {
-      httpOnly: cookieOpts.httpOnly,
-      secure: cookieOpts.secure,
-      sameSite: cookieOpts.sameSite,
-      path: cookieOpts.path,
-      // domain: cookieOpts.domain, // only if you set it originally
-    });
+    // res.clearCookie("access_token", {
+    //   httpOnly: cookieOpts.httpOnly,
+    //   secure: cookieOpts.secure,
+    //   sameSite: cookieOpts.sameSite,
+    //   path: cookieOpts.path,
+    //   // domain: cookieOpts.domain, // only if you set it originally
+    // });
     return res.json({ success: true, message: "Logged out" });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
