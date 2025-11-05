@@ -2,6 +2,20 @@ import bcrypt from "bcrypt";
 import { pool } from "../lib/dbconnect-mysql.js";
 // import { cookieOpts } from "../utils/authMiddleware.js";
 
+function normalizeRoles(role) {
+  if (Array.isArray(role))
+    return [...new Set(role.map((r) => String(r).trim()).filter(Boolean))];
+  if (role == null) return null;
+  return [
+    ...new Set(
+      String(role)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    ),
+  ];
+}
+
 /** GET /api/users  (admin/super-admin) */
 export async function listUsers(req, res) {
   try {
@@ -84,7 +98,7 @@ export async function getMe(req, res) {
 }
 
 /** PUT /api/users/:id  (admin/super-admin)
- *  Fields: name, email, short_form, password, role (array)
+ *  Fields: name, short_form, password, role (array)
  */
 export async function updateUser(req, res) {
   try {
@@ -100,20 +114,32 @@ export async function updateUser(req, res) {
     const params = [];
 
     if (name !== undefined) {
+      name = String(name).trim();
+      if (!name)
+        return res.status(400).json({ message: "name cannot be empty" });
       updates.push("name=?");
       params.push(name);
     }
-    if (email !== undefined) {
-      updates.push("email=?");
-      params.push(email);
-    }
     if (short_form !== undefined) {
+      short_form = String(short_form).trim();
+      if (!short_form)
+        return res.status(400).json({ message: "short_form cannot be empty" });
       updates.push("short_form=?");
       params.push(short_form);
     }
-    if (Array.isArray(role)) {
+    const roles = normalizeRoles(role);
+    if (roles) {
+      // Optional: restrict to known roles
+      const ALLOWED = new Set([
+        "user",
+        "salesperson",
+        "admin",
+        "super-admin",
+        "sales-person",
+      ]);
+      const cleaned = roles.filter((r) => ALLOWED.has(r));
       updates.push("role=?");
-      params.push(JSON.stringify(role));
+      params.push(JSON.stringify(cleaned));
     }
     if (password !== undefined) {
       if (String(password).length < 8) {
@@ -141,13 +167,20 @@ export async function updateUser(req, res) {
       [id]
     );
     const u = rows[0];
-    u.role = Array.isArray(u.role) ? u.role : JSON.parse(u.role || "[]");
-    res.json(u);
+    try {
+      u.role = Array.isArray(u.role) ? u.role : JSON.parse(u.role || "[]");
+    } catch {
+      u.role = [];
+    }
+    return res.json(u);
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
-      return res.status(409).json({ message: "Email already exists" });
+      // Only short_form could realistically collide now
+      return res
+        .status(409)
+        .json({ message: "Duplicate value (probably short_form)" });
     }
-    res.status(500).json({ message: err.message });
+    return res.status(500).json({ message: err.message });
   }
 }
 

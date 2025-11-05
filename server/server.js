@@ -15,13 +15,15 @@ import {
 } from "./models/rfq.model.js";
 import { createSalesFunnelTable } from "./models/salesFunnel.model.js";
 import { createUserTable } from "./models/user.model.js";
+import { createInvoiceTable } from "./models/invoice.model.js";
 
 // Routers
 import authRoutes from "./routes/auth.routes.js";
+import userRoutes from "./routes/user.routes.js";
 import customerRoutes from "./routes/customer.routes.js";
 import rfqRoutes from "./routes/rfq.routes.js";
 import salesFunnelRoutes from "./routes/salesFunnel.routes.js";
-import userRoutes from "./routes/user.routes.js";
+import invoiceRoutes from "./routes/invoice.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -73,6 +75,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/rfqs", rfqRoutes);
 app.use("/api/sales-funnels", salesFunnelRoutes);
+app.use("/api/invoices", invoiceRoutes);
 
 /* ----------------- 404 + Error handlers --------------- */
 app.use((req, res, next) => {
@@ -104,6 +107,7 @@ app.use((err, _req, res, _next) => {
     await createRFQTable();
     await createRFQPreparedPeopleTable();
     await createSalesFunnelTable();
+    await createInvoiceTable();
 
     app.listen(PORT, () =>
       console.log(`🚀 Server running on http://localhost:${PORT}`)

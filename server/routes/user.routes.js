@@ -19,6 +19,6 @@ router.post("/logout", authenticate, logout);
 router.get("/", authenticate, authorize("admin", "super-admin"), listUsers);
 router.get("/:id", authenticate, authorize("admin", "super-admin"), getUserById);
 router.put("/:id", authenticate, authorize("admin", "super-admin"), updateUser);
-router.delete("/:id", authenticate, authorize("admin", "super-admin"), deleteUser);
+router.delete("/:id", authenticate, authorize("super-admin"), deleteUser);
 
 export default router;
