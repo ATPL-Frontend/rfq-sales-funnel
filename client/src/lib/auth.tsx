@@ -73,7 +73,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ) => {
     try {
       const loading = toast.loading("Signing up...");
-      const { data } = await api.post("/api/auth/register", {
+      
+      await api.post("/api/auth/register", {
         email,
         password,
         name,
