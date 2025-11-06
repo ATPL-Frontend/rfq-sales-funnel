@@ -47,19 +47,29 @@ export function authenticate(req, res, next) {
   }
 }
 
-export function authorize(...roles) {
-  return (req, res, next) => {
-    const userRolesRaw = req.user?.role ?? [];
-    // tolerate string or JSON string in req.user.role
-    const userRoles = Array.isArray(userRolesRaw)
-      ? userRolesRaw
-      : String(userRolesRaw)
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
+// export function authorize(...roles) {
+//   return (req, res, next) => {
+//     const userRolesRaw = req.user?.role ?? [];
+//     // tolerate string or JSON string in req.user.role
+//     const userRoles = Array.isArray(userRolesRaw)
+//       ? userRolesRaw
+//       : String(userRolesRaw)
+//           .split(",")
+//           .map((s) => s.trim())
+//           .filter(Boolean);
 
-    const allowed = roles.some((r) => userRoles.includes(r));
-    if (!allowed) return res.status(403).json({ message: "Forbidden" });
+//     const allowed = roles.some((r) => userRoles.includes(r));
+//     if (!allowed) return res.status(403).json({ message: "Forbidden" });
+//     next();
+//   };
+// }
+
+export function authorize(...needed) {
+  return (req, res, next) => {
+    const have = Array.isArray(req.user?.role) ? req.user.role : [];
+    const ok = needed.some(n => have.includes(n));
+    if (!ok) return res.status(403).json({ message: "Forbidden" });
     next();
   };
 }
+

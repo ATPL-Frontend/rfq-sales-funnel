@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { pool } from "../lib/dbconnect-mysql.js";
 import { sendMail } from "../utils/email.js";
-import { normalizeRoles } from "../utils/role.js";
+import { normalizeRoleList } from "../utils/role.js";
 
 // const cookieOpts = {
 //   httpOnly: true,
@@ -90,55 +90,34 @@ export async function login(req, res) {
 }
 
 export async function verifyOTP(req, res) {
-  const { email, otp } = req.body || {};
-  if (!email || !otp)
-    return res
-      .status(400)
-      .json({ success: false, message: "Email and OTP are required" });
+  try {
+    const { email, otp } = req.body;
+    const [rows] = await pool.query("SELECT * FROM users WHERE email=?", [email]);
+    if (!rows.length) return res.status(404).json({ message: "User not found" });
 
-  const [rows] = await pool.query("SELECT * FROM users WHERE email=?", [
-    email.trim().toLowerCase(),
-  ]);
-  if (rows.length === 0)
-    return res.status(404).json({ success: false, message: "User not found" });
+    const user = rows[0];
+    if (user.otp_code !== otp || new Date(user.otp_expires) < new Date()) {
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+    }
 
-  const user = rows[0];
+    // ✅ normalize DB roles (could be JSON string, array, etc.)
+    const roles = normalizeRoleList(user.role);
 
-  const ok =
-    user.otp_code &&
-    String(user.otp_code) === String(otp) &&
-    user.otp_expires &&
-    new Date(user.otp_expires) > new Date();
-  if (!ok)
-    return res
-      .status(400)
-      .json({ success: false, message: "Invalid or expired OTP" });
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: roles }, // keep as array
+      process.env.JWT_SECRET,
+      { expiresIn: "2h" }
+    );
 
-  const role = normalizeRoles(user.role);
+    await pool.query("UPDATE users SET otp_code=NULL, otp_expires=NULL, token=? WHERE id=?", [
+      token, user.id,
+    ]);
 
-  const token = jwt.sign(
-    { id: user.id, email: user.email, role },
-    process.env.JWT_SECRET,
-    { expiresIn: "24h" }
-  );
+    // Set cookie if you’re using cookies
+    // res.cookie("access_token", token, cookieOpts);
 
-  await pool.query(
-    "UPDATE users SET otp_code=NULL, otp_expires=NULL, token=? WHERE id=?",
-    [token, user.id]
-  );
-
-  // 🔐 Set cookie
-  // res.cookie("access_token", token, cookieOpts);
-
-  res.json({
-    success: true,
-    message: "Logged in",
-    token,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role,
-    },
-  });
+    res.json({ token });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 }
