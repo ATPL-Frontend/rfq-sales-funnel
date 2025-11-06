@@ -2,18 +2,33 @@ import bcrypt from "bcrypt";
 import { pool } from "../lib/dbconnect-mysql.js";
 // import { cookieOpts } from "../utils/authMiddleware.js";
 
-function normalizeRoles(role) {
-  if (Array.isArray(role))
-    return [...new Set(role.map((r) => String(r).trim()).filter(Boolean))];
-  if (role == null) return null;
-  return [
-    ...new Set(
-      String(role)
+function normalizeRoles(input) {
+  if (input === undefined) return undefined; // means "don't change roles"
+
+  const ALLOWED = new Set(["user", "sales-person", "admin", "super-admin"]);
+
+  const arr = Array.isArray(input)
+    ? input
+    : String(input || "")
         .split(",")
         .map((s) => s.trim())
-        .filter(Boolean)
-    ),
-  ];
+        .filter(Boolean);
+
+  if (arr.length > 0 && out.length === 0) {
+    throw new Error("No valid roles provided");
+  }
+
+  // Lowercase + dedupe + keep only allowed (no aliasing)
+  const out = [];
+  for (const r of arr) {
+    const v = String(r).trim().toLowerCase();
+    if (ALLOWED.has(v) && !out.includes(v)) out.push(v);
+  }
+  return out;
+}
+
+function hasRole(roles, r) {
+  return Array.isArray(roles) && roles.includes(r);
 }
 
 /** GET /api/users  (admin/super-admin) */
@@ -97,19 +112,47 @@ export async function getMe(req, res) {
   }
 }
 
-/** PUT /api/users/:id  (admin/super-admin)
- *  Fields: name, short_form, password, role (array)
+/** PUT /api/users/:id  (admin or super-admin)
+ *  - Only super-admin can modify roles
+ *  - Prevent removing the last super-admin
+ *  - Email is immutable
  */
 export async function updateUser(req, res) {
   try {
-    const id = Number(req.params.id);
-    const [exists] = await pool.query("SELECT * FROM users WHERE id=?", [id]);
-    if (!exists.length)
-      return res.status(404).json({ message: "User not found" });
+    const targetId = Number(req.params.id);
 
-    const { name, email, short_form, password, role } = req.body;
+    // Auth context (set by your authenticate middleware)
+    const actorId = req.user?.id;
+    const actorRoles = Array.isArray(req.user?.role)
+      ? req.user.role
+      : (() => {
+          try {
+            return JSON.parse(req.user?.role || "[]");
+          } catch {
+            return [];
+          }
+        })();
 
-    // Build dynamic update
+    const [[target]] = await pool.query(
+      "SELECT id, name, email, short_form, role FROM users WHERE id=?",
+      [targetId]
+    );
+    if (!target) return res.status(404).json({ message: "User not found" });
+
+    // Current roles of target
+    const targetRoles = (() => {
+      try {
+        return JSON.parse(target.role || "[]");
+      } catch {
+        return [];
+      }
+    })();
+
+    // Extract body (email immutable)
+    let { name, short_form, password, role /* email ignored intentionally */ } =
+      req.body || {};
+
+    // Prepare updates
     const updates = [];
     const params = [];
 
@@ -120,6 +163,7 @@ export async function updateUser(req, res) {
       updates.push("name=?");
       params.push(name);
     }
+
     if (short_form !== undefined) {
       short_form = String(short_form).trim();
       if (!short_form)
@@ -127,22 +171,49 @@ export async function updateUser(req, res) {
       updates.push("short_form=?");
       params.push(short_form);
     }
-    const roles = normalizeRoles(role);
-    if (roles) {
-      // Optional: restrict to known roles
-      const ALLOWED = new Set([
-        "user",
-        "salesperson",
-        "admin",
-        "super-admin",
-        "sales-person",
-      ]);
-      const cleaned = roles.filter((r) => ALLOWED.has(r));
-      updates.push("role=?");
-      params.push(JSON.stringify(cleaned));
+
+    // --- ROLE CHANGES (guarded) ---
+    if (requestedRoles !== undefined && actorId === targetId) {
+      return res
+        .status(403)
+        .json({ message: "You cannot change your own role" });
     }
+
+    const requestedRoles = normalizeRoles(role);
+    if (requestedRoles !== undefined) {
+      // Rule 1: only super-admin can change roles
+      if (!hasRole(actorRoles, "super-admin")) {
+        return res
+          .status(403)
+          .json({ message: "Only super-admin can change roles" });
+      }
+
+      // Rule 2: prevent removing the last super-admin
+      const targetWasSuperAdmin = hasRole(targetRoles, "super-admin");
+      const targetWillBeSuperAdmin = hasRole(requestedRoles, "super-admin");
+
+      if (targetWasSuperAdmin && !targetWillBeSuperAdmin) {
+        // count current super-admins
+        const [[row]] = await pool.query(
+          `SELECT COUNT(*) AS cnt
+             FROM users
+            WHERE JSON_CONTAINS(role, JSON_QUOTE('super-admin'))`
+        );
+        const superCount = Number(row?.cnt || 0);
+        if (superCount <= 1) {
+          return res.status(400).json({
+            message: "Cannot remove role: this is the last super-admin",
+          });
+        }
+      }
+
+      updates.push("role=?");
+      params.push(JSON.stringify(requestedRoles));
+    }
+
     if (password !== undefined) {
-      if (String(password).length < 8) {
+      password = String(password);
+      if (password.length < 8) {
         return res
           .status(400)
           .json({ message: "Password must be at least 8 characters" });
@@ -156,7 +227,7 @@ export async function updateUser(req, res) {
       return res.status(400).json({ message: "No valid fields to update" });
     }
 
-    params.push(id);
+    params.push(targetId);
     await pool.query(
       `UPDATE users SET ${updates.join(", ")} WHERE id=?`,
       params
@@ -164,7 +235,7 @@ export async function updateUser(req, res) {
 
     const [rows] = await pool.query(
       "SELECT id, name, email, short_form, role, created_at FROM users WHERE id=?",
-      [id]
+      [targetId]
     );
     const u = rows[0];
     try {
@@ -172,10 +243,10 @@ export async function updateUser(req, res) {
     } catch {
       u.role = [];
     }
+
     return res.json(u);
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
-      // Only short_form could realistically collide now
       return res
         .status(409)
         .json({ message: "Duplicate value (probably short_form)" });
@@ -194,11 +265,12 @@ export async function deleteUser(req, res) {
         .json({ message: "You cannot delete your own account" });
     }
 
-    const [rows] = await pool.query("SELECT id FROM users WHERE id=?", [id]);
-    if (!rows.length)
+    const [r] = await pool.query(
+      "UPDATE users SET is_active=0, deactivated_at=NOW() WHERE id=?",
+      [id]
+    );
+    if (r.affectedRows === 0)
       return res.status(404).json({ message: "User not found" });
-
-    await pool.query("DELETE FROM users WHERE id=?", [id]);
     res.json({ message: "User deleted" });
   } catch (err) {
     res.status(500).json({ message: err.message });

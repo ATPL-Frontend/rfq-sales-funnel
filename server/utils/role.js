@@ -31,7 +31,7 @@ export function normalizeRoles(input) {
   const role = String(value).toLowerCase();
   if (!ALLOWED_ROLES.has(role)) {
     throw new Error(
-      "Invalid role. Must be one of: admin, super-admin, sales-person."
+      "Invalid role. Must be one of: admin, super-admin, sales-person, user."
     );
   }
   return role;
