@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import ac from "../utils/roles.js"; // AccessControl permissions
+import ac from "../utils/roles.js";
 
 /**
  * ✅ Authenticate Middleware
@@ -7,7 +7,6 @@ import ac from "../utils/roles.js"; // AccessControl permissions
  */
 export function authenticate(req, res, next) {
   try {
-    // 1️⃣ Get token from Authorization header
     const authHeader = (req.headers.authorization || "").trim();
     if (!authHeader) {
       res.setHeader("WWW-Authenticate", 'Bearer realm="api"');
@@ -20,12 +19,8 @@ export function authenticate(req, res, next) {
       return res.status(401).json({ message: "Invalid Authorization header format" });
     }
 
-    // 2️⃣ Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // decoded contains { id, email, role, ... }
     req.user = decoded;
-
     next();
   } catch (err) {
     console.error("Auth error:", err.message);
@@ -34,22 +29,27 @@ export function authenticate(req, res, next) {
 }
 
 /**
- * ✅ Authorize Middleware (AccessControl)
- * Checks if user's role has permission to perform an action on a resource
- * @param {string} action - CRUD action (createOwn, readAny, updateOwn, etc.)
- * @param {string} resource - resource name (e.g. 'rfq', 'customer', 'user')
+ * ✅ Authorize Middleware (with Super-Admin bypass)
+ * Checks AccessControl permissions based on role/action/resource.
  */
 export function authorize(action, resource) {
   return (req, res, next) => {
     try {
+      // Extract role
       const role = Array.isArray(req.user?.role)
-        ? req.user.role[0] // use first role if array
+        ? req.user.role[0]
         : req.user?.role;
 
       if (!role) {
         return res.status(403).json({ message: "Missing role in token" });
       }
 
+      // 🟢 Super-Admin Bypass
+      if (role === "super-admin") {
+        return next(); // always allow
+      }
+
+      // Check permission via AccessControl
       const permission = ac.can(role)[action](resource);
       if (!permission.granted) {
         return res.status(403).json({
