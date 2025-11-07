@@ -6,12 +6,57 @@ import {
   updateSalesFunnel,
   deleteSalesFunnel,
 } from "../controllers/salesFunnel.controller.js";
-import { authenticate } from "../utils/authMiddleware.js";
+import { authenticate, authorize } from "../utils/authMiddleware.js";
 
 const router = express.Router();
-router.post("/", authenticate, createSalesFunnel);
-router.get("/", authenticate, listSalesFunnels);
-router.get("/:id", authenticate, getSalesFunnelById);
-router.put("/:id", authenticate, updateSalesFunnel);
-router.delete("/:id", authenticate, deleteSalesFunnel);
+
+// ================================
+// SALES FUNNEL ROUTES WITH ROLE PERMISSIONS
+// ================================
+
+// 🟢 Create Sales Funnel
+// sales-person, admin, super-admin → createAny
+router.post(
+  "/",
+  authenticate,
+  authorize("createAny", "sales-funnel"),
+  createSalesFunnel
+);
+
+// 🟢 List all Sales Funnels
+// sales-person, admin, super-admin → readAny
+router.get(
+  "/",
+  authenticate,
+  authorize("readAny", "sales-funnel"),
+  listSalesFunnels
+);
+
+// 🟢 Get single Sales Funnel
+// sales-person, admin, super-admin → readAny
+router.get(
+  "/:id",
+  authenticate,
+  authorize("readAny", "sales-funnel"),
+  getSalesFunnelById
+);
+
+// 🟡 Update Sales Funnel
+// sales-person, admin, super-admin → updateAny
+router.put(
+  "/:id",
+  authenticate,
+  authorize("updateAny", "sales-funnel"),
+  updateSalesFunnel
+);
+
+// 🔴 Delete Sales Funnel
+// admin, super-admin → deleteAny
+router.delete(
+  "/:id",
+  authenticate,
+  authorize("deleteAny", "sales-funnel"),
+  deleteSalesFunnel
+);
+
 export default router;

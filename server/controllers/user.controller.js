@@ -1,222 +1,186 @@
 import bcrypt from "bcrypt";
 import { pool } from "../lib/dbconnect-mysql.js";
-// import { cookieOpts } from "../utils/authMiddleware.js";
 
-function normalizeRoles(input) {
-  if (input === undefined) return undefined; // means "don't change roles"
-
-  const ALLOWED = new Set(["user", "sales-person", "admin", "super-admin"]);
-
-  const arr = Array.isArray(input)
-    ? input
-    : String(input || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-
-  if (arr.length > 0 && out.length === 0) {
-    throw new Error("No valid roles provided");
-  }
-
-  // Lowercase + dedupe + keep only allowed (no aliasing)
-  const out = [];
-  for (const r of arr) {
-    const v = String(r).trim().toLowerCase();
-    if (ALLOWED.has(v) && !out.includes(v)) out.push(v);
-  }
-  return out;
+/** Helper: check if the authenticated user has a given role */
+function hasRole(req, roleName) {
+  return req.user?.role === roleName || req.user?.role_name === roleName;
 }
 
-function hasRole(roles, r) {
-  return Array.isArray(roles) && roles.includes(r);
-}
-
-/** GET /api/users  (admin/super-admin) */
+/** GET /api/users — list all users (admin/super-admin only) */
 export async function listUsers(req, res) {
   try {
+    if (!hasRole(req, "admin") && !hasRole(req, "super-admin")) {
+      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+    }
+
     const q = (req.query.q || "").trim();
     const limit = Math.min(parseInt(req.query.limit || "50", 10), 200);
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
     const offset = (page - 1) * limit;
 
     let where = "";
-    let params = [];
+    const params = [];
+
     if (q) {
-      where = "WHERE (name LIKE ? OR email LIKE ? OR short_form LIKE ?)";
+      where = "WHERE (u.name LIKE ? OR u.email LIKE ? OR u.short_form LIKE ?)";
       const like = `%${q}%`;
-      params = [like, like, like];
+      params.push(like, like, like);
     }
 
     const [rows] = await pool.query(
-      `SELECT id, name, email, short_form, role, created_at
-       FROM users
+      `SELECT 
+         u.id, u.name, u.email, u.short_form, u.created_at, r.name AS role_name
+       FROM users u
+       LEFT JOIN roles r ON u.role_id = r.id
        ${where}
-       ORDER BY id DESC
+       ORDER BY u.id DESC
        LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
 
-    const [countRows] = await pool.query(
-      `SELECT COUNT(*) AS total FROM users ${where}`,
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total 
+       FROM users u
+       ${where}`,
       params
     );
 
     res.json({
-      results: rows.map((u) => ({
-        ...u,
-        role: Array.isArray(u.role) ? u.role : JSON.parse(u.role || "[]"),
-      })),
+      results: rows,
       page,
       limit,
-      total: countRows[0].total,
-      total_pages: Math.ceil(countRows[0].total / limit),
+      total,
+      total_pages: Math.ceil(total / limit),
     });
   } catch (err) {
+    console.error("listUsers error:", err);
     res.status(500).json({ message: err.message });
   }
 }
 
-/** GET /api/users/:id  (admin/super-admin) */
+/** GET /api/users/:id — get single user info (admin/super-admin) */
 export async function getUserById(req, res) {
   try {
+    if (!hasRole(req, "admin") && !hasRole(req, "super-admin")) {
+      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+    }
+
     const id = Number(req.params.id);
     const [rows] = await pool.query(
-      "SELECT id, name, email, short_form, role, created_at FROM users WHERE id=?",
+      `SELECT u.id, u.name, u.email, u.short_form, u.created_at, r.name AS role_name
+       FROM users u
+       LEFT JOIN roles r ON u.role_id = r.id
+       WHERE u.id = ?`,
       [id]
     );
-    if (!rows.length)
-      return res.status(404).json({ message: "User not found" });
-    const u = rows[0];
-    u.role = Array.isArray(u.role) ? u.role : JSON.parse(u.role || "[]");
-    res.json(u);
+
+    if (!rows.length) return res.status(404).json({ message: "User not found" });
+    res.json(rows[0]);
   } catch (err) {
+    console.error("getUserById error:", err);
     res.status(500).json({ message: err.message });
   }
 }
 
-/** GET /api/users/me  (authenticated) */
+/** GET /api/users/me — get own profile (authenticated) */
 export async function getMe(req, res) {
   try {
     const id = req.user?.id;
+    if (!id) return res.status(401).json({ message: "Not authenticated" });
+
     const [rows] = await pool.query(
-      "SELECT id, name, email, short_form, role, created_at FROM users WHERE id=?",
+      `SELECT u.id, u.name, u.email, u.short_form, u.created_at, r.name AS role_name
+       FROM users u
+       LEFT JOIN roles r ON u.role_id = r.id
+       WHERE u.id = ?`,
       [id]
     );
-    if (!rows.length)
-      return res.status(404).json({ message: "User not found" });
-    const u = rows[0];
-    u.role = Array.isArray(u.role) ? u.role : JSON.parse(u.role || "[]");
-    res.json(u);
+
+    if (!rows.length) return res.status(404).json({ message: "User not found" });
+    res.json(rows[0]);
   } catch (err) {
+    console.error("getMe error:", err);
     res.status(500).json({ message: err.message });
   }
 }
 
-/** PUT /api/users/:id  (admin or super-admin)
- *  - Only super-admin can modify roles
- *  - Prevent removing the last super-admin
- *  - Email is immutable
- */
+/** PUT /api/users/:id — update user (super-admin only for roles, admin for info) */
 export async function updateUser(req, res) {
   try {
     const targetId = Number(req.params.id);
-
-    // Auth context (set by your authenticate middleware)
     const actorId = req.user?.id;
-    const actorRoles = Array.isArray(req.user?.role)
-      ? req.user.role
-      : (() => {
-          try {
-            return JSON.parse(req.user?.role || "[]");
-          } catch {
-            return [];
-          }
-        })();
 
+    const isSuper = hasRole(req, "super-admin");
+    const isAdmin = hasRole(req, "admin");
+
+    // Prevent ordinary users from editing others
+    if (!isSuper && !isAdmin && actorId !== targetId) {
+      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+    }
+
+    // Fetch existing user
     const [[target]] = await pool.query(
-      "SELECT id, name, email, short_form, role FROM users WHERE id=?",
+      `SELECT u.id, u.name, u.email, u.short_form, u.password, u.role_id, r.name AS role_name
+       FROM users u
+       LEFT JOIN roles r ON u.role_id = r.id
+       WHERE u.id = ?`,
       [targetId]
     );
     if (!target) return res.status(404).json({ message: "User not found" });
 
-    // Current roles of target
-    const targetRoles = (() => {
-      try {
-        return JSON.parse(target.role || "[]");
-      } catch {
-        return [];
-      }
-    })();
-
-    // Extract body (email immutable)
-    let { name, short_form, password, role /* email ignored intentionally */ } =
-      req.body || {};
-
-    // Prepare updates
+    // Extract fields
+    let { name, short_form, password, role } = req.body || {};
     const updates = [];
     const params = [];
 
+    // Basic info updates
     if (name !== undefined) {
       name = String(name).trim();
-      if (!name)
-        return res.status(400).json({ message: "name cannot be empty" });
+      if (!name) return res.status(400).json({ message: "Name cannot be empty" });
       updates.push("name=?");
       params.push(name);
     }
 
     if (short_form !== undefined) {
       short_form = String(short_form).trim();
-      if (!short_form)
-        return res.status(400).json({ message: "short_form cannot be empty" });
+      if (!short_form) return res.status(400).json({ message: "Short form cannot be empty" });
       updates.push("short_form=?");
       params.push(short_form);
     }
 
-    // --- ROLE CHANGES (guarded) ---
-    if (requestedRoles !== undefined && actorId === targetId) {
-      return res
-        .status(403)
-        .json({ message: "You cannot change your own role" });
-    }
-
-    const requestedRoles = normalizeRoles(role);
-    if (requestedRoles !== undefined) {
-      // Rule 1: only super-admin can change roles
-      if (!hasRole(actorRoles, "super-admin")) {
-        return res
-          .status(403)
-          .json({ message: "Only super-admin can change roles" });
+    // Role changes (super-admin only)
+    if (role !== undefined) {
+      if (!isSuper) {
+        return res.status(403).json({ message: "Only super-admin can change roles" });
       }
 
-      // Rule 2: prevent removing the last super-admin
-      const targetWasSuperAdmin = hasRole(targetRoles, "super-admin");
-      const targetWillBeSuperAdmin = hasRole(requestedRoles, "super-admin");
+      const [roleRows] = await pool.query("SELECT id FROM roles WHERE name=?", [role]);
+      const roleId = roleRows[0]?.id;
+      if (!roleId) {
+        return res.status(400).json({ message: `Invalid role: ${role}` });
+      }
 
-      if (targetWasSuperAdmin && !targetWillBeSuperAdmin) {
-        // count current super-admins
+      // Prevent removing the last super-admin
+      if (target.role_name === "super-admin" && role !== "super-admin") {
         const [[row]] = await pool.query(
-          `SELECT COUNT(*) AS cnt
-             FROM users
-            WHERE JSON_CONTAINS(role, JSON_QUOTE('super-admin'))`
+          "SELECT COUNT(*) AS cnt FROM users u JOIN roles r ON u.role_id = r.id WHERE r.name='super-admin'"
         );
-        const superCount = Number(row?.cnt || 0);
-        if (superCount <= 1) {
+        if (Number(row.cnt) <= 1) {
           return res.status(400).json({
             message: "Cannot remove role: this is the last super-admin",
           });
         }
       }
 
-      updates.push("role=?");
-      params.push(JSON.stringify(requestedRoles));
+      updates.push("role_id=?");
+      params.push(roleId);
     }
 
+    // Password change
     if (password !== undefined) {
       password = String(password);
       if (password.length < 8) {
-        return res
-          .status(400)
-          .json({ message: "Password must be at least 8 characters" });
+        return res.status(400).json({ message: "Password must be at least 8 characters" });
       }
       const hashed = await bcrypt.hash(password, 10);
       updates.push("password=?");
@@ -228,71 +192,73 @@ export async function updateUser(req, res) {
     }
 
     params.push(targetId);
-    await pool.query(
-      `UPDATE users SET ${updates.join(", ")} WHERE id=?`,
-      params
-    );
+    await pool.query(`UPDATE users SET ${updates.join(", ")} WHERE id=?`, params);
 
-    const [rows] = await pool.query(
-      "SELECT id, name, email, short_form, role, created_at FROM users WHERE id=?",
+    const [updated] = await pool.query(
+      `SELECT u.id, u.name, u.email, u.short_form, u.created_at, r.name AS role_name
+       FROM users u
+       LEFT JOIN roles r ON u.role_id = r.id
+       WHERE u.id=?`,
       [targetId]
     );
-    const u = rows[0];
-    try {
-      u.role = Array.isArray(u.role) ? u.role : JSON.parse(u.role || "[]");
-    } catch {
-      u.role = [];
-    }
 
-    return res.json(u);
+    res.json(updated[0]);
   } catch (err) {
-    if (err.code === "ER_DUP_ENTRY") {
-      return res
-        .status(409)
-        .json({ message: "Duplicate value (probably short_form)" });
-    }
-    return res.status(500).json({ message: err.message });
-  }
-}
-
-/** DELETE /api/users/:id  (admin/super-admin) */
-export async function deleteUser(req, res) {
-  try {
-    const id = Number(req.params.id);
-    if (req.user?.id === id) {
-      return res
-        .status(400)
-        .json({ message: "You cannot delete your own account" });
-    }
-
-    const [r] = await pool.query(
-      "UPDATE users SET is_active=0, deactivated_at=NOW() WHERE id=?",
-      [id]
-    );
-    if (r.affectedRows === 0)
-      return res.status(404).json({ message: "User not found" });
-    res.json({ message: "User deleted" });
-  } catch (err) {
+    console.error("updateUser error:", err);
     res.status(500).json({ message: err.message });
   }
 }
 
-/** POST /api/users/logout  (authenticated) – optional */
+/** DELETE /api/users/:id — delete user (super-admin only) */
+export async function deleteUser(req, res) {
+  try {
+    const id = Number(req.params.id);
+    const actorId = req.user?.id;
+
+    if (!hasRole(req, "super-admin")) {
+      return res.status(403).json({ message: "Only super-admin can delete users" });
+    }
+
+    if (id === actorId) {
+      return res.status(400).json({ message: "You cannot delete your own account" });
+    }
+
+    // Prevent deleting last super-admin
+    const [[target]] = await pool.query(
+      `SELECT u.id, r.name AS role_name
+       FROM users u
+       LEFT JOIN roles r ON u.role_id = r.id
+       WHERE u.id=?`,
+      [id]
+    );
+    if (!target) return res.status(404).json({ message: "User not found" });
+
+    if (target.role_name === "super-admin") {
+      const [[row]] = await pool.query(
+        "SELECT COUNT(*) AS cnt FROM users u JOIN roles r ON u.role_id = r.id WHERE r.name='super-admin'"
+      );
+      if (Number(row.cnt) <= 1) {
+        return res.status(400).json({ message: "Cannot delete the last super-admin" });
+      }
+    }
+
+    await pool.query("DELETE FROM users WHERE id=?", [id]);
+    res.json({ success: true, message: "User deleted successfully" });
+  } catch (err) {
+    console.error("deleteUser error:", err);
+    res.status(500).json({ message: err.message });
+  }
+}
+
+/** POST /api/users/logout — clear JWT token */
 export async function logout(req, res) {
   try {
     if (req.user?.id) {
       await pool.query("UPDATE users SET token=NULL WHERE id=?", [req.user.id]);
     }
-    // Clear the cookie using the SAME attributes you set it with
-    // res.clearCookie("access_token", {
-    //   httpOnly: cookieOpts.httpOnly,
-    //   secure: cookieOpts.secure,
-    //   sameSite: cookieOpts.sameSite,
-    //   path: cookieOpts.path,
-    //   // domain: cookieOpts.domain, // only if you set it originally
-    // });
-    return res.json({ success: true, message: "Logged out" });
+    res.json({ success: true, message: "Logged out" });
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    console.error("logout error:", err);
+    res.status(500).json({ success: false, message: err.message });
   }
 }
