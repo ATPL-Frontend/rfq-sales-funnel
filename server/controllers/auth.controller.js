@@ -1,23 +1,16 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { pool } from "../lib/dbconnect-mysql.js";
-import { sendMail } from "../utils/email.js";
-import { normalizeRoleList } from "../utils/role.js";
+import { sendMail } from "../utils/email.js"; // <-- must be configured to send email (SMTP)
 
-// const cookieOpts = {
-//   httpOnly: true,
-//   secure: process.env.NODE_ENV === "production", // true on HTTPS
-//   sameSite: "lax", // or "strict"; use "none" if cross-site
-//   maxAge: 2 * 60 * 60 * 1000, // 2 hours
-//   // domain: ".atpldhaka.com",                   // uncomment if using subdomains
-//   path: "/", // cookie valid for whole site
-// };
+// Generate 6-digit OTP
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
-const generateOTP = () =>
-  Math.floor(100000 + Math.random() * 900000).toString();
-
+/**
+ * 🧩 Register a new user
+ */
 export async function register(req, res) {
-  const { name, email, password, short_form, role = ["user"] } = req.body;
+  const { name, email, password, short_form, role = "user" } = req.body;
   const errors = {};
 
   if (!name) errors.name = "Name is required";
@@ -25,99 +18,144 @@ export async function register(req, res) {
   if (!password) errors.password = "Password is required";
   if (!short_form) errors.short_form = "Short form is required";
 
-  let normalizedRole = "user";
-
-  try {
-    normalizedRole = normalizeRoles(role);
-  } catch (e) {
-    errors.role = e.message;
-  }
-
   if (Object.keys(errors).length > 0) {
     return res.status(400).json({
       success: false,
       message: "Missing required fields",
-      errors: errors,
+      errors,
     });
   }
 
-  const hashed = await bcrypt.hash(password, 10);
   try {
+    // Find role_id from roles table
+    const [roleRows] = await pool.query("SELECT id FROM roles WHERE name=?", [role]);
+    const roleId = roleRows[0]?.id;
+    if (!roleId) return res.status(400).json({ success: false, message: `Invalid role: ${role}` });
+
+    const hashed = await bcrypt.hash(password, 10);
     await pool.query(
-      "INSERT INTO users (name, email, short_form, password, role) VALUES (?, ?, ?, ?, JSON_ARRAY(?))",
-      [name, email, short_form, hashed, normalizedRole]
+      "INSERT INTO users (name, email, short_form, password, role_id) VALUES (?, ?, ?, ?, ?)",
+      [name, email, short_form, hashed, roleId]
     );
-    res.status(201).json({ success: true, message: "User registered" });
+
+    res.status(201).json({ success: true, message: "User registered successfully" });
   } catch (err) {
-    if (err && err.code === "ER_DUP_ENTRY") {
-      return res
-        .status(409)
-        .json({ success: false, message: "Email already exists" });
+    if (err.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ success: false, message: "Email already exists" });
     }
     res.status(500).json({ success: false, message: err.message });
   }
 }
 
+/**
+ * 🔐 Step 1 — Login (password verified, OTP sent to email)
+ */
 export async function login(req, res) {
-  const { email, password } = req.body;
-  const [rows] = await pool.query("SELECT * FROM users WHERE email=?", [email]);
-  if (rows.length === 0)
-    return res.status(400).json({ success: false, message: "User not found" });
+  try {
+    const { email, password } = req.body;
+    const [rows] = await pool.query(
+      `SELECT u.*, r.name AS role_name
+       FROM users u
+       LEFT JOIN roles r ON u.role_id = r.id
+       WHERE u.email=?`,
+      [email]
+    );
 
-  const user = rows[0];
-  const valid = await bcrypt.compare(password, user.password);
-  if (!valid)
-    return res
-      .status(401)
-      .json({ success: false, message: "Invalid password" });
+    if (!rows.length) return res.status(404).json({ success: false, message: "User not found" });
 
-  // Step 1: Send OTP
-  const otp = generateOTP();
-  const expiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
-  await pool.query("UPDATE users SET otp_code=?, otp_expires=? WHERE id=?", [
-    otp,
-    expiry,
-    user.id,
-  ]);
+    const user = rows[0];
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) return res.status(401).json({ success: false, message: "Invalid password" });
 
-  await sendMail(
-    user.email,
-    "Your Login OTP",
-    `<p>Hello ${user.name},</p><p>Your OTP is <b>${otp}</b>. It expires in 5 minutes.</p>`
-  );
+    // ✅ Generate and save OTP
+    const otp = generateOTP();
+    const expiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
 
-  res.json({ success: true, message: "OTP sent to email" });
+    await pool.query("UPDATE users SET otp_code=?, otp_expires=? WHERE id=?", [
+      otp,
+      expiry,
+      user.id,
+    ]);
+
+    // ✅ Send OTP via email
+    await sendMail(
+      user.email,
+      "Your AMPEC Login OTP",
+      `<p>Hello ${user.name},</p>
+       <p>Your One-Time Password (OTP) is:</p>
+       <h2>${otp}</h2>
+       <p>This code will expire in <b>5 minutes</b>.</p>`
+    );
+
+    res.json({
+      success: true,
+      message: "OTP sent to your email address",
+      email: user.email,
+    });
+  } catch (err) {
+    console.error("Login (OTP) error:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
 }
 
+/**
+ * 🔢 Step 2 — Verify OTP and return JWT
+ */
 export async function verifyOTP(req, res) {
   try {
     const { email, otp } = req.body;
-    const [rows] = await pool.query("SELECT * FROM users WHERE email=?", [email]);
-    if (!rows.length) return res.status(404).json({ message: "User not found" });
+
+    if (!email || !otp)
+      return res.status(400).json({ success: false, message: "Email and OTP are required" });
+
+    const [rows] = await pool.query(
+      `SELECT u.*, r.name AS role_name
+       FROM users u
+       LEFT JOIN roles r ON u.role_id = r.id
+       WHERE u.email=?`,
+      [email]
+    );
+
+    if (!rows.length)
+      return res.status(404).json({ success: false, message: "User not found" });
 
     const user = rows[0];
-    if (user.otp_code !== otp || new Date(user.otp_expires) < new Date()) {
-      return res.status(400).json({ message: "Invalid or expired OTP" });
+
+    // Validate OTP
+    if (user.otp_code !== otp)
+      return res.status(400).json({ success: false, message: "Invalid OTP" });
+
+    if (!user.otp_expires || new Date(user.otp_expires) < new Date()) {
+      return res.status(400).json({ success: false, message: "OTP expired" });
     }
 
-    // ✅ normalize DB roles (could be JSON string, array, etc.)
-    const roles = normalizeRoleList(user.role);
-
+    // ✅ Create JWT
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: roles }, // keep as array
+      { id: user.id, email: user.email, role: user.role_name || "user" },
       process.env.JWT_SECRET,
       { expiresIn: "2h" }
     );
 
-    await pool.query("UPDATE users SET otp_code=NULL, otp_expires=NULL, token=? WHERE id=?", [
-      token, user.id,
-    ]);
+    // Clear OTP after success
+    await pool.query(
+      "UPDATE users SET otp_code=NULL, otp_expires=NULL, token=? WHERE id=?",
+      [token, user.id]
+    );
 
-    // Set cookie if you’re using cookies
-    // res.cookie("access_token", token, cookieOpts);
-
-    res.json({ token });
+    res.json({
+      success: true,
+      message: "Login successful",
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        short_form: user.short_form,
+        role: user.role_name,
+      },
+    });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("verifyOTP error:", err);
+    res.status(500).json({ success: false, message: err.message });
   }
 }

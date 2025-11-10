@@ -1,19 +1,36 @@
 import { pool } from "../lib/dbconnect-mysql.js";
+import ac from "../utils/roles.js";
 
 /**
  * Creation rule:
  * - Only admins/super-admins OR RFQ.progress in
  *   ['Sent to Salesperson (100%)', 'Sent to Customer (Done)']
  */
-
 const ALLOWED_RFQ_PROGRESS = [
   "Sent to Salesperson (100%)",
   "Sent to Customer (Done)",
 ];
 
+/** ✅ Helper: AccessControl check */
+function checkPermission(roles, action, resource) {
+  for (const role of roles) {
+    const permission = ac.can(role)[action](resource);
+    if (permission.granted) return true;
+  }
+  return false;
+}
+
 /** CREATE */
 export async function createSalesFunnel(req, res) {
   try {
+    const roles = Array.isArray(req.user?.role)
+      ? req.user.role
+      : [req.user?.role || "user"];
+
+    if (!checkPermission(roles, "createAny", "sales-funnel")) {
+      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+    }
+
     const {
       rfq_id,
       quote_date,
@@ -31,16 +48,12 @@ export async function createSalesFunnel(req, res) {
     }
 
     // Check RFQ and its progress
-    const [[rfq]] = await pool.query(
-      "SELECT id, progress FROM rfq WHERE id=?",
-      [rfq_id]
-    );
+    const [[rfq]] = await pool.query("SELECT id, progress FROM rfq WHERE id=?", [
+      rfq_id,
+    ]);
     if (!rfq) return res.status(404).json({ message: "RFQ not found" });
 
-    // Roles come from req.user (set by auth middleware)
-    const roles = Array.isArray(req.user?.role) ? req.user.role : [];
     const isAdmin = roles.includes("admin") || roles.includes("super-admin");
-
     if (!isAdmin && !ALLOWED_RFQ_PROGRESS.includes(rfq.progress)) {
       return res.status(403).json({
         message:
@@ -66,17 +79,26 @@ export async function createSalesFunnel(req, res) {
     res.status(201).json(row[0]);
   } catch (err) {
     if (err.code === "ER_NO_REFERENCED_ROW_2") {
-      return res
-        .status(400)
-        .json({ message: "Invalid foreign key (rfq or user)" });
+      return res.status(400).json({ message: "Invalid foreign key (rfq or user)" });
     }
     res.status(500).json({ message: err.message });
   }
 }
 
-/** READ: list (optionally by rfq_id) with pagination */
+/** LIST */
 export async function listSalesFunnels(req, res) {
   try {
+    const roles = Array.isArray(req.user?.role)
+      ? req.user.role
+      : [req.user?.role || "user"];
+
+    if (
+      !checkPermission(roles, "readAny", "sales-funnel") &&
+      !checkPermission(roles, "readOwn", "sales-funnel")
+    ) {
+      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+    }
+
     const rfq_id = req.query.rfq_id ? Number(req.query.rfq_id) : null;
     const status = (req.query.status || "").trim();
     const limit = Math.min(parseInt(req.query.limit || "50", 10), 200);
@@ -98,28 +120,19 @@ export async function listSalesFunnels(req, res) {
     const [rows] = await pool.query(
       `SELECT
          sf.*,
-         -- RFQ basics
          r.receive_date, r.start_date, r.quantity, r.price, r.end_date,
-         r.rfq_location, r.remarks AS rfq_remarks,
-         r.progress AS rfq_progress,
-         -- Related entities
-         c.id   AS customer_id,
-         c.name AS customer_name,
-         c.email AS customer_email,
-         c.code  AS customer_code,
-         u1.id   AS salesperson_user_id,
-         u1.name AS salesperson_name,
-         u1.email AS salesperson_email,
-         -- prepared_by aggregation from junction table
+         r.rfq_location, r.remarks AS rfq_remarks, r.progress AS rfq_progress,
+         c.id AS customer_id, c.name AS customer_name, c.email AS customer_email, c.code AS customer_code,
+         u1.id AS salesperson_user_id, u1.name AS salesperson_name, u1.email AS salesperson_email,
          JSON_ARRAYAGG(
            CASE WHEN u.id IS NULL THEN NULL
                 ELSE JSON_OBJECT('id', u.id, 'name', u.name, 'email', u.email, 'short_form', u.short_form)
            END
          ) AS prepared_by
        FROM sales_funnel sf
-       JOIN rfq r       ON r.id = sf.rfq_id
+       JOIN rfq r ON r.id = sf.rfq_id
        JOIN customers c ON c.id = r.customer_id
-       JOIN users u1    ON u1.id = r.salesperson_id
+       JOIN users u1 ON u1.id = r.salesperson_id
        LEFT JOIN rfq_prepared_people rpp ON rpp.rfq_id = r.id
        LEFT JOIN users u ON u.id = rpp.user_id
        ${whereSql}
@@ -130,13 +143,10 @@ export async function listSalesFunnels(req, res) {
     );
 
     const [[{ total }]] = await pool.query(
-      `SELECT COUNT(*) AS total
-       FROM sales_funnel sf
-       ${whereSql ? whereSql : ""}`,
+      `SELECT COUNT(*) AS total FROM sales_funnel sf ${whereSql}`,
       params
     );
 
-    // normalize prepared_by to a clean array
     const results = rows.map((r) => ({
       ...r,
       prepared_by: Array.isArray(r.prepared_by)
@@ -156,36 +166,38 @@ export async function listSalesFunnels(req, res) {
   }
 }
 
-/** READ: one */
+/** READ ONE */
 export async function getSalesFunnelById(req, res) {
   try {
+    const roles = Array.isArray(req.user?.role)
+      ? req.user.role
+      : [req.user?.role || "user"];
+
+    if (
+      !checkPermission(roles, "readAny", "sales-funnel") &&
+      !checkPermission(roles, "readOwn", "sales-funnel")
+    ) {
+      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+    }
+
     const id = Number(req.params.id);
 
     const [rows] = await pool.query(
       `SELECT
          sf.*,
-         -- RFQ basics
          r.receive_date, r.start_date, r.quantity, r.price, r.end_date,
-         r.rfq_location, r.remarks AS rfq_remarks,
-         r.progress AS rfq_progress,
-         -- Related entities
-         c.id   AS customer_id,
-         c.name AS customer_name,
-         c.email AS customer_email,
-         c.code  AS customer_code,
-         u1.id   AS salesperson_user_id,
-         u1.name AS salesperson_name,
-         u1.email AS salesperson_email,
-         -- prepared_by aggregation from junction table
+         r.rfq_location, r.remarks AS rfq_remarks, r.progress AS rfq_progress,
+         c.id AS customer_id, c.name AS customer_name, c.email AS customer_email, c.code AS customer_code,
+         u1.id AS salesperson_user_id, u1.name AS salesperson_name, u1.email AS salesperson_email,
          JSON_ARRAYAGG(
            CASE WHEN u.id IS NULL THEN NULL
                 ELSE JSON_OBJECT('id', u.id, 'name', u.name, 'email', u.email, 'short_form', u.short_form)
            END
          ) AS prepared_by
        FROM sales_funnel sf
-       JOIN rfq r       ON r.id = sf.rfq_id
+       JOIN rfq r ON r.id = sf.rfq_id
        JOIN customers c ON c.id = r.customer_id
-       JOIN users u1    ON u1.id = r.salesperson_id
+       JOIN users u1 ON u1.id = r.salesperson_id
        LEFT JOIN rfq_prepared_people rpp ON rpp.rfq_id = r.id
        LEFT JOIN users u ON u.id = rpp.user_id
        WHERE sf.id = ?
@@ -211,10 +223,16 @@ export async function getSalesFunnelById(req, res) {
 /** UPDATE */
 export async function updateSalesFunnel(req, res) {
   try {
+    const roles = Array.isArray(req.user?.role)
+      ? req.user.role
+      : [req.user?.role || "user"];
+
+    if (!checkPermission(roles, "updateAny", "sales-funnel")) {
+      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+    }
+
     const id = Number(req.params.id);
-    const [exists] = await pool.query("SELECT * FROM sales_funnel WHERE id=?", [
-      id,
-    ]);
+    const [exists] = await pool.query("SELECT * FROM sales_funnel WHERE id=?", [id]);
     if (!exists.length)
       return res.status(404).json({ message: "Sales Funnel not found" });
 
@@ -228,27 +246,23 @@ export async function updateSalesFunnel(req, res) {
     ];
     const updates = [];
     const params = [];
+
     for (const key of allowed) {
       if (key in req.body) {
         updates.push(`${key} = ?`);
         params.push(req.body[key]);
       }
     }
+
     if (!updates.length)
       return res.status(400).json({ message: "No valid fields to update" });
 
-    // Force last_updated to NOW()
     updates.push("last_updated = NOW()");
     params.push(id);
 
-    await pool.query(
-      `UPDATE sales_funnel SET ${updates.join(", ")} WHERE id = ?`,
-      params
-    );
+    await pool.query(`UPDATE sales_funnel SET ${updates.join(", ")} WHERE id = ?`, params);
 
-    const [rows] = await pool.query("SELECT * FROM sales_funnel WHERE id=?", [
-      id,
-    ]);
+    const [rows] = await pool.query("SELECT * FROM sales_funnel WHERE id=?", [id]);
     res.json(rows[0]);
   } catch (err) {
     if (err.code === "ER_NO_REFERENCED_ROW_2") {
@@ -261,15 +275,21 @@ export async function updateSalesFunnel(req, res) {
 /** DELETE */
 export async function deleteSalesFunnel(req, res) {
   try {
+    const roles = Array.isArray(req.user?.role)
+      ? req.user.role
+      : [req.user?.role || "user"];
+
+    if (!checkPermission(roles, "deleteAny", "sales-funnel")) {
+      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+    }
+
     const id = Number(req.params.id);
-    const [rows] = await pool.query("SELECT * FROM sales_funnel WHERE id=?", [
-      id,
-    ]);
+    const [rows] = await pool.query("SELECT * FROM sales_funnel WHERE id=?", [id]);
     if (!rows.length)
       return res.status(404).json({ message: "Sales Funnel not found" });
 
     await pool.query("DELETE FROM sales_funnel WHERE id=?", [id]);
-    res.json({ message: "Sales Funnel deleted" });
+    res.json({ message: "Sales Funnel deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

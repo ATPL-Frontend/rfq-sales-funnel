@@ -1,13 +1,34 @@
 import { pool } from "../lib/dbconnect-mysql.js";
+import ac from "../utils/roles.js";
+
+/**
+ * Helper to check permission using AccessControl
+ * @param {string[]} roles - user roles from req.user.role
+ * @param {string} action - e.g., "createAny", "readOwn"
+ * @param {string} resource - e.g., "customer"
+ */
+function checkPermission(roles, action, resource) {
+  for (const role of roles) {
+    const permission = ac.can(role)[action](resource);
+    if (permission.granted) return true;
+  }
+  return false;
+}
 
 /** CREATE */
 export async function createCustomer(req, res) {
   try {
+    const roles = Array.isArray(req.user?.role)
+      ? req.user.role
+      : [req.user?.role || "user"];
+
+    if (!checkPermission(roles, "createAny", "customer")) {
+      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+    }
+
     let { name, email, code = null } = req.body || {};
     name = String(name || "").trim();
-    email = String(email || "")
-      .trim()
-      .toLowerCase();
+    email = String(email || "").trim().toLowerCase();
     code = code == null ? null : String(code).trim();
 
     if (!name || !email) {
@@ -20,36 +41,26 @@ export async function createCustomer(req, res) {
       "INSERT INTO customers (name, email, code) VALUES (?, ?, ?)",
       [name, email, code]
     );
-    const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [
-      r.insertId,
-    ]);
+    const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [r.insertId]);
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
-      // err.sqlMessage usually contains: "for key 'uniq_customer_name'" or "'uniq_customer_email'"
       const msg = (err.sqlMessage || "").toLowerCase();
       if (msg.includes("uniq_customer_name")) {
-        return res
-          .status(409)
-          .json({
-            success: false,
-            field: "name",
-            message: "Customer name already exists",
-          });
+        return res.status(409).json({
+          success: false,
+          field: "name",
+          message: "Customer name already exists",
+        });
       }
       if (msg.includes("uniq_customer_email")) {
-        return res
-          .status(409)
-          .json({
-            success: false,
-            field: "email",
-            message: "Email already exists",
-          });
+        return res.status(409).json({
+          success: false,
+          field: "email",
+          message: "Email already exists",
+        });
       }
-      // fallback
-      return res
-        .status(409)
-        .json({ success: false, message: "Duplicate entry" });
+      return res.status(409).json({ success: false, message: "Duplicate entry" });
     }
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -58,6 +69,17 @@ export async function createCustomer(req, res) {
 /** READ: list with optional search + pagination */
 export async function listCustomers(req, res) {
   try {
+    const roles = Array.isArray(req.user?.role)
+      ? req.user.role
+      : [req.user?.role || "user"];
+
+    if (
+      !checkPermission(roles, "readAny", "customer") &&
+      !checkPermission(roles, "readOwn", "customer")
+    ) {
+      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+    }
+
     const q = (req.query.q || "").trim();
     const limit = Math.min(parseInt(req.query.limit || "50", 10), 200);
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
@@ -102,6 +124,17 @@ export async function listCustomers(req, res) {
 /** READ: one */
 export async function getCustomerById(req, res) {
   try {
+    const roles = Array.isArray(req.user?.role)
+      ? req.user.role
+      : [req.user?.role || "user"];
+
+    if (
+      !checkPermission(roles, "readAny", "customer") &&
+      !checkPermission(roles, "readOwn", "customer")
+    ) {
+      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+    }
+
     const id = Number(req.params.id);
     const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [id]);
     if (!rows.length)
@@ -115,22 +148,24 @@ export async function getCustomerById(req, res) {
 /** UPDATE */
 export async function updateCustomer(req, res) {
   try {
-    const id = Number(req.params.id);
-    const [exists] = await pool.query("SELECT * FROM customers WHERE id=?", [
-      id,
-    ]);
-    if (!exists.length)
-      return res
-        .status(404)
-        .json({ success: false, message: "Customer not found" });
+    const roles = Array.isArray(req.user?.role)
+      ? req.user.role
+      : [req.user?.role || "user"];
 
-    // Normalize
+    if (!checkPermission(roles, "updateAny", "customer")) {
+      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+    }
+
+    const id = Number(req.params.id);
+    const [exists] = await pool.query("SELECT * FROM customers WHERE id=?", [id]);
+    if (!exists.length)
+      return res.status(404).json({ success: false, message: "Customer not found" });
+
     let { name, email, code } = req.body || {};
     if (name !== undefined) name = String(name).trim();
     if (email !== undefined) email = String(email).trim().toLowerCase();
     if (code !== undefined) code = code == null ? null : String(code).trim();
 
-    // Build dynamic update
     const updates = [];
     const params = [];
     if (name !== undefined) {
@@ -153,10 +188,7 @@ export async function updateCustomer(req, res) {
     }
 
     params.push(id);
-    await pool.query(
-      `UPDATE customers SET ${updates.join(", ")} WHERE id=?`,
-      params
-    );
+    await pool.query(`UPDATE customers SET ${updates.join(", ")} WHERE id=?`, params);
 
     const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [id]);
     return res.json({ success: true, data: rows[0] });
@@ -164,26 +196,20 @@ export async function updateCustomer(req, res) {
     if (err.code === "ER_DUP_ENTRY") {
       const msg = (err.sqlMessage || "").toLowerCase();
       if (msg.includes("uniq_customer_name")) {
-        return res
-          .status(409)
-          .json({
-            success: false,
-            field: "name",
-            message: "Customer name already exists",
-          });
+        return res.status(409).json({
+          success: false,
+          field: "name",
+          message: "Customer name already exists",
+        });
       }
       if (msg.includes("uniq_customer_email")) {
-        return res
-          .status(409)
-          .json({
-            success: false,
-            field: "email",
-            message: "Email already exists",
-          });
+        return res.status(409).json({
+          success: false,
+          field: "email",
+          message: "Email already exists",
+        });
       }
-      return res
-        .status(409)
-        .json({ success: false, message: "Duplicate entry" });
+      return res.status(409).json({ success: false, message: "Duplicate entry" });
     }
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -192,12 +218,19 @@ export async function updateCustomer(req, res) {
 /** DELETE */
 export async function deleteCustomer(req, res) {
   try {
+    const roles = Array.isArray(req.user?.role)
+      ? req.user.role
+      : [req.user?.role || "user"];
+
+    if (!checkPermission(roles, "deleteAny", "customer")) {
+      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+    }
+
     const id = Number(req.params.id);
     const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [id]);
     if (!rows.length)
       return res.status(404).json({ message: "Customer not found" });
 
-    // Will fail with FK error if linked RFQs exist (ON DELETE RESTRICT)
     await pool.query("DELETE FROM customers WHERE id=?", [id]);
     res.json({ success: true, message: "Customer deleted" });
   } catch (err) {

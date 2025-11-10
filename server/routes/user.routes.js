@@ -11,14 +11,50 @@ import {
 
 const router = express.Router();
 
-// Self profile
+// ================================
+// USER ROUTES WITH ROLE PERMISSIONS
+// ================================
+
+// 🧍 Self profile (any logged-in user)
 router.get("/me", authenticate, getMe);
+
+// 🚪 Logout (any logged-in user)
 router.post("/logout", authenticate, logout);
 
-// Admin/super-admin management
-router.get("/", authenticate, authorize("admin", "super-admin"), listUsers);
-router.get("/:id", authenticate, authorize("admin", "super-admin"), getUserById);
-router.put("/:id", authenticate, authorize("admin", "super-admin"), updateUser);
-router.delete("/:id", authenticate, authorize("super-admin"), deleteUser);
+// 🟢 List all users
+// admin and super-admin → readAny
+router.get(
+  "/",
+  authenticate,
+  authorize("readAny", "user"),
+  listUsers
+);
+
+// 🟢 Get single user by ID
+// admin and super-admin → readAny
+router.get(
+  "/:id",
+  authenticate,
+  authorize("readAny", "user"),
+  getUserById
+);
+
+// 🟡 Update user
+// admin and super-admin → updateAny
+router.put(
+  "/:id",
+  authenticate,
+  authorize("updateAny", "user"),
+  updateUser
+);
+
+// 🔴 Delete user
+// super-admin only → deleteAny
+router.delete(
+  "/:id",
+  authenticate,
+  authorize("deleteAny", "user"),
+  deleteUser
+);
 
 export default router;
