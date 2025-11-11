@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "../../components/ui/button";
@@ -23,15 +23,15 @@ type Customer = {
 export default function CustomerDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [customer, setCustomer] = React.useState<Customer | null>(null);
-  const [loading, setLoading] = React.useState(false);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const fetchCustomer = React.useCallback(async () => {
+  const fetchCustomer = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     try {
       const { data } = await api.get(`/api/customers/${id}`);
-      setCustomer(data);
+      setCustomer(data.data || null);
     } catch (err) {
       toast.error("Failed to load customer details");
     } finally {
@@ -39,7 +39,7 @@ export default function CustomerDetailsPage() {
     }
   }, [id]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     fetchCustomer();
   }, [fetchCustomer]);
 

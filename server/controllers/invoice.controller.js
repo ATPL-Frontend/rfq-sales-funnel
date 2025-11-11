@@ -25,7 +25,12 @@ export async function createInvoice(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "createAny", "invoice")) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "Forbidden: insufficient permissions",
+        });
     }
 
     let { invoice_date, customer_id, amount, currency } = req.body || {};
@@ -33,21 +38,25 @@ export async function createInvoice(req, res) {
     invoice_date = String(invoice_date || "").trim();
     customer_id = Number(customer_id);
     amount = Number(amount);
-    currency = String(currency || "").trim().toUpperCase();
+    currency = String(currency || "")
+      .trim()
+      .toUpperCase();
 
     if (!invoice_date || !customer_id || !amount || !currency) {
-      return res
-        .status(400)
-        .json({
-          message: "invoice_date, customer_id, amount, currency are required",
-        });
+      return res.status(400).json({ success: false,
+        message: "invoice_date, customer_id, amount, currency are required",
+      });
     }
 
     if (!CURRENCIES.includes(currency)) {
-      return res.status(400).json({ message: "currency must be AUD or USD" });
+      return res
+        .status(400)
+        .json({ success: false, message: "currency must be AUD or USD" });
     }
     if (!(amount > 0)) {
-      return res.status(400).json({ message: "amount must be greater than 0" });
+      return res
+        .status(400)
+        .json({ success: false, message: "amount must be greater than 0" });
     }
 
     const [[cust]] = await pool.query(
@@ -57,7 +66,7 @@ export async function createInvoice(req, res) {
     if (!cust)
       return res
         .status(400)
-        .json({ message: `Customer ${customer_id} not found` });
+        .json({ success: false, message: `Customer ${customer_id} not found` });
 
     const [r] = await pool.query(
       `INSERT INTO invoices (invoice_date, customer_id, amount, currency)
@@ -73,12 +82,16 @@ export async function createInvoice(req, res) {
       [r.insertId]
     );
 
-    res.status(201).json(rows[0]);
+    res
+      .status(201)
+      .json({ success: true, message: "Invoice created", data: rows[0] });
   } catch (err) {
     if (err.code === "ER_NO_REFERENCED_ROW_2") {
-      return res.status(400).json({ message: "Invalid foreign key (customer)" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid foreign key (customer)" });
     }
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -93,7 +106,9 @@ export async function listInvoices(req, res) {
       !checkPermission(roles, "readAny", "invoice") &&
       !checkPermission(roles, "readOwn", "invoice")
     ) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res
+        .status(403)
+        .json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     const customer_id = req.query.customer_id
@@ -104,7 +119,10 @@ export async function listInvoices(req, res) {
     const date_to = (req.query.date_to || "").trim();
     const q = (req.query.q || "").trim();
 
-    const limit = Math.min(Math.max(parseInt(req.query.limit || "50", 10), 1), 200);
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit || "50", 10), 1),
+      200
+    );
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
     const offset = (page - 1) * limit;
 
@@ -153,14 +171,15 @@ export async function listInvoices(req, res) {
     );
 
     res.json({
-      results: rows,
+      success: true,
+      data: rows,
       page,
       limit,
       total,
       total_pages: Math.ceil(total / limit),
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -175,7 +194,9 @@ export async function getInvoiceById(req, res) {
       !checkPermission(roles, "readAny", "invoice") &&
       !checkPermission(roles, "readOwn", "invoice")
     ) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res
+        .status(403)
+        .json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     const id = Number(req.params.id);
@@ -187,10 +208,10 @@ export async function getInvoiceById(req, res) {
       [id]
     );
     if (!rows.length)
-      return res.status(404).json({ message: "Invoice not found" });
-    res.json(rows[0]);
+      return res.status(404).json({ success: false, message: "Invoice not found" });
+    res.json({ success: true, data: rows[0]});
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -202,13 +223,15 @@ export async function updateInvoice(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "updateAny", "invoice")) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res
+        .status(403)
+        .json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     const id = Number(req.params.id);
     const [exist] = await pool.query("SELECT * FROM invoices WHERE id=?", [id]);
     if (!exist.length)
-      return res.status(404).json({ message: "Invoice not found" });
+      return res.status(404).json({ success: false, message: "Invoice not found" });
 
     const allowed = ["invoice_date", "customer_id", "amount", "currency"];
     const updates = [];
@@ -218,9 +241,13 @@ export async function updateInvoice(req, res) {
       if (!(key in req.body)) continue;
 
       if (key === "currency") {
-        const v = String(req.body.currency || "").trim().toUpperCase();
+        const v = String(req.body.currency || "")
+          .trim()
+          .toUpperCase();
         if (!CURRENCIES.includes(v))
-          return res.status(400).json({ message: "Currency must be AUD or USD" });
+          return res
+            .status(400)
+            .json({ success: false, message: "Currency must be AUD or USD" });
         updates.push("currency = ?");
         params.push(v);
         continue;
@@ -228,7 +255,9 @@ export async function updateInvoice(req, res) {
       if (key === "amount") {
         const amt = Number(req.body.amount);
         if (!(amt > 0))
-          return res.status(400).json({ message: "Amount must be greater than 0" });
+          return res
+            .status(400)
+            .json({ success: false, message: "Amount must be greater than 0" });
         updates.push("amount = ?");
         params.push(amt);
         continue;
@@ -236,10 +265,13 @@ export async function updateInvoice(req, res) {
       if (key === "customer_id") {
         const cid = Number(req.body.customer_id);
         if (!cid)
-          return res.status(400).json({ message: "customer_id invalid" });
-        const [[cust]] = await pool.query("SELECT id FROM customers WHERE id=?", [cid]);
+          return res.status(400).json({ success: false, message: "customer_id invalid" });
+        const [[cust]] = await pool.query(
+          "SELECT id FROM customers WHERE id=?",
+          [cid]
+        );
         if (!cust)
-          return res.status(400).json({ message: `Customer ${cid} not found` });
+          return res.status(400).json({ success: false, message: `Customer ${cid} not found` });
         updates.push("customer_id = ?");
         params.push(cid);
         continue;
@@ -247,7 +279,7 @@ export async function updateInvoice(req, res) {
       if (key === "invoice_date") {
         const d = String(req.body.invoice_date || "").trim();
         if (!d)
-          return res.status(400).json({ message: "invoice_date invalid" });
+          return res.status(400).json({ success: false, message: "invoice_date invalid" });
         updates.push("invoice_date = ?");
         params.push(d);
         continue;
@@ -255,7 +287,7 @@ export async function updateInvoice(req, res) {
     }
 
     if (!updates.length)
-      return res.status(400).json({ message: "No valid fields to update" });
+      return res.status(400).json({ success: false, message: "No valid fields to update" });
 
     params.push(id);
     await pool.query(
@@ -268,9 +300,11 @@ export async function updateInvoice(req, res) {
     return await getInvoiceById(req, res);
   } catch (err) {
     if (err.code === "ER_NO_REFERENCED_ROW_2") {
-      return res.status(400).json({ message: "Invalid foreign key (customer)" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid foreign key (customer)" });
     }
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -282,16 +316,18 @@ export async function deleteInvoice(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "deleteAny", "invoice")) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res
+        .status(403)
+        .json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     const id = Number(req.params.id);
     const [r] = await pool.query("DELETE FROM invoices WHERE id=?", [id]);
     if (r.affectedRows === 0)
-      return res.status(404).json({ message: "Invoice not found" });
+      return res.status(404).json({ success: false, message: "Invoice not found" });
 
     res.json({ success: true, message: "Invoice deleted successfully" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }

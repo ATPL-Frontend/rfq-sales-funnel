@@ -23,7 +23,7 @@ export async function createCustomer(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "createAny", "customer")) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     let { name, email, code = null } = req.body || {};
@@ -77,7 +77,7 @@ export async function listCustomers(req, res) {
       !checkPermission(roles, "readAny", "customer") &&
       !checkPermission(roles, "readOwn", "customer")
     ) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     const q = (req.query.q || "").trim();
@@ -110,14 +110,15 @@ export async function listCustomers(req, res) {
     }
 
     res.json({
-      results: rows,
+      success: true,
+      data: rows,
       page,
       limit,
       total: countRows[0].total,
       total_pages: Math.ceil(countRows[0].total / limit),
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -132,16 +133,16 @@ export async function getCustomerById(req, res) {
       !checkPermission(roles, "readAny", "customer") &&
       !checkPermission(roles, "readOwn", "customer")
     ) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     const id = Number(req.params.id);
     const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [id]);
     if (!rows.length)
-      return res.status(404).json({ message: "Customer not found" });
-    res.json(rows[0]);
+      return res.status(404).json({ success: false, message: "Customer not found" });
+    res.json({ success: false, data: rows[0]});
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -153,7 +154,7 @@ export async function updateCustomer(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "updateAny", "customer")) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     const id = Number(req.params.id);
@@ -223,13 +224,13 @@ export async function deleteCustomer(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "deleteAny", "customer")) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     const id = Number(req.params.id);
     const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [id]);
     if (!rows.length)
-      return res.status(404).json({ message: "Customer not found" });
+      return res.status(404).json({ success: false, message: "Customer not found" });
 
     await pool.query("DELETE FROM customers WHERE id=?", [id]);
     res.json({ success: true, message: "Customer deleted" });
@@ -237,8 +238,8 @@ export async function deleteCustomer(req, res) {
     if (err.code === "ER_ROW_IS_REFERENCED_2") {
       return res
         .status(409)
-        .json({ message: "Cannot delete: Customer is referenced by RFQs" });
+        .json({ success: false, message: "Cannot delete: Customer is referenced by RFQs" });
     }
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }

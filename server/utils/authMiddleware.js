@@ -17,7 +17,9 @@ export function authenticate(req, res, next) {
     const [scheme, token] = authHeader.split(/\s+/);
     if (!/^Bearer$/i.test(scheme) || !token) {
       res.setHeader("WWW-Authenticate", 'Bearer error="invalid_request"');
-      return res.status(401).json({ message: "Invalid Authorization header format" });
+      return res
+        .status(401)
+        .json({ message: "Invalid Authorization header format" });
     }
 
     // 2️⃣ Verify token
@@ -42,18 +44,24 @@ export function authenticate(req, res, next) {
 export function authorize(action, resource) {
   return (req, res, next) => {
     try {
-      const role = Array.isArray(req.user?.role)
+      const roles = Array.isArray(req.user?.role)
         ? req.user.role[0] // use first role if array
-        : req.user?.role;
+        : req.user?.role
+        ? [req.user.role]
+        : [];
 
-      if (!role) {
+      if (!roles.length) {
         return res.status(403).json({ message: "Missing role in token" });
       }
 
-      const permission = ac.can(role)[action](resource);
-      if (!permission.granted) {
+      // allow if ANY role grants the permission
+      const granted = roles.some((r) => ac.can(r)[action](resource).granted);
+
+      if (!granted) {
         return res.status(403).json({
-          message: `Forbidden: ${role} cannot ${action} on ${resource}`,
+          message: `Forbidden: ${roles.join(
+            ", "
+          )} cannot ${action} on ${resource}`,
         });
       }
 

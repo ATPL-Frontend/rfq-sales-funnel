@@ -3,7 +3,7 @@ import * as React from "react";
 export interface Column<T> {
   key: keyof T | string;
   label: string;
-  render?: (row: T) => React.ReactNode;
+  render?: (row: T, index: number) => React.ReactNode;
 }
 
 interface CommonTableProps<T> {
@@ -68,7 +68,7 @@ export default function CommonTable<T>({
             >
               {columns.map((col) => (
                 <td key={String(col.key)} className="p-3">
-                  {col.render ? col.render(row) : (row as any)[col.key]}
+                  {col.render ? col.render(row, idx) : (row as any)[col.key]}
                 </td>
               ))}
             </tr>
@@ -100,7 +100,7 @@ export default function CommonTable<T>({
                   {col.label}
                 </span>
                 <span className="text-right wrap-break-word">
-                  {col.render ? col.render(row) : (row as any)[col.key]}
+                  {col.render ? col.render(row, idx) : (row as any)[col.key]}
                 </span>
               </div>
             ))}

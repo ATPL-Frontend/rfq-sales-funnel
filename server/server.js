@@ -1,10 +1,10 @@
+import bcrypt from "bcrypt";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import "dotenv/config";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import morgan from "morgan";
-import bcrypt from "bcrypt";
 
 import { connectDB, pool } from "./lib/dbconnect-mysql.js";
 
@@ -12,13 +12,13 @@ import { connectDB, pool } from "./lib/dbconnect-mysql.js";
 // 🧱 Table Initializers
 // ===============================
 import { createCustomerTable } from "./models/customer.model.js";
+import { createInvoiceTable } from "./models/invoice.model.js";
 import {
   createRFQPreparedPeopleTable,
   createRFQTable,
 } from "./models/rfq.model.js";
 import { createSalesFunnelTable } from "./models/salesFunnel.model.js";
 import { createUserTable } from "./models/user.model.js";
-import { createInvoiceTable } from "./models/invoice.model.js";
 
 // 🆕 Role-Permission Models
 import {
@@ -27,17 +27,17 @@ import {
 } from "./models/rolePermission.model.js";
 
 // 🆕 AccessControl Loader
-import { loadAccessControlFromDB } from "./utils/roles.js";
+import ac, { loadAccessControlFromDB } from "./utils/roles.js";
 
 // ===============================
 // 🚦 Routers
 // ===============================
 import authRoutes from "./routes/auth.routes.js";
-import userRoutes from "./routes/user.routes.js";
 import customerRoutes from "./routes/customer.routes.js";
+import invoiceRoutes from "./routes/invoice.routes.js";
 import rfqRoutes from "./routes/rfq.routes.js";
 import salesFunnelRoutes from "./routes/salesFunnel.routes.js";
-import invoiceRoutes from "./routes/invoice.routes.js";
+import userRoutes from "./routes/user.routes.js";
 
 // 🆕 NEW: Role & Permission routes
 import rolePermissionRoutes from "./routes/rolePermission.routes.js";
@@ -193,26 +193,16 @@ async function ensureSuperAdmin() {
     await createSalesFunnelTable();
     await createInvoiceTable();
 
-    // ✅ Step 3: Ensure super-admin exists
+    console.log("👑 Ensuring super-admin user exists...");
     await ensureSuperAdmin();
 
-    // ✅ Step 4: Load AccessControl
-    try {
-      console.log("🔐 Loading AccessControl rules from DB...");
-      await loadAccessControlFromDB();
-    } catch (err) {
-      console.warn(
-        "⚠️ Failed to load AccessControl, continuing anyway:",
-        err.message
-      );
-    }
-
-    // ✅ Step 5: Start the server
+    console.log("🔐 Loading AccessControl rules from DB...");
+    await loadAccessControlFromDB();
+  
     app.listen(PORT, () =>
       console.log(`✅ Server running at: http://localhost:${PORT}`)
     );
 
-    // ✅ Graceful shutdown
     process.on("SIGINT", () => {
       console.log("\n🛑 Server shutting down gracefully...");
       process.exit(0);
