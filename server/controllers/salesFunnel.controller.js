@@ -28,7 +28,7 @@ export async function createSalesFunnel(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "createAny", "sales-funnel")) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     const {
@@ -43,6 +43,7 @@ export async function createSalesFunnel(req, res) {
 
     if (!rfq_id || !quote_date || !sent_by || !exp_win_date) {
       return res.status(400).json({
+        success: false,
         message: "rfq_id, quote_date, sent_by, exp_win_date are required",
       });
     }
@@ -51,11 +52,12 @@ export async function createSalesFunnel(req, res) {
     const [[rfq]] = await pool.query("SELECT id, progress FROM rfq WHERE id=?", [
       rfq_id,
     ]);
-    if (!rfq) return res.status(404).json({ message: "RFQ not found" });
+    if (!rfq) return res.status(404).json({ success: false, message: "RFQ not found" });
 
     const isAdmin = roles.includes("admin") || roles.includes("super-admin");
     if (!isAdmin && !ALLOWED_RFQ_PROGRESS.includes(rfq.progress)) {
       return res.status(403).json({
+        success: false,
         message:
           "You cannot create a Sales Funnel until the RFQ progress is 'Sent to Salesperson (100%)' or 'Sent to Customer (Done)'",
       });
@@ -76,12 +78,12 @@ export async function createSalesFunnel(req, res) {
       [r.insertId]
     );
 
-    res.status(201).json(row[0]);
+    res.status(201).json({ success: true, data: row[0]});
   } catch (err) {
     if (err.code === "ER_NO_REFERENCED_ROW_2") {
-      return res.status(400).json({ message: "Invalid foreign key (rfq or user)" });
+      return res.status(400).json({ success: false, message: "Invalid foreign key (rfq or user)" });
     }
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -96,7 +98,7 @@ export async function listSalesFunnels(req, res) {
       !checkPermission(roles, "readAny", "sales-funnel") &&
       !checkPermission(roles, "readOwn", "sales-funnel")
     ) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     const rfq_id = req.query.rfq_id ? Number(req.query.rfq_id) : null;
@@ -155,14 +157,15 @@ export async function listSalesFunnels(req, res) {
     }));
 
     res.json({
-      results,
+      success: true,
+      data: results,
       page,
       limit,
       total,
       total_pages: Math.ceil(total / limit),
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -177,7 +180,7 @@ export async function getSalesFunnelById(req, res) {
       !checkPermission(roles, "readAny", "sales-funnel") &&
       !checkPermission(roles, "readOwn", "sales-funnel")
     ) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     const id = Number(req.params.id);
@@ -206,7 +209,7 @@ export async function getSalesFunnelById(req, res) {
     );
 
     if (!rows.length) {
-      return res.status(404).json({ message: "Sales Funnel not found" });
+      return res.status(404).json({ success: false, message: "Sales Funnel not found" });
     }
 
     const row = rows[0];
@@ -214,9 +217,9 @@ export async function getSalesFunnelById(req, res) {
       ? row.prepared_by
       : JSON.parse(row.prepared_by || "[]").filter(Boolean);
 
-    res.json(row);
+    res.json({ success: true, data: row});
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -228,13 +231,13 @@ export async function updateSalesFunnel(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "updateAny", "sales-funnel")) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     const id = Number(req.params.id);
     const [exists] = await pool.query("SELECT * FROM sales_funnel WHERE id=?", [id]);
     if (!exists.length)
-      return res.status(404).json({ message: "Sales Funnel not found" });
+      return res.status(404).json({ success: false, message: "Sales Funnel not found" });
 
     const allowed = [
       "quote_date",
@@ -255,7 +258,7 @@ export async function updateSalesFunnel(req, res) {
     }
 
     if (!updates.length)
-      return res.status(400).json({ message: "No valid fields to update" });
+      return res.status(400).json({ success: false, message: "No valid fields to update" });
 
     updates.push("last_updated = NOW()");
     params.push(id);
@@ -263,12 +266,12 @@ export async function updateSalesFunnel(req, res) {
     await pool.query(`UPDATE sales_funnel SET ${updates.join(", ")} WHERE id = ?`, params);
 
     const [rows] = await pool.query("SELECT * FROM sales_funnel WHERE id=?", [id]);
-    res.json(rows[0]);
+    res.json({ success: true, data: rows[0]});
   } catch (err) {
     if (err.code === "ER_NO_REFERENCED_ROW_2") {
-      return res.status(400).json({ message: "Invalid foreign key (user)" });
+      return res.status(400).json({ success: false, message: "Invalid foreign key (user)" });
     }
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -280,17 +283,17 @@ export async function deleteSalesFunnel(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "deleteAny", "sales-funnel")) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     const id = Number(req.params.id);
     const [rows] = await pool.query("SELECT * FROM sales_funnel WHERE id=?", [id]);
     if (!rows.length)
-      return res.status(404).json({ message: "Sales Funnel not found" });
+      return res.status(404).json({ success: false, message: "Sales Funnel not found" });
 
     await pool.query("DELETE FROM sales_funnel WHERE id=?", [id]);
-    res.json({ message: "Sales Funnel deleted successfully" });
+    res.json({ success: true, message: "Sales Funnel deleted successfully" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }

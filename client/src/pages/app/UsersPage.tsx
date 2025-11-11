@@ -20,7 +20,7 @@ type User = {
   name: string;
   email: string;
   short_form: string;
-  role: string[];
+  role_name: string;
   created_at: string;
 };
 
@@ -29,6 +29,7 @@ export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
   const navigate = useNavigate();
 
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -44,12 +45,12 @@ export default function UsersPage() {
 
   // ✅ Fetch Users
   const fetchUsers = useCallback(async () => {
-    if (loading || !hasMore) return;
+    if (loading || !hasMore || failed) return;
 
     setLoading(true);
     try {
       const { data } = await api.get(`/api/users?page=${page}&limit=20`);
-      const results: User[] = data.results || [];
+      const results: User[] = data.data || [];
 
       setUsers((prev) => {
         const existingIds = new Set(prev.map((u) => u.id));
@@ -61,10 +62,11 @@ export default function UsersPage() {
       setHasMore(data.page < data.total_pages);
     } catch (err) {
       toast.error("Failed to load users");
+      setFailed(true);
     } finally {
       setLoading(false);
     }
-  }, [page, loading, hasMore]);
+  }, [page, loading, hasMore, failed]);
 
   useEffect(() => {
     fetchUsers();
@@ -78,7 +80,7 @@ export default function UsersPage() {
       name: user.name,
       email: user.email,
       short_form: user.short_form,
-      role: user.role.join(", "),
+      role: user.role_name,
     });
     setEditOpen(true);
   };
@@ -156,7 +158,7 @@ export default function UsersPage() {
     {
       key: "role",
       label: "Role",
-      render: (row) => row.role.join(", "),
+      render: (row) => row.role_name,
     },
     { key: "short_form", label: "Short Form" },
     {

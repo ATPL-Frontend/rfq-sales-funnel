@@ -10,7 +10,7 @@ function hasRole(req, roleName) {
 export async function listUsers(req, res) {
   try {
     if (!hasRole(req, "admin") && !hasRole(req, "super-admin")) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     const q = (req.query.q || "").trim();
@@ -46,7 +46,8 @@ export async function listUsers(req, res) {
     );
 
     res.json({
-      results: rows,
+      success: true,
+      data: rows,
       page,
       limit,
       total,
@@ -54,7 +55,7 @@ export async function listUsers(req, res) {
     });
   } catch (err) {
     console.error("listUsers error:", err);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -62,7 +63,7 @@ export async function listUsers(req, res) {
 export async function getUserById(req, res) {
   try {
     if (!hasRole(req, "admin") && !hasRole(req, "super-admin")) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     const id = Number(req.params.id);
@@ -74,11 +75,11 @@ export async function getUserById(req, res) {
       [id]
     );
 
-    if (!rows.length) return res.status(404).json({ message: "User not found" });
-    res.json(rows[0]);
+    if (!rows.length) return res.status(404).json({ success: false, message: "User not found" });
+    res.json({ success: true, data: rows[0]});
   } catch (err) {
     console.error("getUserById error:", err);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -86,7 +87,7 @@ export async function getUserById(req, res) {
 export async function getMe(req, res) {
   try {
     const id = req.user?.id;
-    if (!id) return res.status(401).json({ message: "Not authenticated" });
+    if (!id) return res.status(401).json({ success: false, message: "Not authenticated" });
 
     const [rows] = await pool.query(
       `SELECT u.id, u.name, u.email, u.short_form, u.created_at, r.name AS role_name
@@ -96,11 +97,11 @@ export async function getMe(req, res) {
       [id]
     );
 
-    if (!rows.length) return res.status(404).json({ message: "User not found" });
-    res.json(rows[0]);
+    if (!rows.length) return res.status(404).json({ success: false, message: "User not found" });
+    res.json({ success: true, data: rows[0]});
   } catch (err) {
     console.error("getMe error:", err);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -115,7 +116,7 @@ export async function updateUser(req, res) {
 
     // Prevent ordinary users from editing others
     if (!isSuper && !isAdmin && actorId !== targetId) {
-      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
     // Fetch existing user
@@ -126,7 +127,7 @@ export async function updateUser(req, res) {
        WHERE u.id = ?`,
       [targetId]
     );
-    if (!target) return res.status(404).json({ message: "User not found" });
+    if (!target) return res.status(404).json({ success: false, message: "User not found" });
 
     // Extract fields
     let { name, short_form, password, role } = req.body || {};
@@ -136,14 +137,14 @@ export async function updateUser(req, res) {
     // Basic info updates
     if (name !== undefined) {
       name = String(name).trim();
-      if (!name) return res.status(400).json({ message: "Name cannot be empty" });
+      if (!name) return res.status(400).json({ success: false, message: "Name cannot be empty" });
       updates.push("name=?");
       params.push(name);
     }
 
     if (short_form !== undefined) {
       short_form = String(short_form).trim();
-      if (!short_form) return res.status(400).json({ message: "Short form cannot be empty" });
+      if (!short_form) return res.status(400).json({ success: false, message: "Short form cannot be empty" });
       updates.push("short_form=?");
       params.push(short_form);
     }
@@ -151,13 +152,13 @@ export async function updateUser(req, res) {
     // Role changes (super-admin only)
     if (role !== undefined) {
       if (!isSuper) {
-        return res.status(403).json({ message: "Only super-admin can change roles" });
+        return res.status(403).json({ success: false, message: "Only super-admin can change roles" });
       }
 
       const [roleRows] = await pool.query("SELECT id FROM roles WHERE name=?", [role]);
       const roleId = roleRows[0]?.id;
       if (!roleId) {
-        return res.status(400).json({ message: `Invalid role: ${role}` });
+        return res.status(400).json({ success: false, message: `Invalid role: ${role}` });
       }
 
       // Prevent removing the last super-admin
@@ -167,6 +168,7 @@ export async function updateUser(req, res) {
         );
         if (Number(row.cnt) <= 1) {
           return res.status(400).json({
+            success: false,
             message: "Cannot remove role: this is the last super-admin",
           });
         }
@@ -180,7 +182,7 @@ export async function updateUser(req, res) {
     if (password !== undefined) {
       password = String(password);
       if (password.length < 8) {
-        return res.status(400).json({ message: "Password must be at least 8 characters" });
+        return res.status(400).json({ success: false, message: "Password must be at least 8 characters" });
       }
       const hashed = await bcrypt.hash(password, 10);
       updates.push("password=?");
@@ -188,7 +190,7 @@ export async function updateUser(req, res) {
     }
 
     if (!updates.length) {
-      return res.status(400).json({ message: "No valid fields to update" });
+      return res.status(400).json({ success: false, message: "No valid fields to update" });
     }
 
     params.push(targetId);
@@ -202,10 +204,10 @@ export async function updateUser(req, res) {
       [targetId]
     );
 
-    res.json(updated[0]);
+    res.json({ success: true, data: updated[0]});
   } catch (err) {
     console.error("updateUser error:", err);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -216,11 +218,11 @@ export async function deleteUser(req, res) {
     const actorId = req.user?.id;
 
     if (!hasRole(req, "super-admin")) {
-      return res.status(403).json({ message: "Only super-admin can delete users" });
+      return res.status(403).json({ success: false, message: "Only super-admin can delete users" });
     }
 
     if (id === actorId) {
-      return res.status(400).json({ message: "You cannot delete your own account" });
+      return res.status(400).json({ success: false, message: "You cannot delete your own account" });
     }
 
     // Prevent deleting last super-admin
@@ -231,14 +233,14 @@ export async function deleteUser(req, res) {
        WHERE u.id=?`,
       [id]
     );
-    if (!target) return res.status(404).json({ message: "User not found" });
+    if (!target) return res.status(404).json({ success: false, message: "User not found" });
 
     if (target.role_name === "super-admin") {
       const [[row]] = await pool.query(
         "SELECT COUNT(*) AS cnt FROM users u JOIN roles r ON u.role_id = r.id WHERE r.name='super-admin'"
       );
       if (Number(row.cnt) <= 1) {
-        return res.status(400).json({ message: "Cannot delete the last super-admin" });
+        return res.status(400).json({ success: false, message: "Cannot delete the last super-admin" });
       }
     }
 
@@ -246,7 +248,7 @@ export async function deleteUser(req, res) {
     res.json({ success: true, message: "User deleted successfully" });
   } catch (err) {
     console.error("deleteUser error:", err);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 

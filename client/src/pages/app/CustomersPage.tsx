@@ -8,45 +8,35 @@ import { Button } from "../../components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "../../components/ui/dialog";
-import { Input } from "../../components/ui/input";
 import api from "../../lib/api";
-
-type Customer = {
-  id: number;
-  name: string;
-  email: string;
-  code: string;
-  created_at: string;
-  updated_at: string;
-};
+import CustomerForm, { type Customer } from "./../../components/modal/CustomerModal";
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
   const navigate = useNavigate();
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null
   );
-  const [editOpen, setEditOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", code: "" });
 
   // ✅ Fetch customers with infinite scroll
   const fetchCustomers = useCallback(async () => {
-    if (loading || !hasMore) return;
+    if (loading || !hasMore || failed) return;
 
     setLoading(true);
     try {
       const { data } = await api.get(`/api/customers?page=${page}&limit=20`);
-      const results: Customer[] = data.results || [];
+      const results: Customer[] = data.data || [];
 
       setCustomers((prev) => {
         const existingIds = new Set(prev.map((c) => c.id));
@@ -58,58 +48,30 @@ export default function CustomersPage() {
       setHasMore(data.page < data.total_pages);
     } catch (err) {
       toast.error("Failed to load customers");
+      setFailed(true);
     } finally {
       setLoading(false);
     }
-  }, [page, loading, hasMore]);
+  }, [page, loading, hasMore, failed]);
 
   useEffect(() => {
     fetchCustomers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ Edit Modal logic
+  // ✅ Create
+  const handleCreate = () => {
+    setSelectedCustomer(null);
+    setFormOpen(true);
+  };
+
+  // ✅ Edit
   const handleEdit = (customer: Customer) => {
     setSelectedCustomer(customer);
-    setForm({
-      name: customer.name,
-      email: customer.email,
-      code: customer.code,
-    });
-    setEditOpen(true);
+    setFormOpen(true);
   };
 
-  const submitEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCustomer) return;
-
-    setSaving(true);
-    try {
-      await api.put(`/api/customers/${selectedCustomer.id}`, {
-        name: form.name,
-        email: form.email,
-        code: form.code,
-      });
-      toast.success("Customer updated successfully");
-
-      // Update locally
-      setCustomers((prev) =>
-        prev.map((c) =>
-          c.id === selectedCustomer.id
-            ? { ...c, ...form, updated_at: new Date().toISOString() }
-            : c
-        )
-      );
-
-      setEditOpen(false);
-    } catch (err) {
-      toast.error("Failed to update customer");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ✅ Delete Modal logic
+  // ✅ Delete
   const handleDelete = (customer: Customer) => {
     setSelectedCustomer(customer);
     setDeleteOpen(true);
@@ -120,11 +82,25 @@ export default function CustomersPage() {
     try {
       await api.delete(`/api/customers/${selectedCustomer.id}`);
       toast.success("Customer deleted successfully");
-      setCustomers((prev) => prev.filter((c) => c.id !== selectedCustomer.id));
+      setCustomers((prev) =>
+        prev.filter((c) => c.id !== selectedCustomer.id)
+      );
       setDeleteOpen(false);
     } catch (err) {
       toast.error("Failed to delete customer");
     }
+  };
+
+  // ✅ Handle form success
+  const handleFormSuccess = (customer: Customer, isEdit: boolean) => {
+    if (isEdit) {
+      setCustomers((prev) =>
+        prev.map((c) => (c.id === customer.id ? customer : c))
+      );
+    } else {
+      setCustomers((prev) => [customer, ...prev]);
+    }
+    setFormOpen(false);
   };
 
   const columns: Column<Customer>[] = [
@@ -171,6 +147,11 @@ export default function CustomersPage() {
 
   return (
     <>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-xl font-semibold">Customers</h1>
+        <Button onClick={handleCreate}>Create Customer</Button>
+      </div>
+
       <CommonTable
         columns={columns}
         data={customers}
@@ -179,51 +160,19 @@ export default function CustomersPage() {
         onLoadMore={fetchCustomers}
       />
 
-      {/* ✅ Edit Customer Modal */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+      {/* ✅ Create/Edit Modal */}
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Customer</DialogTitle>
+            <DialogTitle>
+              {selectedCustomer ? "Edit Customer" : "Create Customer"}
+            </DialogTitle>
           </DialogHeader>
-          <form onSubmit={submitEdit} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Name</label>
-              <Input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Email</label>
-              <Input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Code</label>
-              <Input
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value })}
-                required
-              />
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setEditOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? "Saving..." : "Save"}
-              </Button>
-            </DialogFooter>
-          </form>
+          <CustomerForm
+            customer={selectedCustomer}
+            onSuccess={handleFormSuccess}
+            onCancel={() => setFormOpen(false)}
+          />
         </DialogContent>
       </Dialog>
 

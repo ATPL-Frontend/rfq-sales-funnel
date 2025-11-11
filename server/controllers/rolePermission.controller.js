@@ -6,10 +6,10 @@ import { pool } from "../lib/dbconnect-mysql.js";
 export async function listRoles(req, res) {
   try {
     const [rows] = await pool.query("SELECT id, name FROM roles ORDER BY id ASC");
-    res.json(rows);
+    res.json({ success: true, data: rows});
   } catch (err) {
     console.error("listRoles error:", err);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -19,10 +19,10 @@ export async function listRoles(req, res) {
 export async function listPermissions(req, res) {
   try {
     const [rows] = await pool.query("SELECT id, action, resource FROM permissions ORDER BY id ASC");
-    res.json(rows);
+    res.json({ success: true, data: rows});
   } catch (err) {
     console.error("listPermissions error:", err);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -35,7 +35,7 @@ export async function getRolePermissions(req, res) {
 
     // Check role exists
     const [[role]] = await pool.query("SELECT id, name FROM roles WHERE id=?", [roleId]);
-    if (!role) return res.status(404).json({ message: "Role not found" });
+    if (!role) return res.status(404).json({ success: false, message: "Role not found" });
 
     // Fetch permissions
     const [permissions] = await pool.query(
@@ -46,10 +46,10 @@ export async function getRolePermissions(req, res) {
       [roleId]
     );
 
-    res.json({ role: role.name, permissions });
+    res.json({ success: true, role: role.name, permissions });
   } catch (err) {
     console.error("getRolePermissions error:", err);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -63,13 +63,13 @@ export async function assignPermissions(req, res) {
     const { permission_ids } = req.body;
 
     if (!Array.isArray(permission_ids) || permission_ids.length === 0) {
-      return res.status(400).json({ message: "permission_ids must be a non-empty array" });
+      return res.status(400).json({ success: false, message: "permission_ids must be a non-empty array" });
     }
 
     // Ensure role exists
     const [[role]] = await pool.query("SELECT id FROM roles WHERE id=?", [roleId]);
     if (!role) {
-      return res.status(404).json({ message: "Role not found" });
+      return res.status(404).json({ success: false, message: "Role not found" });
     }
 
     // Remove existing permissions for this role
@@ -82,7 +82,7 @@ export async function assignPermissions(req, res) {
     res.json({ success: true, message: "Permissions assigned to role successfully" });
   } catch (err) {
     console.error("assignPermissions error:", err);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -98,9 +98,9 @@ export async function listRolePermissions(req, res) {
       JOIN permissions p ON rp.permission_id = p.id
       ORDER BY r.name ASC, p.resource ASC;
     `);
-    res.json(rows);
+    res.json({ success: true, data: rows});
   } catch (err) {
     console.error("listRolePermissions error:", err);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 }

@@ -16,7 +16,7 @@ type User = {
   name: string;
   email: string;
   short_form: string;
-  role: string[];
+  role_name: string;
   created_at: string;
 };
 
@@ -31,7 +31,7 @@ export default function UserDetailsPage() {
     setLoading(true);
     try {
       const { data } = await api.get(`/api/users/${id}`);
-      setUser(data);
+      setUser(data.data || null);
     } catch (err) {
       toast.error("Failed to load user details");
     } finally {
@@ -89,7 +89,7 @@ export default function UserDetailsPage() {
           <p>{user.short_form}</p>
 
           <p className="font-medium text-muted-foreground">Role</p>
-          <p>{user.role.join(", ")}</p>
+          <p>{user.role_name}</p>
 
           <p className="font-medium text-muted-foreground">Created At</p>
           <p>{dateHelper(user.created_at)}</p>

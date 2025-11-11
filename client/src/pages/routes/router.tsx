@@ -7,10 +7,12 @@ import CustomersPage from "../app/CustomersPage";
 import RfqPage from "../app/RfqPage";
 import SalesFunnelPage from "../app/SalesFunnelPage";
 import UserDetailsPage from "../app/UserDetailsPage";
+import InvoicesPage from "../app/InvoicesPage";
 import UsersPage from "../app/UsersPage";
 import AuthPage from "../auth/AuthPage";
 import RegisterPage from "../auth/RegisterPage";
 import NotFoundPage from "../misc/NotFoundPage";
+import InvoiceDetailsPage from "../app/InvoiceDetailsPage";
 
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/app" replace /> },
@@ -41,6 +43,8 @@ export const router = createBrowserRouter([
       { path: "customers/:id", element: <CustomerDetailsPage /> },
       { path: "rfq", element: <RfqPage /> },
       { path: "sales-funnel", element: <SalesFunnelPage /> },
+      { path: "invoices", element: <InvoicesPage /> },
+      { path: "invoices/:id", element: <InvoiceDetailsPage /> },
     ],
   },
   { path: "*", element: <NotFoundPage /> },

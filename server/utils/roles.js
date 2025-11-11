@@ -1,4 +1,3 @@
-// utils/roles.js
 import AccessControl from "accesscontrol";
 import { pool } from "../lib/dbconnect-mysql.js";
 

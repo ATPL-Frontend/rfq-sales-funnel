@@ -22,6 +22,7 @@ export default function AppNav() {
     { to: "/app/customers", label: "Customers" },
     { to: "/app/rfq", label: "RFQ" },
     { to: "/app/sales-funnel", label: "Sales Funnel" },
+    { to: "/app/invoices", label: "Invoices" },
   ];
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -39,7 +40,7 @@ export default function AppNav() {
           to="/app/sales-funnel"
           className="font-bold text-lg md:text-xl"
         >
-          Sales Funnel
+          HRM
         </NavLink>
 
         {/* Desktop nav */}
