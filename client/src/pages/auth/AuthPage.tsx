@@ -83,7 +83,7 @@
 // }
 
 import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import OtpDialog from "../../components/OtpDialog";
 import { Button } from "../../components/ui/button";
 import {
@@ -162,12 +162,7 @@ export default function AuthPage() {
             <span className="text-muted-foreground">
               Don't have an account?{" "}
             </span>
-            <Link
-              to="/auth/register"
-              className="hover:text-teal-800 hover:underline text-primary"
-            >
-              Register
-            </Link>
+            <span className="text-primary">Ask your admin for access.</span>
           </div>
         </CardContent>
       </Card>

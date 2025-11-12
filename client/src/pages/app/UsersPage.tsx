@@ -12,8 +12,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../components/ui/dialog";
-import { Input } from "../../components/ui/input";
+// import { Input } from "../../components/ui/input";
 import api from "../../lib/api";
+import UserForm from "../auth/RegisterPage";
 
 type User = {
   id: number;
@@ -30,23 +31,14 @@ export default function UsersPage() {
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
-  const navigate = useNavigate();
-
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [editOpen, setEditOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    short_form: "",
-    role: "",
-  });
-  const [saving, setSaving] = useState(false);
+  const navigate = useNavigate();
 
   // ✅ Fetch Users
   const fetchUsers = useCallback(async () => {
     if (loading || !hasMore || failed) return;
-
     setLoading(true);
     try {
       const { data } = await api.get(`/api/users?page=${page}&limit=20`);
@@ -60,7 +52,7 @@ export default function UsersPage() {
 
       setPage((prev) => prev + 1);
       setHasMore(data.page < data.total_pages);
-    } catch (err) {
+    } catch {
       toast.error("Failed to load users");
       setFailed(true);
     } finally {
@@ -70,60 +62,21 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ Open Edit Modal
+  // ✅ Create new user
+  const handleCreate = () => {
+    setSelectedUser(null);
+    setFormOpen(true);
+  };
+
+  // ✅ Edit existing user
   const handleEdit = (user: User) => {
     setSelectedUser(user);
-    setForm({
-      name: user.name,
-      email: user.email,
-      short_form: user.short_form,
-      role: user.role_name,
-    });
-    setEditOpen(true);
+    setFormOpen(true);
   };
 
-  // ✅ Submit Edit
-  const submitEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedUser) return;
-
-    setSaving(true);
-    try {
-      await api.put(`/api/users/${selectedUser.id}`, {
-        name: form.name,
-        email: form.email,
-        short_form: form.short_form,
-        role: form.role.split(",").map((r) => r.trim()),
-      });
-      toast.success("User updated successfully");
-
-      // update locally
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === selectedUser.id
-            ? {
-                ...u,
-                name: form.name,
-                email: form.email,
-                short_form: form.short_form,
-                role: form.role.split(",").map((r) => r.trim()),
-              }
-            : u
-        )
-      );
-
-      setEditOpen(false);
-    } catch (err) {
-      toast.error("Failed to update user");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ✅ Delete User
+  // ✅ Delete user
   const handleDelete = (user: User) => {
     setSelectedUser(user);
     setDeleteOpen(true);
@@ -136,9 +89,21 @@ export default function UsersPage() {
       toast.success("User deleted successfully");
       setUsers((prev) => prev.filter((u) => u.id !== selectedUser.id));
       setDeleteOpen(false);
-    } catch (err) {
+    } catch {
       toast.error("Failed to delete user");
     }
+  };
+
+  // ✅ When user form succeeds
+  const handleFormSuccess = (user: User, isEdit: boolean) => {
+    if (isEdit) {
+      setUsers((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, ...user } : u))
+      );
+    } else {
+      setUsers((prev) => [user, ...prev]);
+    }
+    setFormOpen(false);
   };
 
   const columns: Column<User>[] = [
@@ -190,6 +155,11 @@ export default function UsersPage() {
 
   return (
     <>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-xl font-semibold">Users</h1>
+        <Button onClick={handleCreate}>Add User</Button>
+      </div>
+
       <CommonTable
         columns={columns}
         data={users}
@@ -198,62 +168,19 @@ export default function UsersPage() {
         onLoadMore={fetchUsers}
       />
 
-      {/* ✅ Edit User Modal */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+      {/* ✅ Create/Edit User Modal */}
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
+            <DialogTitle>
+              {selectedUser ? "Edit User" : "Create User"}
+            </DialogTitle>
           </DialogHeader>
-          <form onSubmit={submitEdit} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Name</label>
-              <Input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Email</label>
-              <Input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Short Form</label>
-              <Input
-                value={form.short_form}
-                onChange={(e) =>
-                  setForm({ ...form, short_form: e.target.value })
-                }
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Role</label>
-              <Input
-                value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value })}
-                placeholder="e.g. admin, sales-person"
-                required
-              />
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setEditOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? "Saving..." : "Save"}
-              </Button>
-            </DialogFooter>
-          </form>
+          <UserForm
+            user={selectedUser}
+            onSuccess={handleFormSuccess}
+            onCancel={() => setFormOpen(false)}
+          />
         </DialogContent>
       </Dialog>
 
@@ -268,11 +195,7 @@ export default function UsersPage() {
             <span className="font-semibold">{selectedUser?.name}</span>?
           </p>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setDeleteOpen(false)}
-            >
+            <Button variant="secondary" onClick={() => setDeleteOpen(false)}>
               Cancel
             </Button>
             <Button

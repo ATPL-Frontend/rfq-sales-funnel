@@ -80,25 +80,6 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // useEffect(() => {
-  //   if (invoice?.customer_id) {
-  //     setCustomers((prev) => {
-  //       // Check if this customer already exists
-  //       const exists = prev.some((c) => c.id === invoice.customer_id);
-  //       if (exists) return prev;
-
-  //       // ✅ Use the customer data from the invoice itself
-  //       const newCustomer = {
-  //         id: invoice.customer_id,
-  //         name: invoice.customer_name || "",
-  //         email: invoice.customer_email || "",
-  //         code: invoice.customer_code || "",
-  //       };
-  //       return [...prev, newCustomer];
-  //     });
-  //   }
-  // }, [invoice]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
