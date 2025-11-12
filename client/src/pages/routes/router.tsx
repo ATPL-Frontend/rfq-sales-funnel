@@ -10,7 +10,7 @@ import UserDetailsPage from "../app/UserDetailsPage";
 import InvoicesPage from "../app/InvoicesPage";
 import UsersPage from "../app/UsersPage";
 import AuthPage from "../auth/AuthPage";
-import RegisterPage from "../auth/RegisterPage";
+// import RegisterPage from "../auth/RegisterPage";
 import NotFoundPage from "../misc/NotFoundPage";
 import InvoiceDetailsPage from "../app/InvoiceDetailsPage";
 
@@ -25,7 +25,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <AuthPage /> },
-      { path: "register", element: <RegisterPage /> },
+      // { path: "register", element: <RegisterPage /> },
     ],
   },
   {
