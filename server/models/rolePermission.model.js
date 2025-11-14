@@ -33,7 +33,9 @@ export async function createRolePermissionTables() {
       );
     `);
 
-    console.log("✅ Role, Permission, and Role_Permissions tables created (if not exist)");
+    console.log(
+      "✅ Role, Permission, and Role_Permissions tables created (if not exist)"
+    );
   } catch (err) {
     console.error("❌ Error creating role-permission tables:", err.message);
   }
@@ -44,13 +46,15 @@ export async function createRolePermissionTables() {
  */
 export async function seedDefaultRolesAndPermissions() {
   try {
-    // 1️⃣ Seed Roles
+    console.log("🌱 Seeding roles & permissions (safe mode)");
+
+    // 1️⃣ Roles
     const roles = ["user", "sales-person", "admin", "super-admin"];
     for (const name of roles) {
       await pool.query(`INSERT IGNORE INTO roles (name) VALUES (?)`, [name]);
     }
 
-    // 2️⃣ Seed Permissions
+    // 2️⃣ Permissions — with unique constraint now enforced
     const permissions = [
       ["createOwn", "rfq"],
       ["readAny", "rfq"],
@@ -77,6 +81,7 @@ export async function seedDefaultRolesAndPermissions() {
       ["deleteAny", "user"],
     ];
 
+    await pool.query("START TRANSACTION");
     for (const [action, resource] of permissions) {
       await pool.query(
         `INSERT IGNORE INTO permissions (action, resource) VALUES (?, ?)`,
@@ -84,66 +89,74 @@ export async function seedDefaultRolesAndPermissions() {
       );
     }
 
-    // 3️⃣ Fetch role IDs
+    // 3️⃣ Get IDs after inserts
     const [roleRows] = await pool.query("SELECT id, name FROM roles");
-    const roleMap = Object.fromEntries(roleRows.map(r => [r.name, r.id]));
+    const roleMap = Object.fromEntries(roleRows.map((r) => [r.name, r.id]));
 
-    // 4️⃣ Fetch permission IDs
     const [permRows] = await pool.query(
       "SELECT id, action, resource FROM permissions"
     );
 
-    // Helper to find permission IDs by resource pattern
     const permFor = (resource, actions) =>
       permRows
-        .filter(p => p.resource === resource && actions.includes(p.action))
-        .map(p => p.id);
+        .filter((p) => p.resource === resource && actions.includes(p.action))
+        .map((p) => p.id);
 
-    // 5️⃣ Role → permission links
-    const roleLinks = [];
-
-    // USER
-    roleLinks.push(...permFor("rfq", ["createOwn", "readAny"]));
-
-    // SALES-PERSON
-    const salesPerms = [
-      ...permFor("rfq", ["createOwn", "readAny", "updateAny"]),
-      ...permFor("customer", ["createAny", "readAny", "updateAny"]),
-      ...permFor("sales-funnel", ["createAny", "readAny", "updateAny"]),
-      ...permFor("invoice", ["createAny", "readAny", "updateAny"]),
-    ];
-
-    // ADMIN
-    const adminPerms = [
-      ...salesPerms,
-      ...permFor("rfq", ["deleteAny"]),
-      ...permFor("customer", ["deleteAny"]),
-      ...permFor("sales-funnel", ["deleteAny"]),
-      ...permFor("invoice", ["deleteAny"]),
-      ...permFor("user", ["readAny", "updateAny", "deleteAny"]),
-    ];
-
-    // SUPER-ADMIN gets everything
-    const superAdminPerms = permRows.map(p => p.id);
-
-    // 6️⃣ Insert mappings
-    const insertRolePerms = async (roleName, permIds) => {
-      const roleId = roleMap[roleName];
-      for (const pid of permIds) {
-        await pool.query(
-          "INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)",
-          [roleId, pid]
-        );
-      }
+    // 4️⃣ Role → Permission mapping
+    const mappings = {
+      user: [...permFor("rfq", ["createOwn", "readAny"])],
+      "sales-person": [
+        ...permFor("rfq", ["createOwn", "readAny", "updateAny"]),
+        ...permFor("customer", ["createAny", "readAny", "updateAny"]),
+        ...permFor("sales-funnel", ["createAny", "readAny", "updateAny"]),
+        ...permFor("invoice", ["createAny", "readAny", "updateAny"]),
+      ],
+      admin: [
+        ...permFor("rfq", ["createOwn", "readAny", "updateAny", "deleteAny"]),
+        ...permFor("customer", [
+          "createAny",
+          "readAny",
+          "updateAny",
+          "deleteAny",
+        ]),
+        ...permFor("sales-funnel", [
+          "createAny",
+          "readAny",
+          "updateAny",
+          "deleteAny",
+        ]),
+        ...permFor("invoice", [
+          "createAny",
+          "readAny",
+          "updateAny",
+          "deleteAny",
+        ]),
+        ...permFor("user", ["readAny", "updateAny", "deleteAny"]),
+      ],
+      "super-admin": permRows.map((p) => p.id),
     };
 
-    await insertRolePerms("user", roleLinks);
-    await insertRolePerms("sales-person", salesPerms);
-    await insertRolePerms("admin", adminPerms);
-    await insertRolePerms("super-admin", superAdminPerms);
+    // 5️⃣ Insert role-permission mappings only if not exist
+    for (const [roleName, permIds] of Object.entries(mappings)) {
+      const roleId = roleMap[roleName];
+      if (!roleId) continue;
 
-    console.log("✅ Default roles and permissions seeded (with mappings)");
+      for (const pid of permIds) {
+        await pool.query(
+          `INSERT IGNORE INTO role_permissions (role_id, permission_id)
+           SELECT ?, ? FROM DUAL
+           WHERE NOT EXISTS (
+             SELECT 1 FROM role_permissions WHERE role_id=? AND permission_id=?
+           )`,
+          [roleId, pid, roleId, pid]
+        );
+      }
+    }
+
+    await pool.query("COMMIT");
+    console.log("✅ Roles & permissions seeded safely (no duplicates)");
   } catch (err) {
-    console.error("❌ Error seeding roles/permissions:", err.message);
+    await pool.query("ROLLBACK");
+    console.error("❌ Seeding failed:", err.message);
   }
 }

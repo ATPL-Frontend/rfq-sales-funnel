@@ -12,4 +12,27 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+let hasRedirected = false; // 🔒 prevent multiple redirects
+
+// Handle 401 globally
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    const status = err.response?.status;
+    const isAuthPage = window.location.pathname.startsWith("/auth");
+
+    if (status === 401 && !isAuthPage && !hasRedirected) {
+      hasRedirected = true;
+      localStorage.removeItem("auth_token");
+
+      // Small delay so React router doesn’t re-trigger instantly
+      setTimeout(() => {
+        window.location.href = "/auth";
+      }, 100);
+    }
+
+    return Promise.reject(err);
+  }
+);
+
 export default api;
