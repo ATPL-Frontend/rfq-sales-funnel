@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ) => {
     try {
       const loading = toast.loading("Signing up...");
-      
+
       await api.post("/api/auth/register", {
         email,
         password,
@@ -143,14 +143,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+  try {
+    await api.post("/api/users/logout", {}, { withCredentials: true });
+  } catch (err) {
+    console.warn("Logout error:", err);
+  } finally {
     localStorage.removeItem("auth_token");
     localStorage.removeItem("auth_user");
     setToken(null);
     setUser(null);
     setNeedsOtp(false);
     setPending(null);
-  };
+    toast.success("Logged out");
+    window.location.href = "/auth";
+  }
+};
 
   const value = React.useMemo(
     () => ({
@@ -178,19 +186,96 @@ export function useAuth() {
 // Route guards (unchanged API)
 import { Navigate, useLocation } from "react-router-dom";
 
+// export function ProtectedRoute({ children }: { children: React.ReactNode }) {
+//   const { token } = useAuth();
+//   const location = useLocation();
+//   if (!token) {
+//     return <Navigate to="/auth" replace state={{ from: location }} />;
+//   }
+//   return <>{children}</>;
+// }
+
+// export function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
+//   const { token } = useAuth();
+//   if (token) {
+//     return <Navigate to="/app/users" replace />;
+//   }
+//   return <>{children}</>;
+// }
+
+import { useEffect, useState } from "react";
+
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { token } = useAuth();
   const location = useLocation();
-  if (!token) {
+  const [checking, setChecking] = useState(true);
+  const [valid, setValid] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        // ✅ verify token via backend
+        await api.get("/api/users/me", { withCredentials: true });
+        if (active) setValid(true);
+      } catch (err: any) {
+        // ❌ invalid/expired
+        localStorage.removeItem("auth_token");
+        if (active) {
+          setValid(false);
+          // 🧠 Show toast message here
+          const msg =
+            err?.response?.data?.message ||
+            "Session expired. Please log in again.";
+          toast.error(msg);
+        }
+      } finally {
+        if (active) setChecking(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (checking)
+    return <div className="p-8 text-center">Checking session...</div>;
+
+  if (!valid) {
     return <Navigate to="/auth" replace state={{ from: location }} />;
   }
+
   return <>{children}</>;
 }
 
 export function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
-  const { token } = useAuth();
-  if (token) {
-    return <Navigate to="/app/users" replace />;
-  }
+  const [checking, setChecking] = useState(true);
+  const [isLogged, setIsLogged] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await api.get("/api/users/me", { withCredentials: true });
+        if (active) setIsLogged(true);
+      } catch (err: any) {
+        if (active) {
+          setIsLogged(false);
+          // 🧠 Show toast message here
+          const msg =
+            err?.response?.data?.message ||
+            "Session expired. Please log in again.";
+          toast.error(msg);
+        }
+      } finally {
+        if (active) setChecking(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (checking) return <div className="p-8 text-center">Loading...</div>;
+  if (isLogged) return <Navigate to="/app/users" replace />;
   return <>{children}</>;
 }
