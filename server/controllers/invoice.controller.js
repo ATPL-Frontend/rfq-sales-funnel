@@ -72,7 +72,7 @@ export async function createInvoice(req, res) {
 
     const [r] = await pool.query(
       `INSERT INTO invoices (invoice_date, customer_id, invoice_no, amount, currency)
-       VALUES (?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?)`,
       [invoice_date, customer_id, invoice_no, amount, currency]
     );
 
