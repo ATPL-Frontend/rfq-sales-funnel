@@ -128,12 +128,12 @@ export default function InvoiceSummaryPage() {
         summary.map((cust, i) => (
           <Card
             key={i}
-            className="shadow-lg border border-gray-200 rounded-xl mb-4 overflow-hidden p-0"
+            className="shadow-lg border border-gray-300 rounded-xl mb-4 overflow-hidden p-0"
           >
             <CardContent className="p-4">
               {/* Customer summary header */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                <div className="bg-gray-100 p-4 rounded-lg border border-gray-100">
                   <p className="text-sm font-medium text-gray-500 mb-1">
                     Customer
                   </p>
@@ -141,7 +141,7 @@ export default function InvoiceSummaryPage() {
                     {cust.customer_name}
                   </p>
                 </div>
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                <div className="bg-gray-200 p-4 rounded-lg border border-gray-100">
                   <p className="text-sm font-medium text-gray-500 mb-1">
                     # of Invoices
                   </p>

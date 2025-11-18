@@ -1,3 +1,10 @@
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "../../components/ui/button";
@@ -64,7 +71,8 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <label className="text-sm font-medium">Name</label>
+        <label className="text-sm font-medium">Name</label>{" "}
+        <span className="text-red-500">*</span>
         <Input
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -83,7 +91,8 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
 
       {!user?.id && (
         <div className="space-y-2">
-          <label className="text-sm font-medium">Password</label>
+          <label className="text-sm font-medium">Password </label>
+          <span className="text-red-500">*</span>
           <Input
             type="password"
             value={form.password}
@@ -102,13 +111,25 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
         />
       </div>
       <div className="space-y-2">
-        <label className="text-sm font-medium">Role</label>
-        <Input
+        <label className="text-sm font-medium flex items-center gap-1">
+          Role <span className="text-red-500">*</span>
+        </label>
+
+        <Select
           value={form.role}
-          onChange={(e) => setForm({ ...form, role: e.target.value })}
-          placeholder="e.g. admin, sales-person"
-          required
-        />
+          onValueChange={(value: string) => setForm({ ...form, role: value })}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select role" />
+          </SelectTrigger>
+
+          <SelectContent>
+            <SelectItem value="admin">Admin</SelectItem>
+            <SelectItem value="super-admin">Super Admin</SelectItem>
+            <SelectItem value="user">User</SelectItem>
+            <SelectItem value="sales-person">Sales Person</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <DialogFooter>

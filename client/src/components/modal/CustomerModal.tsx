@@ -1,8 +1,8 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
 import { DialogFooter } from "../../components/ui/dialog";
+import { Input } from "../../components/ui/input";
 import api from "../../lib/api";
 
 export type Customer = {
@@ -57,7 +57,8 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <label className="text-sm font-medium">Name</label>
+        <label className="text-sm font-medium">Name</label>{" "}
+        <span className="text-red-500">*</span>
         <Input
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -90,7 +91,6 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Props) {
         <Input
           value={form.code}
           onChange={(e) => setForm({ ...form, code: e.target.value })}
-          required
           placeholder="WAT123"
         />
       </div>

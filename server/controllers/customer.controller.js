@@ -39,7 +39,7 @@ export async function createCustomer(req, res) {
     }
 
     const [r] = await pool.query(
-      "INSERT INTO customers (name, email, web_address, code) VALUES (?, ?, ?)",
+      "INSERT INTO customers (name, email, web_address, code) VALUES (?, ?, ?, ?)",
       [name, email, web_address, code]
     );
     const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [r.insertId]);
