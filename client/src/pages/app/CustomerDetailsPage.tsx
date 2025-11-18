@@ -15,6 +15,7 @@ type Customer = {
   id: number;
   name: string;
   email: string;
+  web_address: string;
   code: string;
   created_at: string;
   updated_at: string;
@@ -82,6 +83,9 @@ export default function CustomerDetailsPage() {
 
           <p className="font-medium text-muted-foreground">Email</p>
           <p>{customer.email}</p>
+
+          <p className="font-medium text-muted-foreground">Web Address</p>
+          <p>{customer.web_address}</p>
 
           <p className="font-medium text-muted-foreground">Code</p>
           <p>{customer.code}</p>

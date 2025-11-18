@@ -117,6 +117,7 @@ export default function CustomersPage() {
       ),
     },
     { key: "email", label: "Email" },
+    { key: "web_address", label: "Web Address" },
     { key: "code", label: "Code" },
     {
       key: "actions",

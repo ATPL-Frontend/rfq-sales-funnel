@@ -25,26 +25,28 @@ export async function createInvoice(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "createAny", "invoice")) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Forbidden: insufficient permissions",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
     }
 
-    let { invoice_date, customer_id, amount, currency } = req.body || {};
+    let { invoice_date, customer_id, invoice_no, amount, currency } =
+      req.body || {};
 
     invoice_date = String(invoice_date || "").trim();
     customer_id = Number(customer_id);
+    invoice_no = String(invoice_no || "").trim();
     amount = Number(amount);
     currency = String(currency || "")
       .trim()
       .toUpperCase();
 
-    if (!invoice_date || !customer_id || !amount || !currency) {
-      return res.status(400).json({ success: false,
-        message: "invoice_date, customer_id, amount, currency are required",
+    if (!invoice_date || !customer_id || !invoice_no || !amount || !currency) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "invoice_date, customer_id, amount, currency, invoice_no are required",
       });
     }
 
@@ -69,9 +71,9 @@ export async function createInvoice(req, res) {
         .json({ success: false, message: `Customer ${customer_id} not found` });
 
     const [r] = await pool.query(
-      `INSERT INTO invoices (invoice_date, customer_id, amount, currency)
+      `INSERT INTO invoices (invoice_date, customer_id, invoice_no, amount, currency)
        VALUES (?, ?, ?, ?)`,
-      [invoice_date, customer_id, amount, currency]
+      [invoice_date, customer_id, invoice_no, amount, currency]
     );
 
     const [rows] = await pool.query(
@@ -106,15 +108,21 @@ export async function listInvoices(req, res) {
       !checkPermission(roles, "readAny", "invoice") &&
       !checkPermission(roles, "readOwn", "invoice")
     ) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
     }
 
     const customer_id = req.query.customer_id
       ? Number(req.query.customer_id)
       : null;
+    const invoice_no = (req.query.invoice_no || "").trim();
     const currency = (req.query.currency || "").trim().toUpperCase();
+    const amount_from = req.query.amount_from
+      ? Number(req.query.amount_from)
+      : null;
+    const amount_to = req.query.amount_to ? Number(req.query.amount_to) : null;
     const date_from = (req.query.date_from || "").trim();
     const date_to = (req.query.date_to || "").trim();
     const q = (req.query.q || "").trim();
@@ -132,6 +140,18 @@ export async function listInvoices(req, res) {
     if (customer_id) {
       where.push("i.customer_id = ?");
       params.push(customer_id);
+    }
+    if (invoice_no) {
+      where.push("i.invoice_no = ?");
+      params.push(invoice_no);
+    }
+    if (amount_from !== null) {
+      where.push("i.amount >= ?");
+      params.push(amount_from);
+    }
+    if (amount_to !== null) {
+      where.push("i.amount <= ?");
+      params.push(amount_to);
     }
     if (currency) {
       where.push("i.currency = ?");
@@ -194,9 +214,10 @@ export async function getInvoiceById(req, res) {
       !checkPermission(roles, "readAny", "invoice") &&
       !checkPermission(roles, "readOwn", "invoice")
     ) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
     }
 
     const id = Number(req.params.id);
@@ -208,8 +229,10 @@ export async function getInvoiceById(req, res) {
       [id]
     );
     if (!rows.length)
-      return res.status(404).json({ success: false, message: "Invoice not found" });
-    res.json({ success: true, data: rows[0]});
+      return res
+        .status(404)
+        .json({ success: false, message: "Invoice not found" });
+    res.json({ success: true, data: rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -223,17 +246,26 @@ export async function updateInvoice(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "updateAny", "invoice")) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
     }
 
     const id = Number(req.params.id);
     const [exist] = await pool.query("SELECT * FROM invoices WHERE id=?", [id]);
     if (!exist.length)
-      return res.status(404).json({ success: false, message: "Invoice not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Invoice not found" });
 
-    const allowed = ["invoice_date", "customer_id", "amount", "currency"];
+    const allowed = [
+      "invoice_date",
+      "customer_id",
+      "invoice_no",
+      "amount",
+      "currency",
+    ];
     const updates = [];
     const params = [];
 
@@ -262,16 +294,30 @@ export async function updateInvoice(req, res) {
         params.push(amt);
         continue;
       }
+      if (key === "invoice_no") {
+        const ino = String(req.body.invoice_no || "").trim();
+        if (!ino)
+          return res
+            .status(400)
+            .json({ success: false, message: "invoice_no invalid" });
+        updates.push("invoice_no = ?");
+        params.push(ino);
+        continue;
+      }
       if (key === "customer_id") {
         const cid = Number(req.body.customer_id);
         if (!cid)
-          return res.status(400).json({ success: false, message: "customer_id invalid" });
+          return res
+            .status(400)
+            .json({ success: false, message: "customer_id invalid" });
         const [[cust]] = await pool.query(
           "SELECT id FROM customers WHERE id=?",
           [cid]
         );
         if (!cust)
-          return res.status(400).json({ success: false, message: `Customer ${cid} not found` });
+          return res
+            .status(400)
+            .json({ success: false, message: `Customer ${cid} not found` });
         updates.push("customer_id = ?");
         params.push(cid);
         continue;
@@ -279,7 +325,9 @@ export async function updateInvoice(req, res) {
       if (key === "invoice_date") {
         const d = String(req.body.invoice_date || "").trim();
         if (!d)
-          return res.status(400).json({ success: false, message: "invoice_date invalid" });
+          return res
+            .status(400)
+            .json({ success: false, message: "invoice_date invalid" });
         updates.push("invoice_date = ?");
         params.push(d);
         continue;
@@ -287,7 +335,9 @@ export async function updateInvoice(req, res) {
     }
 
     if (!updates.length)
-      return res.status(400).json({ success: false, message: "No valid fields to update" });
+      return res
+        .status(400)
+        .json({ success: false, message: "No valid fields to update" });
 
     params.push(id);
     await pool.query(
@@ -316,18 +366,97 @@ export async function deleteInvoice(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "deleteAny", "invoice")) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
     }
 
     const id = Number(req.params.id);
     const [r] = await pool.query("DELETE FROM invoices WHERE id=?", [id]);
     if (r.affectedRows === 0)
-      return res.status(404).json({ success: false, message: "Invoice not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Invoice not found" });
 
     res.json({ success: true, message: "Invoice deleted successfully" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+// 📊 GET /api/invoices/summary?from=YYYY-MM-DD&to=YYYY-MM-DD
+export async function getInvoiceSummary(req, res) {
+  try {
+    const { from, to } = req.query;
+
+    // Validate dates
+    const isValidDate = (d) => !!d && !isNaN(new Date(d).getTime());
+    const params = [];
+    let where = "";
+
+    if (isValidDate(from) && isValidDate(to)) {
+      where = "WHERE i.invoice_date BETWEEN ? AND ?";
+      params.push(from, to);
+    } else if (isValidDate(from)) {
+      where = "WHERE i.invoice_date >= ?";
+      params.push(from);
+    } else if (isValidDate(to)) {
+      where = "WHERE i.invoice_date <= ?";
+      params.push(to);
+    } else {
+      console.log("⚠️  No valid dates provided — fetching all invoices");
+    }
+
+    console.log("🧾 Final WHERE:", where, "params:", params);
+
+    const [rows] = await pool.query(
+      `
+      SELECT 
+        c.id AS customer_id,
+        c.name AS customer_name,
+        i.id AS invoice_id,
+        i.invoice_date AS date,
+        i.invoice_no,
+        i.amount,
+        i.currency
+      FROM invoices i
+      JOIN customers c ON c.id = i.customer_id
+      ${where}
+      ORDER BY c.name ASC, i.invoice_date DESC
+      `,
+      params
+    );
+
+    if (!rows.length) return res.json({ data: [] });
+
+    // Group by customer
+    const grouped = {};
+    for (const r of rows) {
+      if (!grouped[r.customer_id]) {
+        grouped[r.customer_id] = {
+          customer_name: r.customer_name,
+          no_of_invoices: 0,
+          total_amount_aud: 0,
+          total_amount_usd: 0,
+          invoices: [],
+        };
+      }
+      const g = grouped[r.customer_id];
+      g.no_of_invoices++;
+      if (r.currency === "AUD") g.total_amount_aud += Number(r.amount);
+      if (r.currency === "USD") g.total_amount_usd += Number(r.amount);
+      g.invoices.push({
+        date: r.date,
+        invoice_no: r.invoice_no,
+        amount: Number(r.amount),
+        currency: r.currency,
+      });
+    }
+
+    return res.json({ data: Object.values(grouped) });
+  } catch (err) {
+    console.error("💥 getInvoiceSummary error:", err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 }

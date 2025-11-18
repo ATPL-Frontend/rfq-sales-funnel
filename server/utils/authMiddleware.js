@@ -64,7 +64,7 @@ export function authorize(action, resource) {
           )} cannot ${action} on ${resource}`,
         });
       }
-
+      
       next();
     } catch (err) {
       console.error("Authorization error:", err);

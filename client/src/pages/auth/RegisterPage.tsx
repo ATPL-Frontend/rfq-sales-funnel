@@ -44,7 +44,7 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
         toast.success("User updated successfully");
         onSuccess(data.data || data, true);
       } else {
-        const { data } = await api.post(`/api/users`, {
+        const { data } = await api.post(`/api/auth/register`, {
           name: form.name,
           email: form.email,
           password: form.password,

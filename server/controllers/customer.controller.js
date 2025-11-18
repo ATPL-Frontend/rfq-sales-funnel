@@ -26,20 +26,21 @@ export async function createCustomer(req, res) {
       return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
     }
 
-    let { name, email, code = null } = req.body || {};
+    let { name, email = null, web_address = null, code = null } = req.body || {};
     name = String(name || "").trim();
-    email = String(email || "").trim().toLowerCase();
+    email = email == null ? null : String(email).trim().toLowerCase();
+    web_address = web_address == null ? null : String(web_address).trim();
     code = code == null ? null : String(code).trim();
 
-    if (!name || !email) {
+    if (!name) {
       return res
         .status(400)
-        .json({ success: false, message: "name and email are required" });
+        .json({ success: false, message: "Name is required" });
     }
 
     const [r] = await pool.query(
-      "INSERT INTO customers (name, email, code) VALUES (?, ?, ?)",
-      [name, email, code]
+      "INSERT INTO customers (name, email, web_address, code) VALUES (?, ?, ?)",
+      [name, email, web_address, code]
     );
     const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [r.insertId]);
     return res.status(201).json({ success: true, data: rows[0] });
@@ -90,16 +91,16 @@ export async function listCustomers(req, res) {
       const like = `%${q}%`;
       [rows] = await pool.query(
         `SELECT * FROM customers
-         WHERE name LIKE ? OR email LIKE ? OR code LIKE ?
+         WHERE name LIKE ? OR email LIKE ? OR web_address LIKE ? OR code LIKE ?
          ORDER BY name ASC
          LIMIT ? OFFSET ?`,
-        [like, like, like, limit, offset]
+        [like, like, like, like, limit, offset]
       );
       [countRows] = await pool.query(
         `SELECT COUNT(*) as total
          FROM customers
-         WHERE name LIKE ? OR email LIKE ? OR code LIKE ?`,
-        [like, like, like]
+         WHERE name LIKE ? OR email LIKE ? OR web_address LIKE ? OR code LIKE ?`,
+        [like, like, like, like]
       );
     } else {
       [rows] = await pool.query(
@@ -162,9 +163,10 @@ export async function updateCustomer(req, res) {
     if (!exists.length)
       return res.status(404).json({ success: false, message: "Customer not found" });
 
-    let { name, email, code } = req.body || {};
+    let { name, email, web_address, code } = req.body || {};
     if (name !== undefined) name = String(name).trim();
     if (email !== undefined) email = String(email).trim().toLowerCase();
+    if (web_address !== undefined) web_address = String(web_address).trim();
     if (code !== undefined) code = code == null ? null : String(code).trim();
 
     const updates = [];
@@ -176,6 +178,10 @@ export async function updateCustomer(req, res) {
     if (email !== undefined) {
       updates.push("email=?");
       params.push(email);
+    }
+    if (web_address !== undefined) {
+      updates.push("web_address=?");
+      params.push(web_address);
     }
     if (code !== undefined) {
       updates.push("code=?");

@@ -23,6 +23,7 @@ export default function AppNav() {
     { to: "/app/rfq", label: "RFQ" },
     { to: "/app/sales-funnel", label: "Sales Funnel" },
     { to: "/app/invoices", label: "Invoices" },
+    { to: "/app/summary", label: "Invoice Summary" },
   ];
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>

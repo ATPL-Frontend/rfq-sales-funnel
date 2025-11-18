@@ -31,6 +31,7 @@ type Invoice = {
   id: number;
   invoice_date: string;
   customer_name: string;
+  invoice_no: string;
   customer_email: string;
   customer_id: number;
   customer_code: string;
@@ -45,12 +46,12 @@ type Props = {
 };
 
 export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
-  console.log("InvoiceForm invoice:", invoice);
   const [form, setForm] = useState({
     invoice_date: invoice?.invoice_date
       ? new Date(invoice.invoice_date).toISOString().split("T")[0]
       : "",
     customer_id: invoice?.customer_id ? String(invoice.customer_id) : "",
+    invoice_no: invoice?.invoice_no || "",
     amount: invoice?.amount ? invoice.amount.toString() : "",
     currency: invoice?.currency || "AUD",
   });
@@ -167,6 +168,16 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
             </Command>
           </PopoverContent>
         </Popover>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Invoice No</label>
+        <Input
+          type="text"
+          value={form.invoice_no}
+          onChange={(e) => setForm({ ...form, invoice_no: e.target.value })}
+          required
+        />
       </div>
 
       <div className="space-y-2">

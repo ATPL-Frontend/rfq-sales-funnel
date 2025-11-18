@@ -16,6 +16,7 @@ interface Invoice {
   id: number;
   invoice_date: string;
   customer_name: string;
+  invoice_no: string;
   customer_email: string;
   customer_id: number;
   customer_code: string;
@@ -102,6 +103,11 @@ export default function InvoiceDetailsPage() {
           <div>
             <p className="text-muted-foreground font-medium">Customer Email:</p>
             <p>{invoice.customer_email || "—"}</p>
+          </div>
+
+          <div>
+            <p className="text-muted-foreground font-medium">Invoice No:</p>
+            <p>{invoice.invoice_no || "—"}</p>
           </div>
 
           <div>

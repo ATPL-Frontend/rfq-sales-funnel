@@ -9,6 +9,7 @@ export type Customer = {
   id: number;
   name: string;
   email: string;
+  web_address: string;
   code: string;
   created_at: string;
   updated_at: string;
@@ -24,6 +25,7 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Props) {
   const [form, setForm] = useState({
     name: customer?.name || "",
     email: customer?.email || "",
+    web_address: customer?.web_address || "",
     code: customer?.code || "",
   });
   const [saving, setSaving] = useState(false);
@@ -59,6 +61,7 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Props) {
         <Input
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
+          placeholder="Watlow"
           required
         />
       </div>
@@ -69,7 +72,16 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Props) {
           type="email"
           value={form.email}
           onChange={(e) => setForm({ ...form, email: e.target.value })}
-          required
+          placeholder="abc@example.com"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Web Address</label>
+        <Input
+          value={form.web_address}
+          onChange={(e) => setForm({ ...form, web_address: e.target.value })}
+          placeholder="www.watlow.com"
         />
       </div>
 
@@ -79,6 +91,7 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Props) {
           value={form.code}
           onChange={(e) => setForm({ ...form, code: e.target.value })}
           required
+          placeholder="WAT123"
         />
       </div>
 
