@@ -19,6 +19,7 @@ import {
 } from "../../components/ui/popover";
 import api from "../../lib/api";
 import { cn } from "../../lib/utils";
+import { Checkbox } from "../ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -36,6 +37,7 @@ type Invoice = {
   customer_id: number;
   customer_code: string;
   amount: number;
+  gst: boolean;
   currency: string;
 };
 
@@ -53,6 +55,7 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
     customer_id: invoice?.customer_id ? String(invoice.customer_id) : "",
     invoice_no: invoice?.invoice_no || "",
     amount: invoice?.amount ? invoice.amount.toString() : "",
+    gst: invoice?.gst ?? true,
     currency: invoice?.currency || "AUD",
   });
 
@@ -123,21 +126,25 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
               variant="outline"
               role="combobox"
               className={cn(
-                "w-full justify-between",
+                "w-full justify-between overflow-hidden",
                 !form.customer_id && "text-muted-foreground"
               )}
             >
-              {form.customer_id
-                ? customers.find((c) => c.id === Number(form.customer_id))
-                    ?.name || "Select customer"
-                : "Select customer"}
+              <span className="truncate max-w-[90%]">
+                {form.customer_id
+                  ? customers.find((c) => c.id === Number(form.customer_id))
+                      ?.name || "Select customer"
+                  : "Select customer"}
+              </span>
+
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
+
           <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
             <Command>
               <CommandInput placeholder="Search customer..." />
-              <CommandList>
+              <CommandList className="max-h-64 overflow-y-auto">
                 <CommandEmpty>No customers found.</CommandEmpty>
                 <CommandGroup>
                   {customers.map((c) => (
@@ -159,7 +166,7 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
                       />
                       {c.name}{" "}
                       <span className="text-muted-foreground ml-1 text-xs">
-                        ({c.email} - {c.code})
+                        (Code - {c.code})
                       </span>
                     </CommandItem>
                   ))}
@@ -181,7 +188,28 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">Amount</label>
+        <div className="flex justify-between items-center">
+          <label className="text-sm font-medium">Amount</label>
+
+          <div className="flex items-center gap-3">
+            <Checkbox
+              id="gst"
+              checked={!!form.gst} // force strictly boolean
+              onCheckedChange={(checked) =>
+                setForm((prev) => ({ ...prev, gst: Boolean(checked) }))
+              }
+            />
+            <label
+              htmlFor="gst"
+              className={`text-sm font-semibold transition-colors ${
+                form.gst ? "text-primary" : "text-gray-400"
+              }`}
+            >
+              GST Included
+            </label>
+          </div>
+        </div>
+
         <Input
           type="number"
           value={form.amount}

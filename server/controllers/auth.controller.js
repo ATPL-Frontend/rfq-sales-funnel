@@ -133,7 +133,7 @@ export async function verifyOTP(req, res) {
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role_name || "user" },
       process.env.JWT_SECRET,
-      { expiresIn: "24h" }
+      { expiresIn: "8h" }
     );
 
     // Clear OTP after success

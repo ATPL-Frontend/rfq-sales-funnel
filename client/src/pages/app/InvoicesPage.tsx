@@ -179,7 +179,18 @@ export default function InvoicesPage() {
     {
       key: "amount",
       label: "Amount",
-      render: (r) => `${r.amount} ${r.currency}`,
+      render: (r) => (
+        <>
+          {r.amount}{" "}
+          <span
+            className={`font-semibold text-sm ${
+              r.currency === "AUD" ? "text-orange-600" : "text-green-600"
+            }`}
+          >
+            {r.currency}
+          </span>
+        </>
+      ),
     },
     {
       key: "actions",
@@ -237,19 +248,22 @@ export default function InvoicesPage() {
               variant="outline"
               role="combobox"
               className={cn(
-                "w-full justify-between",
+                "w-full justify-between overflow-hidden",
                 !filters.customer_id && "text-muted-foreground"
               )}
             >
-              {filters.customer_id
-                ? customers.find((c) => c.id === Number(filters.customer_id))
-                    ?.name || "Select customer"
-                : "Select customer"}
+              <span className="truncate max-w-[90%]">
+                {filters.customer_id
+                  ? customers.find((c) => c.id === Number(filters.customer_id))
+                      ?.name || "Select customer"
+                  : "Select customer"}
+              </span>
+
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
 
-          <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
+          <PopoverContent className="w-60 p-0 ml-6">
             <Command>
               <CommandInput placeholder="Search customer..." />
 
@@ -275,7 +289,7 @@ export default function InvoicesPage() {
                     >
                       <Check
                         className={cn(
-                          "mr-2 h-4 w-4",
+                          "h-4 w-4",
                           String(c.id) === filters.customer_id
                             ? "opacity-100"
                             : "opacity-0"
@@ -284,7 +298,7 @@ export default function InvoicesPage() {
 
                       {c.name}
                       <span className="text-muted-foreground ml-1 text-xs">
-                        ({c.email} - {c.code})
+                        (Code - {c.code})
                       </span>
                     </CommandItem>
                   ))}
@@ -324,7 +338,7 @@ export default function InvoicesPage() {
           }
         >
           <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select currency $" />
+            <SelectValue placeholder="$ Select currency" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="AUD">AUD</SelectItem>
@@ -334,19 +348,19 @@ export default function InvoicesPage() {
 
         <Input
           type="number"
-          placeholder="Amount From"
-          value={filters.amount_from}
+          placeholder="Amount To"
+          value={filters.amount_to}
           onChange={(e) =>
-            setFilters({ ...filters, amount_from: e.target.value })
+            setFilters({ ...filters, amount_to: e.target.value })
           }
         />
 
         <Input
           type="number"
-          placeholder="Amount To"
-          value={filters.amount_to}
+          placeholder="Amount From"
+          value={filters.amount_from}
           onChange={(e) =>
-            setFilters({ ...filters, amount_to: e.target.value })
+            setFilters({ ...filters, amount_from: e.target.value })
           }
         />
 
