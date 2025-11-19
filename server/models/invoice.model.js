@@ -22,9 +22,10 @@ export const createInvoiceTable = async () => {
     id INT AUTO_INCREMENT PRIMARY KEY,
     invoice_date DATE NOT NULL,
     customer_id ${customerIdType} NOT NULL,
-    invoice_no VARCHAR(100) NOT NULL,
-    amount DECIMAL(20,3) NOT NULL,
+    invoice_no VARCHAR(100) NOT NULL UNIQUE,
+    amount DECIMAL(20,2) NOT NULL,
     currency ENUM('AUD','USD') NOT NULL,
+    gst BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 

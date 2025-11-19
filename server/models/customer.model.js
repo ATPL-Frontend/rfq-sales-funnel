@@ -7,11 +7,10 @@ export const createCustomerTable = async () => {
     name  VARCHAR(150) NOT NULL,
     email JSON,
     web_address VARCHAR(255),
-    code  VARCHAR(50),
+    code VARCHAR(50) UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uniq_customer_name (name),
-    KEY idx_customer_code (code)
+    UNIQUE KEY uniq_customer_code (code)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `;
   await pool.query(sql);

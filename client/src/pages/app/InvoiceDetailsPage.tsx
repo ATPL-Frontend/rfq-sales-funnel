@@ -102,7 +102,20 @@ export default function InvoiceDetailsPage() {
 
           <div>
             <p className="text-muted-foreground font-medium">Customer Email:</p>
-            <p>{invoice.customer_email || "—"}</p>
+            <p className="flex flex-wrap gap-2">
+            {Array.isArray(invoice.customer_email) ? (
+              invoice.customer_email.map((e, i) => (
+                <span
+                  key={i}
+                  className="bg-secondary/50 text-gray-800 px-2 py-0.5 rounded text-sm"
+                >
+                  {e}
+                </span>
+              ))
+            ) : (
+              <span>{invoice.customer_email}</span>
+            )}
+          </p>
           </div>
 
           <div>

@@ -128,7 +128,7 @@ export default function InvoiceSummaryPage() {
         summary.map((cust, i) => (
           <Card
             key={i}
-            className="shadow-lg border border-gray-300 rounded-xl mb-4 overflow-hidden p-0"
+            className="shadow-sm border border-gray-300 rounded-xl mb-4 overflow-hidden p-0"
           >
             <CardContent className="p-4">
               {/* Customer summary header */}
@@ -205,7 +205,7 @@ export default function InvoiceSummaryPage() {
                           {inv.invoice_no}
                         </TableCell>
                         <TableCell className="py-3 px-4 text-sm text-gray-700 font-mono">
-                          {inv.amount.toFixed(2)}
+                          $ {inv.amount.toFixed(2)}
                         </TableCell>
                         <TableCell className="py-3 px-4">
                           <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">

@@ -31,17 +31,17 @@ export async function createInvoice(req, res) {
       });
     }
 
-    let { invoice_date, customer_id, invoice_no, amount, currency } =
+    let { invoice_date, customer_id, invoice_no, amount, gst, currency } =
       req.body || {};
 
     invoice_date = String(invoice_date || "").trim();
     customer_id = Number(customer_id);
     invoice_no = String(invoice_no || "").trim();
     amount = Number(amount);
+    gst = gst === undefined ? true : Boolean(gst);
     currency = String(currency || "")
       .trim()
       .toUpperCase();
-
     if (!invoice_date || !customer_id || !invoice_no || !amount || !currency) {
       return res.status(400).json({
         success: false,
@@ -71,9 +71,9 @@ export async function createInvoice(req, res) {
         .json({ success: false, message: `Customer ${customer_id} not found` });
 
     const [r] = await pool.query(
-      `INSERT INTO invoices (invoice_date, customer_id, invoice_no, amount, currency)
-       VALUES (?, ?, ?, ?, ?)`,
-      [invoice_date, customer_id, invoice_no, amount, currency]
+      `INSERT INTO invoices (invoice_date, customer_id, invoice_no, amount, gst, currency)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [invoice_date, customer_id, invoice_no, amount, gst, currency]
     );
 
     const [rows] = await pool.query(
@@ -264,6 +264,7 @@ export async function updateInvoice(req, res) {
       "customer_id",
       "invoice_no",
       "amount",
+      "gst",
       "currency",
     ];
     const updates = [];
@@ -282,6 +283,12 @@ export async function updateInvoice(req, res) {
             .json({ success: false, message: "Currency must be AUD or USD" });
         updates.push("currency = ?");
         params.push(v);
+        continue;
+      }
+      if(key === "gst") {
+        const g = Boolean(req.body.gst);
+        updates.push("gst = ?");
+        params.push(g);
         continue;
       }
       if (key === "amount") {
