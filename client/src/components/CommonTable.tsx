@@ -67,7 +67,7 @@ export default function CommonTable<T>({
               }`}
             >
               {columns.map((col) => (
-                <td key={String(col.key)} className="p-3">
+                <td key={String(col.key)} className="p-2">
                   {col.render ? col.render(row, idx) : (row as any)[col.key]}
                 </td>
               ))}
@@ -78,7 +78,7 @@ export default function CommonTable<T>({
             <tr>
               <td
                 colSpan={columns.length}
-                className="text-center p-3 text-muted-foreground"
+                className="text-center p-2 text-muted-foreground"
               >
                 Loading...
               </td>

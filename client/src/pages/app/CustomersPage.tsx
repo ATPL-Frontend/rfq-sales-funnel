@@ -8,12 +8,14 @@ import { Button } from "../../components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "../../components/ui/dialog";
 import api from "../../lib/api";
-import CustomerForm, { type Customer } from "./../../components/modal/CustomerModal";
+import CustomerForm, {
+  type Customer,
+} from "./../../components/modal/CustomerModal";
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -82,9 +84,7 @@ export default function CustomersPage() {
     try {
       await api.delete(`/api/customers/${selectedCustomer.id}`);
       toast.success("Customer deleted successfully");
-      setCustomers((prev) =>
-        prev.filter((c) => c.id !== selectedCustomer.id)
-      );
+      setCustomers((prev) => prev.filter((c) => c.id !== selectedCustomer.id));
       setDeleteOpen(false);
     } catch (err) {
       toast.error("Failed to delete customer");
@@ -116,7 +116,26 @@ export default function CustomersPage() {
         </Link>
       ),
     },
-    { key: "email", label: "Email" },
+    {
+      key: "email",
+      label: "Email",
+      render: (row) => (
+        <div className="flex flex-wrap gap-1">
+          {Array.isArray(row.email) ? (
+            row.email.map((e, i) => (
+              <span
+                key={i}
+                className="bg-secondary/50 text-gray-800 px-2 py-0.5 rounded text-sm"
+              >
+                {e}
+              </span>
+            ))
+          ) : (
+            <span>{row.email}</span>
+          )}
+        </div>
+      ),
+    },
     { key: "web_address", label: "Web Address" },
     { key: "code", label: "Code" },
     {
