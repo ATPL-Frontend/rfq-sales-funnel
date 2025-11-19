@@ -23,12 +23,25 @@ export async function createCustomer(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "createAny", "customer")) {
-      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
     }
 
-    let { name, email = null, web_address = null, code = null } = req.body || {};
+    let { name, email = [], web_address = null, code = null } = req.body || {};
     name = String(name || "").trim();
-    email = email == null ? null : String(email).trim().toLowerCase();
+    // normalize email
+    if (!Array.isArray(email)) {
+      if (typeof email === "string" && email.trim()) {
+        email = email
+          .split(",")
+          .map((e) => e.trim().toLowerCase())
+          .filter(Boolean);
+      } else {
+        email = [];
+      }
+    }
     web_address = web_address == null ? null : String(web_address).trim();
     code = code == null ? null : String(code).trim();
 
@@ -39,10 +52,13 @@ export async function createCustomer(req, res) {
     }
 
     const [r] = await pool.query(
-      "INSERT INTO customers (name, email, web_address, code) VALUES (?, ?, ?, ?)",
-      [name, email, web_address, code]
+      "INSERT INTO customers (name, email, web_address, code) VALUES (?, CAST(? AS JSON), ?, ?)",
+      [name, JSON.stringify(email), web_address, code]
     );
-    const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [r.insertId]);
+    const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [
+      r.insertId,
+    ]);
+    // rows[0].email = JSON.parse(rows[0].email || "[]");
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
@@ -61,7 +77,9 @@ export async function createCustomer(req, res) {
           message: "Email already exists",
         });
       }
-      return res.status(409).json({ success: false, message: "Duplicate entry" });
+      return res
+        .status(409)
+        .json({ success: false, message: "Duplicate entry" });
     }
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -78,7 +96,10 @@ export async function listCustomers(req, res) {
       !checkPermission(roles, "readAny", "customer") &&
       !checkPermission(roles, "readOwn", "customer")
     ) {
-      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
     }
 
     const q = (req.query.q || "").trim();
@@ -92,7 +113,7 @@ export async function listCustomers(req, res) {
       [rows] = await pool.query(
         `SELECT * FROM customers
          WHERE name LIKE ? OR email LIKE ? OR web_address LIKE ? OR code LIKE ?
-         ORDER BY name ASC
+         ORDER BY name COLLATE utf8mb4_unicode_ci ASC
          LIMIT ? OFFSET ?`,
         [like, like, like, like, limit, offset]
       );
@@ -134,14 +155,24 @@ export async function getCustomerById(req, res) {
       !checkPermission(roles, "readAny", "customer") &&
       !checkPermission(roles, "readOwn", "customer")
     ) {
-      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
     }
 
     const id = Number(req.params.id);
     const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [id]);
+
+    // rows.forEach((r) => {
+    //   r.email = JSON.parse(r.email || "[]");
+    // });
+
     if (!rows.length)
-      return res.status(404).json({ success: false, message: "Customer not found" });
-    res.json({ success: false, data: rows[0]});
+      return res
+        .status(404)
+        .json({ success: false, message: "Customer not found" });
+    res.json({ success: false, data: rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -155,29 +186,43 @@ export async function updateCustomer(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "updateAny", "customer")) {
-      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
     }
 
     const id = Number(req.params.id);
-    const [exists] = await pool.query("SELECT * FROM customers WHERE id=?", [id]);
+    const [exists] = await pool.query("SELECT * FROM customers WHERE id=?", [
+      id,
+    ]);
     if (!exists.length)
-      return res.status(404).json({ success: false, message: "Customer not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Customer not found" });
 
     let { name, email, web_address, code } = req.body || {};
+    const updates = [];
+    const params = [];
+
     if (name !== undefined) name = String(name).trim();
     if (email !== undefined) email = String(email).trim().toLowerCase();
     if (web_address !== undefined) web_address = String(web_address).trim();
     if (code !== undefined) code = code == null ? null : String(code).trim();
 
-    const updates = [];
-    const params = [];
     if (name !== undefined) {
       updates.push("name=?");
       params.push(name);
     }
     if (email !== undefined) {
-      updates.push("email=?");
-      params.push(email);
+      if (!Array.isArray(email)) {
+        email = String(email)
+          .split(",")
+          .map((e) => e.trim().toLowerCase())
+          .filter(Boolean);
+      }
+      updates.push("email=CAST(? AS JSON)");
+      params.push(JSON.stringify(email));
     }
     if (web_address !== undefined) {
       updates.push("web_address=?");
@@ -195,9 +240,13 @@ export async function updateCustomer(req, res) {
     }
 
     params.push(id);
-    await pool.query(`UPDATE customers SET ${updates.join(", ")} WHERE id=?`, params);
+    await pool.query(
+      `UPDATE customers SET ${updates.join(", ")} WHERE id=?`,
+      params
+    );
 
     const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [id]);
+    // rows[0].email = JSON.parse(rows[0].email || "[]");
     return res.json({ success: true, data: rows[0] });
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
@@ -216,7 +265,9 @@ export async function updateCustomer(req, res) {
           message: "Email already exists",
         });
       }
-      return res.status(409).json({ success: false, message: "Duplicate entry" });
+      return res
+        .status(409)
+        .json({ success: false, message: "Duplicate entry" });
     }
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -230,21 +281,27 @@ export async function deleteCustomer(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "deleteAny", "customer")) {
-      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
     }
 
     const id = Number(req.params.id);
     const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [id]);
     if (!rows.length)
-      return res.status(404).json({ success: false, message: "Customer not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Customer not found" });
 
     await pool.query("DELETE FROM customers WHERE id=?", [id]);
     res.json({ success: true, message: "Customer deleted" });
   } catch (err) {
     if (err.code === "ER_ROW_IS_REFERENCED_2") {
-      return res
-        .status(409)
-        .json({ success: false, message: "Cannot delete: Customer is referenced by RFQs" });
+      return res.status(409).json({
+        success: false,
+        message: "Cannot delete: Customer is referenced by RFQs",
+      });
     }
     res.status(500).json({ success: false, message: err.message });
   }

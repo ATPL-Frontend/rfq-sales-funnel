@@ -82,7 +82,20 @@ export default function CustomerDetailsPage() {
           <p>{customer.name}</p>
 
           <p className="font-medium text-muted-foreground">Email</p>
-          <p>{customer.email}</p>
+          <p className="flex flex-wrap gap-2">
+            {Array.isArray(customer.email) ? (
+              customer.email.map((e, i) => (
+                <span
+                  key={i}
+                  className="bg-secondary/50 text-gray-800 px-2 py-0.5 rounded text-sm"
+                >
+                  {e}
+                </span>
+              ))
+            ) : (
+              <span>{customer.email}</span>
+            )}
+          </p>
 
           <p className="font-medium text-muted-foreground">Web Address</p>
           <p>{customer.web_address}</p>
