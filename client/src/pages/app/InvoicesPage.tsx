@@ -1,4 +1,5 @@
 import InvoiceForm from "@/components/modal/InvoiceModal";
+import { Badge } from "@/components/ui/badge";
 import {
   Command,
   CommandEmpty,
@@ -48,6 +49,7 @@ type Invoice = {
   customer_code: string;
   amount: number;
   currency: string;
+  gst: boolean;
   created_at: string;
 };
 
@@ -193,6 +195,15 @@ export default function InvoicesPage() {
       ),
     },
     {
+      key: "gst",
+      label: "GST",
+      render: (row) => (
+        <Badge variant={row.gst ? "secondary" : "excluded"}>
+          {row.gst ? "Included" : "Excluded"}
+        </Badge>
+      ),
+    },
+    {
       key: "actions",
       label: "Actions",
       render: (row) => (
@@ -200,17 +211,17 @@ export default function InvoicesPage() {
           <Button
             onClick={() => navigate(`/app/invoices/${row.id}`)}
             variant="secondary"
-            size="icon"
+            size="sm"
           >
             <Eye className="w-4 h-4" />
           </Button>
-          <Button onClick={() => handleEdit(row)} variant="default" size="icon">
+          <Button onClick={() => handleEdit(row)} variant="default" size="sm">
             <Edit className="w-4 h-4" />
           </Button>
           <Button
             onClick={() => handleDelete(row)}
             variant="destructive"
-            size="icon"
+            size="sm"
           >
             <Trash2 className="w-4 h-4" />
           </Button>

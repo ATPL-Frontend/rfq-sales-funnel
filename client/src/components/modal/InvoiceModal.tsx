@@ -107,7 +107,7 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-2">
       <div className="space-y-2">
         <label className="text-sm font-medium">Invoice Date</label>
         <Input
@@ -120,7 +120,7 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
 
       <div className="space-y-2">
         <label className="text-sm font-medium">Customer</label>
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover open={open} onOpenChange={setOpen} modal>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
@@ -142,7 +142,7 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
           </PopoverTrigger>
 
           <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
-            <Command>
+            <Command className="max-h-64 overflow-y-auto">
               <CommandInput placeholder="Search customer..." />
               <CommandList className="max-h-64 overflow-y-auto">
                 <CommandEmpty>No customers found.</CommandEmpty>
