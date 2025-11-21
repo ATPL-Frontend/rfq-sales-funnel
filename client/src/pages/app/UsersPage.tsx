@@ -170,7 +170,7 @@ export default function UsersPage() {
 
       {/* ✅ Create/Edit User Modal */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedUser ? "Edit User" : "Create User"}

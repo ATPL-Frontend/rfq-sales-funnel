@@ -22,7 +22,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { Check, ChevronsUpDown, Edit, Eye, Trash2 } from "lucide-react";
+import {
+  ArrowDownUp,
+  Check,
+  ChevronsUpDown,
+  Edit,
+  Eye,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
@@ -67,6 +74,8 @@ export default function InvoicesPage() {
   const [customers, setCustomers] = useState<
     { id: number; name: string; email: string; code: string }[]
   >([]);
+  const [sortField, setSortField] = useState<string>("invoice_date");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [customerOpen, setCustomerOpen] = useState(false);
 
@@ -97,6 +106,8 @@ export default function InvoicesPage() {
             amount_from: appliedFilters.amount_from || undefined,
             amount_to: appliedFilters.amount_to || undefined,
             currency: appliedFilters.currency || undefined,
+            sort_field: sortField,
+            sort_order: sortOrder,
           },
         });
 
@@ -109,7 +120,7 @@ export default function InvoicesPage() {
         setLoading(false);
       }
     },
-    [appliedFilters] // Only changes when APPLY FILTER is clicked
+    [appliedFilters, sortField, sortOrder] // Only changes when these change
   );
 
   const fetchCustomers = async () => {
@@ -164,6 +175,12 @@ export default function InvoicesPage() {
     }
   };
 
+  const handleSort = (field: string) => {
+    setSortField(field);
+    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    setPage(1); // Reset to first page when sorting
+  };
+
   const columns: Column<Invoice>[] = [
     {
       key: "sn",
@@ -172,7 +189,16 @@ export default function InvoicesPage() {
     },
     {
       key: "invoice_date",
-      label: "Date",
+      label: (
+        <span className="flex items-center gap-2">
+          Date{" "}
+          <ArrowDownUp
+            size={16}
+            className="opacity-50 hover:opacity-100 cursor-pointer"
+            onClick={() => handleSort("invoice_date")}
+          />
+        </span>
+      ),
       render: (row) => dateHelper(row.invoice_date, OFFER_EXPIRED_DATE_FORMAT),
     },
     { key: "customer_name", label: "Customer" },
@@ -180,7 +206,16 @@ export default function InvoicesPage() {
     { key: "customer_code", label: "Code" },
     {
       key: "amount",
-      label: "Amount",
+      label: (
+        <span className="flex items-center gap-2">
+          Amount
+          {/* <ArrowDownUp
+            size={16}
+            className="opacity-50 hover:opacity-100 cursor-pointer"
+            onClick={() => handleSort("amount")}
+          /> */}
+        </span>
+      ),
       render: (r) => (
         <>
           {r.amount}{" "}
@@ -342,6 +377,24 @@ export default function InvoicesPage() {
           }
         />
 
+        <Input
+          type="number"
+          placeholder="Amount From"
+          value={filters.amount_from}
+          onChange={(e) =>
+            setFilters({ ...filters, amount_from: e.target.value })
+          }
+        />
+
+        <Input
+          type="number"
+          placeholder="Amount To"
+          value={filters.amount_to}
+          onChange={(e) =>
+            setFilters({ ...filters, amount_to: e.target.value })
+          }
+        />
+
         <Select
           value={filters.currency}
           onValueChange={(value: string) =>
@@ -356,24 +409,6 @@ export default function InvoicesPage() {
             <SelectItem value="USD">USD</SelectItem>
           </SelectContent>
         </Select>
-
-        <Input
-          type="number"
-          placeholder="Amount To"
-          value={filters.amount_to}
-          onChange={(e) =>
-            setFilters({ ...filters, amount_to: e.target.value })
-          }
-        />
-
-        <Input
-          type="number"
-          placeholder="Amount From"
-          value={filters.amount_from}
-          onChange={(e) =>
-            setFilters({ ...filters, amount_from: e.target.value })
-          }
-        />
 
         <div className="flex items-center gap-2 col-span-2 md:col-span-3 lg:col-span-6">
           <Button

@@ -22,11 +22,12 @@ export const createUserTable = async () => {
     name VARCHAR(100) NOT NULL,
     email VARCHAR(150) UNIQUE,
     short_form VARCHAR(20),
-    password VARCHAR(255) NOT NULL,
+    password VARCHAR(255) NULL,
     token VARCHAR(512),
     role_id INT NULL,
     otp_code VARCHAR(10),
     otp_expires DATETIME,
+    user_type ENUM('system_user', 'sales_person') NOT NULL DEFAULT 'system_user',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     deactivated_at DATETIME NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -84,8 +85,6 @@ export const seedSuperAdminUser = async () => {
     );
 
     console.log("✅ Default super-admin user created:");
-    console.log("   Email: frahman@ampec.com.au");
-    console.log("   Password: 12345678");
   } catch (err) {
     console.error("❌ Failed to seed super-admin user:", err.message);
   }

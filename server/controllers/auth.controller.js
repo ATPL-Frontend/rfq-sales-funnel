@@ -4,19 +4,32 @@ import { pool } from "../lib/dbconnect-mysql.js";
 import { sendMail } from "../utils/email.js"; // <-- must be configured to send email (SMTP)
 
 // Generate 6-digit OTP
-const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+const generateOTP = () =>
+  Math.floor(100000 + Math.random() * 900000).toString();
 
 /**
  * 🧩 Register a new user
  */
 export async function register(req, res) {
-  const { name, email, password, short_form, role = "user" } = req.body;
+  const {
+    name,
+    email = null,
+    password = null,
+    short_form,
+    role = "user",
+    user_type = "system_user",
+  } = req.body;
+
   const errors = {};
 
   if (!name) errors.name = "Name is required";
-  if (!email) errors.email = "Email is required";
-  if (!password) errors.password = "Password is required";
   if (!short_form) errors.short_form = "Short form is required";
+
+  // Only require email/password for system users
+  if (user_type === "system_user") {
+    if (!email) errors.email = "Email is required";
+    if (!password) errors.password = "Password is required";
+  }
 
   if (Object.keys(errors).length > 0) {
     return res.status(400).json({
@@ -28,20 +41,32 @@ export async function register(req, res) {
 
   try {
     // Find role_id from roles table
-    const [roleRows] = await pool.query("SELECT id FROM roles WHERE name=?", [role]);
+    const [roleRows] = await pool.query("SELECT id FROM roles WHERE name=?", [
+      role,
+    ]);
     const roleId = roleRows[0]?.id;
-    if (!roleId) return res.status(400).json({ success: false, message: `Invalid role: ${role}` });
+    if (!roleId)
+      return res
+        .status(400)
+        .json({ success: false, message: `Invalid role: ${role}` });
 
-    const hashed = await bcrypt.hash(password, 10);
+    // Hash password if provided
+    const hashed = password ? await bcrypt.hash(password, 10) : null;
+
     await pool.query(
-      "INSERT INTO users (name, email, short_form, password, role_id) VALUES (?, ?, ?, ?, ?)",
-      [name, email, short_form, hashed, roleId]
+      `INSERT INTO users (name, email, short_form, password, role_id, user_type)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [name, email, short_form, hashed, roleId, user_type]
     );
 
-    res.status(201).json({ success: true, message: "User registered successfully" });
+    res
+      .status(201)
+      .json({ success: true, message: "User registered successfully" });
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
-      return res.status(409).json({ success: false, message: "Email already exists" });
+      return res
+        .status(409)
+        .json({ success: false, message: "Email already exists" });
     }
     res.status(500).json({ success: false, message: err.message });
   }
@@ -61,11 +86,17 @@ export async function login(req, res) {
       [email]
     );
 
-    if (!rows.length) return res.status(404).json({ success: false, message: "User not found" });
+    if (!rows.length)
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
 
     const user = rows[0];
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.status(401).json({ success: false, message: "Invalid password" });
+    if (!valid)
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid password" });
 
     // ✅ Generate and save OTP
     const otp = generateOTP();
@@ -106,7 +137,9 @@ export async function verifyOTP(req, res) {
     const { email, otp } = req.body;
 
     if (!email || !otp)
-      return res.status(400).json({ success: false, message: "Email and OTP are required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Email and OTP are required" });
 
     const [rows] = await pool.query(
       `SELECT u.*, r.name AS role_name
@@ -117,7 +150,9 @@ export async function verifyOTP(req, res) {
     );
 
     if (!rows.length)
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
 
     const user = rows[0];
 

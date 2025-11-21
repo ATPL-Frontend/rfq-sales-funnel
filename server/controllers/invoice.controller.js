@@ -126,6 +126,18 @@ export async function listInvoices(req, res) {
     const date_from = (req.query.date_from || "").trim();
     const date_to = (req.query.date_to || "").trim();
     const q = (req.query.q || "").trim();
+    const rawSortField = (req.query.sort_field || "invoice_date").trim();
+    const rawSortOrder = (req.query.sort_order || "desc").trim().toLowerCase();
+
+    const allowedSortFields = {
+      invoice_date: "i.invoice_date",
+      amount: "i.amount",
+    };
+
+    const sortField =
+      allowedSortFields[rawSortField] || allowedSortFields["invoice_date"];
+
+    const sortOrder = rawSortOrder === "asc" ? "ASC" : "DESC";
 
     const limit = Math.min(
       Math.max(parseInt(req.query.limit || "50", 10), 1),
@@ -177,7 +189,7 @@ export async function listInvoices(req, res) {
       FROM invoices i
       JOIN customers c ON c.id = i.customer_id
       ${whereSql}
-      ORDER BY i.invoice_date DESC, i.id DESC
+      ORDER BY ${sortField} ${sortOrder}, i.id DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
     const [rows] = await pool.query(sql, params);
@@ -422,6 +434,7 @@ export async function getInvoiceSummary(req, res) {
       SELECT 
         c.id AS customer_id,
         c.name AS customer_name,
+        c.email AS customer_email,
         i.id AS invoice_id,
         i.invoice_date AS date,
         i.invoice_no,
@@ -443,6 +456,7 @@ export async function getInvoiceSummary(req, res) {
       if (!grouped[r.customer_id]) {
         grouped[r.customer_id] = {
           customer_name: r.customer_name,
+          customer_email: r.customer_email,
           no_of_invoices: 0,
           total_amount_aud: 0,
           total_amount_usd: 0,
@@ -461,7 +475,7 @@ export async function getInvoiceSummary(req, res) {
       });
     }
 
-    return res.json({ data: Object.values(grouped) });
+    return res.json({ success: true, data: Object.values(grouped) });
   } catch (err) {
     console.error("💥 getInvoiceSummary error:", err);
     return res.status(500).json({ success: false, message: err.message });

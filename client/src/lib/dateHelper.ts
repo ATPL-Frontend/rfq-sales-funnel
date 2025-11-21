@@ -1,17 +1,29 @@
-import { format, formatDistanceToNow, parseISO } from "date-fns";
+import { format, formatDistanceToNow, parse } from "date-fns";
 
 export const OFFER_EXPIRED_DATE_FORMAT = "MMM dd, yyyy";
 export const OFFER_EXPIRED_DATE_FORMAT_WITH_COMMA = "MMM dd, yyyy, h:mm a";
 
 export const dateHelper = (
-  isoDateStr: string,
+  input: string,
   dateFormat: string = OFFER_EXPIRED_DATE_FORMAT
 ) => {
   try {
-    const date = parseISO(isoDateStr);
-    return format(date, dateFormat);
+    // Case 1: YYYY-MM-DD → Safe
+    if (/^\d{4}-\d{2}-\d{2}$/.test(input)) {
+      return format(parse(input, "yyyy-MM-dd", new Date()), dateFormat);
+    }
+
+    // Case 2: Full ISO timestamp → extract yyyy-mm-dd manually
+    const match = input.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) {
+      const dateOnly = match[1];             // "2025-11-16"
+      const date = parse(dateOnly, "yyyy-MM-dd", new Date());
+      return format(date, dateFormat);       // "Nov 16, 2025"
+    }
+
+    return input;
   } catch {
-    return isoDateStr;
+    return input;
   }
 };
 
