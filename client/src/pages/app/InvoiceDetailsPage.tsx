@@ -17,7 +17,7 @@ interface Invoice {
   invoice_date: string;
   customer_name: string;
   invoice_no: string;
-  customer_email: string;
+  customer_email: string | string[];
   customer_id: number;
   customer_code: string;
   amount: number | string;

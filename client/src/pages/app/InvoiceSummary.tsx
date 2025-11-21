@@ -27,6 +27,7 @@ type Invoice = {
 
 type CustomerSummary = {
   customer_name: string;
+  customer_email: string | string[];
   no_of_invoices: number;
   total_amount_aud: number;
   total_amount_usd: number;
@@ -141,6 +142,29 @@ export default function InvoiceSummaryPage() {
                     {cust.customer_name}
                   </p>
                 </div>
+
+                <div className="bg-purple-50 p-4 rounded-lg border border-purple-100">
+                  <p className="text-sm font-medium text-gray-500 mb-1">
+                    Emails
+                  </p>
+
+                  <div className="flex flex-col gap-1">
+                    {Array.isArray(cust.customer_email) &&
+                    cust.customer_email.length > 0 ? (
+                      cust.customer_email.map((email, idx) => (
+                        <p
+                          key={idx}
+                          className="text-sm font-semibold text-purple-700 break-all"
+                        >
+                          {email}
+                        </p>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">No email</p>
+                    )}
+                  </div>
+                </div>
+
                 <div className="bg-gray-200 p-4 rounded-lg border border-gray-100">
                   <p className="text-sm font-medium text-gray-500 mb-1">
                     # of Invoices
@@ -149,6 +173,7 @@ export default function InvoiceSummaryPage() {
                     {cust.no_of_invoices}
                   </p>
                 </div>
+
                 <div className="bg-green-50 p-4 rounded-lg border border-green-100">
                   <p className="text-sm font-medium text-gray-500 mb-1">
                     Total (AUD)
@@ -157,6 +182,7 @@ export default function InvoiceSummaryPage() {
                     ${cust.total_amount_aud.toFixed(2)}
                   </p>
                 </div>
+
                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
                   <p className="text-sm font-medium text-gray-500 mb-1">
                     Total (USD)
