@@ -170,6 +170,7 @@ export default function InvoicesPage() {
       // Refresh current page
       fetchInvoices(page);
       setDeleteOpen(false);
+      setSelectedInvoice(null);
     } catch (err) {
       toast.error("Failed to delete invoice");
     }

@@ -297,7 +297,7 @@ export async function updateInvoice(req, res) {
         params.push(v);
         continue;
       }
-      if(key === "gst") {
+      if (key === "gst") {
         const g = Boolean(req.body.gst);
         updates.push("gst = ?");
         params.push(g);
@@ -427,8 +427,6 @@ export async function getInvoiceSummary(req, res) {
       console.log("⚠️  No valid dates provided — fetching all invoices");
     }
 
-    console.log("🧾 Final WHERE:", where, "params:", params);
-
     const [rows] = await pool.query(
       `
       SELECT 
@@ -448,7 +446,18 @@ export async function getInvoiceSummary(req, res) {
       params
     );
 
-    if (!rows.length) return res.json({ data: [] });
+    if (!rows.length)
+      return res.json({
+        success: true,
+        data: [],
+        summary: {
+          total_customers: 0,
+          total_invoices: 0,
+          total_amount_aud: 0,
+          total_amount_usd: 0,
+        },
+        range: { from, to },
+      });
 
     // Group by customer
     const grouped = {};
@@ -475,7 +484,31 @@ export async function getInvoiceSummary(req, res) {
       });
     }
 
-    return res.json({ success: true, data: Object.values(grouped) });
+    // Build summary totals
+    const customersArray = Object.values(grouped);
+
+    const summary = {
+      total_customers: customersArray.length,
+      total_invoices: customersArray.reduce(
+        (sum, c) => sum + c.no_of_invoices,
+        0
+      ),
+      total_amount_aud: customersArray.reduce(
+        (sum, c) => sum + c.total_amount_aud,
+        0
+      ),
+      total_amount_usd: customersArray.reduce(
+        (sum, c) => sum + c.total_amount_usd,
+        0
+      ),
+    };
+
+    return res.json({
+      success: true,
+      data: customersArray,
+      summary,
+      range: { from, to },
+    });
   } catch (err) {
     console.error("💥 getInvoiceSummary error:", err);
     return res.status(500).json({ success: false, message: err.message });

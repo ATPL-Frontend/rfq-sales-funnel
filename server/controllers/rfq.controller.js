@@ -52,7 +52,10 @@ export async function createRFQ(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "createAny", "rfq")) {
-      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
     }
 
     const {
@@ -62,12 +65,29 @@ export async function createRFQ(req, res) {
       salesperson_id,
       quantity,
       price,
+      currency = "AUD",
       prepared_by,
       end_date,
       progress = "Waiting for Drawing",
       rfq_location = null,
       remarks = null,
     } = req.body || {};
+
+    // Check that salesperson exists AND role is sales-person
+    const [[salesperson]] = await pool.query(
+      `SELECT u.id, r.name AS role_name
+      FROM users u
+      JOIN roles r ON r.id = u.role_id
+      WHERE u.id = ?`,
+      [salesperson_id]
+    );
+
+    if (!salesperson) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid salesperson_id (user does not exist)",
+      });
+    }
 
     const preparedIds = normalizePreparedIds(prepared_by);
 
@@ -81,18 +101,22 @@ export async function createRFQ(req, res) {
       !end_date ||
       preparedIds.length === 0
     ) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing required fields" });
     }
     if (!RFQ_PROGRESS.includes(progress)) {
-      return res.status(400).json({ success: false, message: "Invalid progress value" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid progress value" });
     }
 
     await conn.beginTransaction();
 
     const [r] = await conn.query(
       `INSERT INTO rfq
-       (receive_date, start_date, customer_id, salesperson_id, quantity, price, progress, end_date, rfq_location, remarks)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (receive_date, start_date, customer_id, salesperson_id, quantity, price, currency, progress, end_date, rfq_location, remarks)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         receive_date,
         start_date,
@@ -100,6 +124,7 @@ export async function createRFQ(req, res) {
         salesperson_id,
         quantity,
         price,
+        currency,
         progress,
         end_date,
         rfq_location,
@@ -126,13 +151,16 @@ export async function createRFQ(req, res) {
       [rfqId]
     );
 
-    return res.status(201).json({ success: true, data: rows[0]});
+    return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) {
     try {
       await conn.rollback();
     } catch {}
     if (err.code === "ER_NO_REFERENCED_ROW_2") {
-      return res.status(400).json({ success: false, message: "Invalid foreign key (customer or user)" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid foreign key (customer or user)",
+      });
     }
     return res.status(500).json({ success: false, message: err.message });
   } finally {
@@ -151,15 +179,23 @@ export async function listRFQs(req, res) {
       !checkPermission(roles, "readAny", "rfq") &&
       !checkPermission(roles, "readOwn", "rfq")
     ) {
-      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
     }
 
     const q = (req.query.q || "").trim();
-    const customer_id = req.query.customer_id ? Number(req.query.customer_id) : null;
+    const customer_id = req.query.customer_id
+      ? Number(req.query.customer_id)
+      : null;
     const progress = (req.query.progress || "").trim();
     const date_from = (req.query.date_from || "").trim();
     const date_to = (req.query.date_to || "").trim();
-    const limit = Math.min(Math.max(parseInt(req.query.limit || "50", 10), 1), 200);
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit || "50", 10), 1),
+      200
+    );
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
     const offset = (page - 1) * limit;
 
@@ -261,7 +297,10 @@ export async function getRFQById(req, res) {
       !checkPermission(roles, "readAny", "rfq") &&
       !checkPermission(roles, "readOwn", "rfq")
     ) {
-      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
     }
 
     const id = Number(req.params.id);
@@ -301,7 +340,8 @@ export async function getRFQById(req, res) {
       [id]
     );
 
-    if (!rows.length) return res.status(404).json({ success: false, message: "RFQ not found" });
+    if (!rows.length)
+      return res.status(404).json({ success: false, message: "RFQ not found" });
 
     const row = rows[0];
     row.prepared_by = Array.isArray(row.prepared_by)
@@ -309,7 +349,7 @@ export async function getRFQById(req, res) {
       : JSON.parse(row.prepared_by || "[]").filter(Boolean);
     row.has_sales_funnel = !!row.has_sales_funnel;
 
-    res.json({ success: true, data: row});
+    res.json({ success: true, data: row });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -324,7 +364,10 @@ export async function updateRFQ(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "updateAny", "rfq")) {
-      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
     }
 
     const id = Number(req.params.id);
@@ -350,21 +393,31 @@ export async function updateRFQ(req, res) {
     for (const key of allowed) {
       if (key in req.body) {
         if (key === "progress" && !RFQ_PROGRESS.includes(req.body[key])) {
-          return res.status(400).json({ success: false, message: "Invalid progress value" });
+          return res
+            .status(400)
+            .json({ success: false, message: "Invalid progress value" });
         }
         updates.push(`${key} = ?`);
         params.push(req.body[key]);
       }
     }
 
-    const hasPrepared = Object.prototype.hasOwnProperty.call(req.body, "prepared_by");
-    const preparedIds = hasPrepared ? normalizePreparedIds(req.body.prepared_by) : [];
+    const hasPrepared = Object.prototype.hasOwnProperty.call(
+      req.body,
+      "prepared_by"
+    );
+    const preparedIds = hasPrepared
+      ? normalizePreparedIds(req.body.prepared_by)
+      : [];
 
     await conn.beginTransaction();
 
     if (updates.length) {
       params.push(id);
-      await conn.query(`UPDATE rfq SET ${updates.join(", ")} WHERE id=?`, params);
+      await conn.query(
+        `UPDATE rfq SET ${updates.join(", ")} WHERE id=?`,
+        params
+      );
     }
 
     if (hasPrepared) {
@@ -391,7 +444,7 @@ export async function updateRFQ(req, res) {
     row.prepared_by = Array.isArray(row.prepared_by)
       ? row.prepared_by
       : JSON.parse(row.prepared_by || "[]").filter(Boolean);
-    res.json({ success: true, data: row});
+    res.json({ success: true, data: row });
   } catch (err) {
     try {
       await conn.rollback();
@@ -410,18 +463,25 @@ export async function deleteRFQ(req, res) {
       : [req.user?.role || "user"];
 
     if (!checkPermission(roles, "deleteAny", "rfq")) {
-      return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
     }
 
     const id = Number(req.params.id);
     const [rows] = await pool.query("SELECT * FROM rfq WHERE id=?", [id]);
-    if (!rows.length) return res.status(404).json({ success: false, message: "RFQ not found" });
+    if (!rows.length)
+      return res.status(404).json({ success: false, message: "RFQ not found" });
 
     await pool.query("DELETE FROM rfq WHERE id=?", [id]);
     res.json({ success: true, message: "RFQ deleted successfully" });
   } catch (err) {
     if (err.code === "ER_ROW_IS_REFERENCED_2") {
-      return res.status(409).json({ success: false, message: "Cannot delete: RFQ is referenced by Sales Funnel" });
+      return res.status(409).json({
+        success: false,
+        message: "Cannot delete: RFQ is referenced by Sales Funnel",
+      });
     }
     res.status(500).json({ success: false, message: err.message });
   }

@@ -22,7 +22,8 @@ export const createRFQTable = async () => {
     customer_id  INT NOT NULL,
     salesperson_id ${userIdColType} NOT NULL,
     quantity DECIMAL(12,2) NOT NULL,
-    price    VARCHAR(100) NOT NULL,
+    price VARCHAR(100) NOT NULL,
+    currency ENUM('AUD', 'USD') NOT NULL DEFAULT 'AUD',
     progress ENUM(
       'Waiting for Drawing',
       'Waiting for Customer\\'s BOM',

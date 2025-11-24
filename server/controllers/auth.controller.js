@@ -11,7 +11,7 @@ const generateOTP = () =>
  * 🧩 Register a new user
  */
 export async function register(req, res) {
-  const {
+  let {
     name,
     email = null,
     password = null,
@@ -29,6 +29,9 @@ export async function register(req, res) {
   if (user_type === "system_user") {
     if (!email) errors.email = "Email is required";
     if (!password) errors.password = "Password is required";
+  } else {
+    // ⛔ Force role for non-system users
+    role = "sales-person";
   }
 
   if (Object.keys(errors).length > 0) {
@@ -53,15 +56,30 @@ export async function register(req, res) {
     // Hash password if provided
     const hashed = password ? await bcrypt.hash(password, 10) : null;
 
-    await pool.query(
+    const [result] = await pool.query(
       `INSERT INTO users (name, email, short_form, password, role_id, user_type)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [name, email, short_form, hashed, roleId, user_type]
     );
 
+    // Fetch the newly created user
+    const [newUserRows] = await pool.query(
+      `SELECT u.id, u.name, u.email, u.short_form, r.name AS role_name, u.user_type, u.created_at
+   FROM users u
+   LEFT JOIN roles r ON r.id = u.role_id
+   WHERE u.id = ?`,
+      [result.insertId]
+    );
+
+    const newUser = newUserRows[0];
+
     res
       .status(201)
-      .json({ success: true, message: "User registered successfully" });
+      .json({
+        success: true,
+        message: "User registered successfully",
+        data: newUser,
+      });
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
       return res
@@ -92,6 +110,15 @@ export async function login(req, res) {
         .json({ success: false, message: "User not found" });
 
     const user = rows[0];
+
+    // ❌ Sales person cannot login
+    if (user.user_type === "sales_person") {
+      return res.status(403).json({
+        success: false,
+        message: "Sales person does not have login access",
+      });
+    }
+    
     const valid = await bcrypt.compare(password, user.password);
     if (!valid)
       return res

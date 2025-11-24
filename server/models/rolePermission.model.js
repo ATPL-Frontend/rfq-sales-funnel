@@ -56,7 +56,7 @@ export async function seedDefaultRolesAndPermissions() {
 
     // 2️⃣ Permissions — with unique constraint now enforced
     const permissions = [
-      ["createOwn", "rfq"],
+      ["createAny", "rfq"],
       ["readAny", "rfq"],
       ["updateAny", "rfq"],
       ["deleteAny", "rfq"],
@@ -76,6 +76,7 @@ export async function seedDefaultRolesAndPermissions() {
       ["updateAny", "invoice"],
       ["deleteAny", "invoice"],
 
+      ["createAny", "user"],
       ["readAny", "user"],
       ["updateAny", "user"],
       ["deleteAny", "user"],
@@ -131,7 +132,7 @@ export async function seedDefaultRolesAndPermissions() {
           "updateAny",
           "deleteAny",
         ]),
-        ...permFor("user", ["readAny", "updateAny", "deleteAny"]),
+        ...permFor("user", ["createAny", "readAny", "updateAny", "deleteAny"]),
       ],
       "super-admin": permRows.map((p) => p.id),
     };
