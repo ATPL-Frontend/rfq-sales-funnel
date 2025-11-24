@@ -44,18 +44,23 @@ export function authenticate(req, res, next) {
 export function authorize(action, resource) {
   return (req, res, next) => {
     try {
-      const roles = Array.isArray(req.user?.role)
-        ? req.user.role[0] // use first role if array
-        : req.user?.role
-        ? [req.user.role]
-        : [];
+      let roles = [];
+
+      if (Array.isArray(req.user?.role)) {
+        roles = req.user.role;          // ✅ keep array as-is
+      } else if (req.user?.role) {
+        roles = [req.user.role];        // ✅ wrap single role into array
+      }
 
       if (!roles.length) {
         return res.status(403).json({ message: "Missing role in token" });
       }
 
-      // allow if ANY role grants the permission
-      const granted = roles.some((r) => ac.can(r)[action](resource).granted);
+      // log each role’s permission
+      const granted = roles.some((r) => {
+        const perm = ac.can(r)[action](resource);
+        return perm.granted;
+      });
 
       if (!granted) {
         return res.status(403).json({

@@ -144,6 +144,7 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium">Email</label>
+        {form.user_type === "system_user" && <span className="text-red-500">*</span>}
         <Input
           type="email"
           value={form.email}
@@ -164,6 +165,7 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
           value={form.short_form}
           onChange={(e) => setForm({ ...form, short_form: e.target.value })}
           placeholder="JD"
+          className="uppercase"
         />
       </div>
 

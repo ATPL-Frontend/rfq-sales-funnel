@@ -20,7 +20,7 @@ export const createUserTable = async () => {
   CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    email VARCHAR(150) UNIQUE,
+    email VARCHAR(150) NULL UNIQUE,
     short_form VARCHAR(20),
     password VARCHAR(255) NULL,
     token VARCHAR(512),

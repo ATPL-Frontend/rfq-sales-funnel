@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import api from "@/lib/api";
+import { dateHelper } from "@/lib/dateHelper";
 import { endOfMonth, format, startOfMonth } from "date-fns";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
@@ -33,6 +34,12 @@ type CustomerSummary = {
   total_amount_usd: number;
   invoices: Invoice[];
 };
+type Summary = {
+  total_invoices: number;
+  total_customers: number;
+  total_amount_aud: number;
+  total_amount_usd: number;
+};
 
 export default function InvoiceSummaryPage() {
   const [filters, setFilters] = useState({
@@ -41,6 +48,8 @@ export default function InvoiceSummaryPage() {
   });
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<CustomerSummary[]>([]);
+  const [range, setRange] = useState<{ from: string; to: string } | null>(null);
+  const [summaryData, setSummaryData] = useState<Summary | null>(null);
 
   useEffect(() => {
     if (!filters.date_from || !filters.date_to) {
@@ -59,6 +68,8 @@ export default function InvoiceSummaryPage() {
         `/api/invoices/summary?${params.toString()}`
       );
       setSummary(data.data || []);
+      setRange(data.range || null);
+      setSummaryData(data.summary || []);
     } catch (err: any) {
       toast.error(
         err?.response?.data?.message || "Failed to load invoice summary"
@@ -118,6 +129,50 @@ export default function InvoiceSummaryPage() {
             Reset
           </Button>
         </div>
+      </div>
+
+      <div>
+        <h2 className="text-xl font-semibold text-gray-700">
+          Invoices sent from {dateHelper(range?.from ?? "")} to{" "}
+          {dateHelper(range?.to ?? "")}
+        </h2>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <Table className="min-w-full">
+          <TableHeader className="bg-primary">
+            <TableRow className="hover:bg-primary">
+              <TableHead className="py-3 px-4 text-left text-xs font-medium text-white uppercase tracking-wider">
+                Total Invoices
+              </TableHead>
+              <TableHead className="py-3 px-4 text-left text-xs font-medium text-white uppercase tracking-wider">
+                Number of Customers
+              </TableHead>
+              <TableHead className="py-3 px-4 text-left text-xs font-medium text-white uppercase tracking-wider">
+                Total Amount (AUD)
+              </TableHead>
+              <TableHead className="py-3 px-4 text-left text-xs font-medium text-white uppercase tracking-wider">
+                Total Amount (USD)
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody className="bg-secondary">
+            <TableRow>
+              <TableCell className="py-3 px-4 text-sm text-gray-700">
+                {summaryData?.total_invoices || 0}
+              </TableCell>
+              <TableCell className="py-3 px-4 text-sm text-gray-700">
+                {summaryData?.total_customers || 0}
+              </TableCell>
+              <TableCell className="py-3 px-4 text-sm font-medium text-gray-900">
+                $ {summaryData?.total_amount_aud.toFixed(2) || 0}
+              </TableCell>
+              <TableCell className="py-3 px-4 text-sm font-medium text-gray-900">
+                $ {summaryData?.total_amount_usd.toFixed(2) || 0}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
       </div>
 
       {/* 📊 Summary Tables per Customer */}

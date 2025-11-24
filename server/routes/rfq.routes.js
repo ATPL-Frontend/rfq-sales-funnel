@@ -20,7 +20,7 @@ const router = express.Router();
 router.post(
   "/",
   authenticate,
-  authorize("createOwn", "rfq"),
+  authorize("createAny", "rfq"),
   createRFQ
 );
 
