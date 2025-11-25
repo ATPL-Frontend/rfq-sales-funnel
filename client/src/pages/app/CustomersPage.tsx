@@ -1,7 +1,7 @@
-import { Edit, Eye, Trash2 } from "lucide-react";
+import { Edit, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import type { Column } from "../../components/CommonTable";
 import CommonTable from "../../components/CommonTable";
 import { Button } from "../../components/ui/button";
@@ -23,7 +23,6 @@ export default function CustomersPage() {
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
-  const navigate = useNavigate();
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null
@@ -105,6 +104,11 @@ export default function CustomersPage() {
 
   const columns: Column<Customer>[] = [
     {
+      key: "sn",
+      label: "S/N",
+      render: (_row, index) => (index + 1),
+    },
+    {
       key: "name",
       label: "Name",
       render: (row) => (
@@ -143,13 +147,6 @@ export default function CustomersPage() {
       label: "Actions",
       render: (row) => (
         <div className="flex gap-2">
-          <Button
-            onClick={() => navigate(`/app/customers/${row.id}`)}
-            variant="secondary"
-            size="icon"
-          >
-            <Eye className="w-4 h-4" />
-          </Button>
           <Button onClick={() => handleEdit(row)} size="icon">
             <Edit className="w-4 h-4" />
           </Button>

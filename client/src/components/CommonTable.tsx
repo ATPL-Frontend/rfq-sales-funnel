@@ -52,7 +52,7 @@ export default function CommonTable<T>({
         <thead className="bg-muted/50">
           <tr>
             {columns.map((col) => (
-              <th key={String(col.key)} className="text-left p-3 font-medium">
+              <th key={String(col.key)} className="text-left p-3 font-medium align-top">
                 {col.label}
               </th>
             ))}
@@ -62,7 +62,7 @@ export default function CommonTable<T>({
           {data.map((row: any, idx) => (
             <tr
               key={idx}
-              className={`border-t hover:bg-muted/30 ${
+              className={`border-t hover:bg-muted/30 align-top ${
                 idx % 2 === 0 ? "bg-gray-100" : "bg-muted/20"
               }`}
             >

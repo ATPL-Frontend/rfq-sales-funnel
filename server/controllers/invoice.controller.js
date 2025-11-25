@@ -240,10 +240,13 @@ export async function getInvoiceById(req, res) {
        WHERE i.id = ?`,
       [id]
     );
-    if (!rows.length)
+
+    if (!rows.length) {
       return res
         .status(404)
         .json({ success: false, message: "Invoice not found" });
+    }
+
     res.json({ success: true, data: rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

@@ -10,6 +10,8 @@ export const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+  timezone: "Z",        // Use UTC globally
+  dateStrings: true,    // Prevent JS date auto-conversion
 });
 
 export async function connectDB() {

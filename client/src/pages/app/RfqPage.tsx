@@ -1,10 +1,11 @@
 import Pagination from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import api from "@/lib/api";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Edit, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
+import SearchSelectPopover from "@/components/SearchSelectPopover";
 import type { Column } from "../../components/CommonTable";
 import CommonTable from "../../components/CommonTable";
 
@@ -17,20 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -38,24 +26,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
-
-type Rfq = {
-  id: number;
-  receive_date: string;
-  start_date: string;
-  customer_id: number;
-  salesperson_id: number;
-  quantity: number;
-  price: number;
-  currency: string;
-  prepared_by: number[];
-  end_date: string;
-  progress: string;
-  rfq_location: string;
-  remarks: string;
-  created_at: string;
-};
+import type { Customers, Rfq, SalesPerson, Users } from "@/types/index.ts";
+import { dateHelper, OFFER_EXPIRED_DATE_FORMAT } from "../../lib/dateHelper";
 
 export default function RfqPage() {
   const [rfqs, setRfqs] = useState<Rfq[]>([]);
@@ -80,13 +52,9 @@ export default function RfqPage() {
   });
   const [appliedFilters, setAppliedFilters] = useState(filters);
 
-  const [customers, setCustomers] = useState<
-    { id: number; name: string; email: string; code: string }[]
-  >([]);
-  const [customerOpen, setCustomerOpen] = useState(false);
-  const [salesPerson, setSalesPerson] = useState<
-    { id: number; name: string; short_form: string }[]
-  >([]);
+  const [customers, setCustomers] = useState<Customers[]>([]);
+  const [userList, setUserList] = useState<Users[]>([]);
+  const [salesPerson, setSalesPerson] = useState<SalesPerson[] | null>(null);
   // const [salesPersonOpen, setSalesPersonOpen] = useState(false);
 
   const progressOptions = [
@@ -121,7 +89,12 @@ export default function RfqPage() {
           },
         });
 
-        setRfqs(data.data || []);
+        setRfqs(
+          (data.data || []).map((rfq: any) => ({
+            ...rfq,
+            prepared_by: rfq.prepared_by.map((u: any) => u.id), // convert objects → ids
+          }))
+        );
         setPage(data.page || pageNum);
         setTotalPages(data.total_pages || 1);
       } catch (err) {
@@ -143,19 +116,38 @@ export default function RfqPage() {
     }
   };
 
-  const fetchSalesPerson = async () => {
-    if (salesPerson.length > 0) return;
+  const fetchUsers = async () => {
+    if (userList.length > 0) return;
     try {
-      const { data } = await api.get("/api/users?role=sales-person&limit=200");
-      setSalesPerson(data.data || []);
+      const { data } = await api.get("/api/users?limit=200");
+      const allUsers = data.data || [];
+
+      // Filter only system users
+      const systemUsers = allUsers.filter(
+        (u: any) => u.user_type === "system_user"
+      );
+
+      setUserList(systemUsers);
+
+      // filter only sales-persons
+      const salesPersons = allUsers
+        .filter((u: any) => u.role_name === "sales-person")
+        .map((u: any) => ({
+          id: u.id,
+          name: u.name,
+          short_form: u.short_form,
+        }));
+
+      // set state for salesperson dropdown/list
+      setSalesPerson(salesPersons);
     } catch (err) {
-      toast.error("Failed to load salespersons");
+      toast.error("Failed to load sales persons or users list");
     }
   };
 
   useEffect(() => {
     fetchCustomers();
-    fetchSalesPerson();
+    fetchUsers();
   }, []);
 
   useEffect(() => {
@@ -192,14 +184,20 @@ export default function RfqPage() {
     }
   };
 
-  const handleFormSuccess = (rfq: Rfq, isEdit: boolean) => {
+  const handleFormSuccess = (rfq: any, isEdit: boolean) => {
+    const normalized: Rfq = {
+      ...rfq,
+      prepared_by: rfq.prepared_by.map((p: any) => p.id), // convert objects → ids
+    };
+
     if (isEdit) {
       setRfqs((prev) =>
-        prev.map((r) => (r.id === rfq.id ? { ...r, ...rfq } : r))
+        prev.map((r) => (r.id === normalized.id ? { ...r, ...normalized } : r))
       );
     } else {
       fetchRfqs(1);
     }
+
     setFormOpen(false);
   };
 
@@ -208,8 +206,21 @@ export default function RfqPage() {
   // ====================
   const columns: Column<Rfq>[] = [
     { key: "id", label: "ID" },
-    { key: "receive_date", label: "Receive Date" },
-    { key: "start_date", label: "Start Date" },
+    {
+      key: "receive_date",
+      label: "Receive Date",
+      render: (row) => dateHelper(row.receive_date, OFFER_EXPIRED_DATE_FORMAT),
+    },
+    {
+      key: "start_date",
+      label: "Start Date",
+      render: (row) => dateHelper(row.start_date, OFFER_EXPIRED_DATE_FORMAT),
+    },
+    {
+      key: "end_date",
+      label: "End Date",
+      render: (row) => dateHelper(row.end_date, OFFER_EXPIRED_DATE_FORMAT),
+    },
     {
       key: "customer_id",
       label: "Customer",
@@ -220,24 +231,34 @@ export default function RfqPage() {
     { key: "quantity", label: "Qty" },
     { key: "price", label: "Price" },
     { key: "currency", label: "Currency" },
+    {
+      key: "prepared_by",
+      label: "Prepared By",
+      render: (row) => {
+        const names = userList
+          .filter((u) => row.prepared_by.includes(u.id))
+          .map((u) => u.short_form || u.name);
+
+        return names.join(", ");
+      },
+    },
     { key: "progress", label: "Progress" },
     { key: "rfq_location", label: "Location" },
     { key: "remarks", label: "Remarks" },
-    { key: "created_at", label: "Created At" },
     {
       key: "actions",
       label: "Actions",
       render: (row) => (
         <div className="flex gap-2">
           <Button onClick={() => handleEdit(row)} size="sm">
-            Edit
+            <Edit className="w-4 h-4" />
           </Button>
           <Button
             variant="destructive"
             size="sm"
             onClick={() => handleDelete(row)}
           >
-            Delete
+            <Trash2 className="w-4 h-4" />
           </Button>
         </div>
       ),
@@ -259,64 +280,16 @@ export default function RfqPage() {
       ============================ */}
       <div className="p-4 mb-4 border border-primary border-dashed rounded grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* CUSTOMER FILTER */}
-        <div className="col-span-1">
-          <label className="block text-sm text-gray-600 mb-1">
-            Customer Name
-          </label>
-          <Popover open={customerOpen} onOpenChange={setCustomerOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                className={cn(
-                  "w-full justify-between",
-                  !filters.customer_id && "text-muted-foreground"
-                )}
-              >
-                {filters.customer_id
-                  ? customers.find((c) => c.id === Number(filters.customer_id))
-                      ?.name
-                  : "Select customer"}
-                <ChevronsUpDown className="w-4 h-4 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-60 p-0 ml-6">
-              <Command>
-                <CommandInput placeholder="Search..." />
-                <CommandList>
-                  <CommandEmpty>No customers found.</CommandEmpty>
-                  <CommandGroup>
-                    {customers.map((c) => (
-                      <CommandItem
-                        key={c.id}
-                        value={c.name}
-                        onSelect={() => {
-                          const clicked = String(c.id);
-                          setFilters((prev) => ({
-                            ...prev,
-                            customer_id:
-                              prev.customer_id === clicked ? "" : clicked,
-                          }));
-                          setCustomerOpen(false);
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "h-4 w-4",
-                            filters.customer_id == String(c.id)
-                              ? "opacity-100"
-                              : "opacity-0"
-                          )}
-                        />
-                        {c.name}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-        </div>
+        <SearchSelectPopover
+          label="Customer"
+          options={customers}
+          value={filters.customer_id}
+          onChange={(val) =>
+            setFilters((prev) => ({ ...prev, customer_id: String(val) }))
+          }
+          multiple={false}
+          placeholder="Select customer"
+        />
 
         <div className="col-span-1">
           <label className="block text-sm text-gray-600 mb-1">
@@ -356,43 +329,43 @@ export default function RfqPage() {
 
         <div className="col-span-1">
           <label className="block text-sm text-gray-600 mb-1">Status</label>
-        {/* PROGRESS */}
-        <Select
-          value={filters.progress}
-          onValueChange={(value) =>
-            setFilters((prev) => ({ ...prev, progress: value }))
-          }
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Progress" />
-          </SelectTrigger>
-          <SelectContent>
-            {progressOptions.map((opt) => (
-              <SelectItem value={opt} key={opt}>
-                {opt}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          {/* PROGRESS */}
+          <Select
+            value={filters.progress}
+            onValueChange={(value) =>
+              setFilters((prev) => ({ ...prev, progress: value }))
+            }
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Progress" />
+            </SelectTrigger>
+            <SelectContent>
+              {progressOptions.map((opt) => (
+                <SelectItem value={opt} key={opt}>
+                  {opt}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="col-span-1">
           <label className="block text-sm text-gray-600 mb-1">Currency</label>
-        {/* CURRENCY */}
-        <Select
-          value={filters.currency}
-          onValueChange={(value) =>
-            setFilters((prev) => ({ ...prev, currency: value }))
-          }
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Currency" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="AUD">AUD</SelectItem>
-            <SelectItem value="USD">USD</SelectItem>
-          </SelectContent>
-        </Select>
+          {/* CURRENCY */}
+          <Select
+            value={filters.currency}
+            onValueChange={(value) =>
+              setFilters((prev) => ({ ...prev, currency: value }))
+            }
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Currency" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="AUD">AUD</SelectItem>
+              <SelectItem value="USD">USD</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* APPLY / CLEAR */}
@@ -443,6 +416,7 @@ export default function RfqPage() {
           <RfqForm
             rfq={selectedRfq}
             salesPerson={salesPerson}
+            userList={userList}
             onSuccess={handleFormSuccess}
             onCancel={() => setFormOpen(false)}
           />

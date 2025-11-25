@@ -12,18 +12,8 @@ import {
   SelectValue,
 } from "../ui/select";
 
-import { cn } from "@/lib/utils";
-import { Check, ChevronsUpDown } from "lucide-react";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "../ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-
+import type { Customers } from "@/types";
+import SearchSelectPopover from "../SearchSelectPopover";
 import { DialogFooter } from "../ui/dialog";
 
 type Rfq = {
@@ -40,7 +30,6 @@ type Rfq = {
   progress: string;
   rfq_location: string;
   remarks: string;
-  created_at: string;
 };
 
 type SalesPerson = {
@@ -52,6 +41,7 @@ type SalesPerson = {
 type Props = {
   rfq: Rfq | null;
   salesPerson: SalesPerson[] | null;
+  userList: SalesPerson[] | null;
   onSuccess: (rfq: any, isEdit: boolean) => void;
   onCancel: () => void;
 };
@@ -71,15 +61,12 @@ const PROGRESS_OPTIONS = [
 export default function RfqForm({
   rfq,
   salesPerson,
+  userList,
   onSuccess,
   onCancel,
 }: Props) {
   const [saving, setSaving] = useState(false);
-  const [customers, setCustomers] = useState<
-    { id: number; name: string; code: string }[]
-  >([]);
-
-  const [customerOpen, setCustomerOpen] = useState(false);
+  const [customers, setCustomers] = useState<Customers[]>([]);
 
   // -------------------------
   // FORM STATE (clean)
@@ -93,6 +80,9 @@ export default function RfqForm({
     quantity: rfq?.quantity || "",
     price: rfq?.price || "",
     currency: rfq?.currency || "AUD",
+    prepared_by: rfq?.prepared_by
+      ? rfq.prepared_by.map((id) => String(id))
+      : [],
     progress: rfq?.progress || "",
     rfq_location: rfq?.rfq_location || "",
     remarks: rfq?.remarks || "",
@@ -173,114 +163,52 @@ export default function RfqForm({
       </div>
 
       {/* CUSTOMER */}
-      <div className="space-y-1">
-        <label className="text-sm font-medium">Customer</label>
-
-        <Popover open={customerOpen} onOpenChange={setCustomerOpen} modal>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className={cn(
-                "w-full justify-between overflow-hidden",
-                !form.customer_id && "text-muted-foreground"
-              )}
-            >
-              <span className="truncate max-w-[90%]">
-                {form.customer_id
-                  ? customers.find((c) => c.id === Number(form.customer_id))
-                      ?.name || "Select customer"
-                  : "Select customer"}
-              </span>
-              <ChevronsUpDown className="w-4 h-4 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-
-          <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
-            <Command className="max-h-64 overflow-y-auto">
-              <CommandInput placeholder="Search customer..." />
-              <CommandList>
-                <CommandEmpty>No customers found.</CommandEmpty>
-                <CommandGroup>
-                  {customers.map((c) => (
-                    <CommandItem
-                      key={c.id}
-                      value={c.name}
-                      onSelect={() => {
-                        setForm((prev) => ({
-                          ...prev,
-                          customer_id: String(c.id),
-                        }));
-                        setCustomerOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          String(c.id) === form.customer_id
-                            ? "opacity-100"
-                            : "opacity-0"
-                        )}
-                      />
-                      {c.name}{" "}
-                      <span className="text-muted-foreground text-xs ml-1">
-                        (Code - {c.code})
-                      </span>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-      </div>
+      <SearchSelectPopover
+        label="Customer"
+        options={customers}
+        value={form.customer_id}
+        onChange={(val) =>
+          setForm((prev) => ({ ...prev, customer_id: String(val) }))
+        }
+        placeholder="Select customer"
+      />
 
       {/* Salesperson */}
-      <div className="space-y-1">
-        <label className="text-sm font-medium">Salesperson</label>
-        <Select
-          value={form.salesperson_id}
-          onValueChange={(value) =>
-            setForm((prev) => ({ ...prev, salesperson_id: value }))
-          }
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select salesperson" />
-          </SelectTrigger>
-          <SelectContent>
-            {salesPerson?.map((s) => (
-              <SelectItem key={s.id} value={String(s.id)}>
-                {s.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <SearchSelectPopover
+        label="Salesperson"
+        options={salesPerson || []}
+        value={form.salesperson_id}
+        onChange={(val) =>
+          setForm((prev) => ({ ...prev, salesperson_id: String(val) }))
+        }
+        placeholder="Select salesperson"
+      />
 
-    <div className="space-y-1 flex gap-2">
-      {/* Quantity */}
-      <div className="space-y-1 flex-1">
-        <label className="text-sm font-medium">Quantity</label>
-        <Input
-          type="number"
-          value={form.quantity}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, quantity: Number(e.target.value) }))
-          }
-        />
-      </div>
+      <div className="space-y-1 flex gap-2">
+        {/* Quantity */}
+        <div className="space-y-1 flex-1">
+          <label className="text-sm font-medium">Quantity</label>
+          <Input
+            type="number"
+            value={form.quantity}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, quantity: Number(e.target.value) }))
+            }
+          />
+        </div>
 
-      {/* End Date */}
-      <div className="space-y-1 flex-1">
-        <label className="text-sm font-medium">End Date</label>
-        <Input
-          type="date"
-          value={form.end_date}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, end_date: e.target.value }))
-          }
-        />
+        {/* End Date */}
+        <div className="space-y-1 flex-1">
+          <label className="text-sm font-medium">End Date</label>
+          <Input
+            type="date"
+            value={form.end_date}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, end_date: e.target.value }))
+            }
+          />
+        </div>
       </div>
-</div>
       <div className="space-y-1 flex gap-2">
         {/* Price */}
         <div className="space-y-1 flex-1">
@@ -313,6 +241,21 @@ export default function RfqForm({
           </Select>
         </div>
       </div>
+
+      {/* Prepared By */}
+      <SearchSelectPopover
+        label="Prepared By"
+        options={userList || []}
+        value={form.prepared_by}
+        onChange={(val) =>
+          setForm((prev) => ({
+            ...prev,
+            prepared_by: val as string[], // keep as array
+          }))
+        }
+        multiple={false}
+        placeholder="Select prepared by"
+      />
 
       {/* Progress */}
       <div className="space-y-1">
