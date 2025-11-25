@@ -18,7 +18,8 @@ export async function createRolePermissionTables() {
       CREATE TABLE IF NOT EXISTS permissions (
         id INT AUTO_INCREMENT PRIMARY KEY,
         action VARCHAR(50) NOT NULL,
-        resource VARCHAR(50) NOT NULL
+        resource VARCHAR(50) NOT NULL,
+        UNIQUE KEY unique_action_resource (action, resource)
       );
     `);
 
@@ -57,29 +58,49 @@ export async function seedDefaultRolesAndPermissions() {
     // 2️⃣ Permissions — with unique constraint now enforced
     const permissions = [
       ["createAny", "rfq"],
+      ["createOwn", "rfq"],
       ["readAny", "rfq"],
+      ["readOwn", "rfq"],
       ["updateAny", "rfq"],
+      ["updateOwn", "rfq"],
       ["deleteAny", "rfq"],
+      ["deleteOwn", "rfq"],
 
       ["createAny", "customer"],
+      ["createOwn", "customer"],
       ["readAny", "customer"],
+      ["readOwn", "customer"],
       ["updateAny", "customer"],
+      ["updateOwn", "customer"],
       ["deleteAny", "customer"],
+      ["deleteOwn", "customer"],
 
       ["createAny", "sales-funnel"],
+      ["createOwn", "sales-funnel"],
       ["readAny", "sales-funnel"],
+      ["readOwn", "sales-funnel"],
       ["updateAny", "sales-funnel"],
+      ["updateOwn", "sales-funnel"],
       ["deleteAny", "sales-funnel"],
+      ["deleteOwn", "sales-funnel"],
 
       ["createAny", "invoice"],
+      ["createOwn", "invoice"],
       ["readAny", "invoice"],
+      ["readOwn", "invoice"],
       ["updateAny", "invoice"],
+      ["updateOwn", "invoice"],
       ["deleteAny", "invoice"],
+      ["deleteOwn", "invoice"],
 
       ["createAny", "user"],
+      ["createOwn", "user"],
       ["readAny", "user"],
+      ["readOwn", "user"],
       ["updateAny", "user"],
+      ["updateOwn", "user"],
       ["deleteAny", "user"],
+      ["deleteOwn", "user"],
     ];
 
     await pool.query("START TRANSACTION");

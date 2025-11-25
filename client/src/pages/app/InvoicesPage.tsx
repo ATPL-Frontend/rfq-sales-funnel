@@ -222,7 +222,7 @@ export default function InvoicesPage() {
           {r.amount}{" "}
           <span
             className={`font-semibold text-sm ${
-              r.currency === "AUD" ? "text-orange-600" : "text-green-600"
+              r.currency === "AUD" ? "text-primary" : "text-violet-600"
             }`}
           >
             {r.currency}
