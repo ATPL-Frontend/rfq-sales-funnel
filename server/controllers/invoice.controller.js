@@ -20,9 +20,9 @@ function checkPermission(roles, action, resource) {
 /** CREATE */
 export async function createInvoice(req, res) {
   try {
-    const roles = Array.isArray(req.user?.role)
-      ? req.user.role
-      : [req.user?.role || "user"];
+    const roles = Array.isArray(req.user?.roles)
+      ? req.user.roles
+      : [req.user?.roles || "user"];
 
     if (!checkPermission(roles, "createAny", "invoice")) {
       return res.status(403).json({
@@ -100,9 +100,9 @@ export async function createInvoice(req, res) {
 /** READ: list with optional filters */
 export async function listInvoices(req, res) {
   try {
-    const roles = Array.isArray(req.user?.role)
-      ? req.user.role
-      : [req.user?.role || "user"];
+    const roles = Array.isArray(req.user?.roles)
+      ? req.user.roles
+      : [req.user?.roles || "user"];
 
     if (
       !checkPermission(roles, "readAny", "invoice") &&
@@ -218,9 +218,9 @@ export async function listInvoices(req, res) {
 /** READ: one */
 export async function getInvoiceById(req, res) {
   try {
-    const roles = Array.isArray(req.user?.role)
-      ? req.user.role
-      : [req.user?.role || "user"];
+    const roles = Array.isArray(req.user?.roles)
+      ? req.user.roles
+      : [req.user?.roles || "user"];
 
     if (
       !checkPermission(roles, "readAny", "invoice") &&
@@ -256,9 +256,9 @@ export async function getInvoiceById(req, res) {
 /** UPDATE */
 export async function updateInvoice(req, res) {
   try {
-    const roles = Array.isArray(req.user?.role)
-      ? req.user.role
-      : [req.user?.role || "user"];
+    const roles = Array.isArray(req.user?.roles)
+      ? req.user.roles
+      : [req.user?.roles || "user"];
 
     if (!checkPermission(roles, "updateAny", "invoice")) {
       return res.status(403).json({
@@ -383,9 +383,9 @@ export async function updateInvoice(req, res) {
 /** DELETE */
 export async function deleteInvoice(req, res) {
   try {
-    const roles = Array.isArray(req.user?.role)
-      ? req.user.role
-      : [req.user?.role || "user"];
+    const roles = Array.isArray(req.user?.roles)
+      ? req.user.roles
+      : [req.user?.roles || "user"];
 
     if (!checkPermission(roles, "deleteAny", "invoice")) {
       return res.status(403).json({

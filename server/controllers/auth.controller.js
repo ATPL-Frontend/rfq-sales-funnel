@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { pool } from "../lib/dbconnect-mysql.js";
 import { sendMail } from "../utils/email.js"; // <-- must be configured to send email (SMTP)
+import { safeParseRoles } from "../utils/role.js";
 
 // Generate 6-digit OTP
 const generateOTP = () =>
@@ -11,80 +12,92 @@ const generateOTP = () =>
  * 🧩 Register a new user
  */
 export async function register(req, res) {
-  let {
-    name,
-    email = null,
-    password = null,
-    short_form,
-    role = "user",
-    user_type = "system_user",
-  } = req.body;
-
-  const errors = {};
-
-  if (!name) errors.name = "Name is required";
-  if (!short_form) errors.short_form = "Short form is required";
-
-  // Only require email/password for system users
-  if (user_type === "system_user") {
-    if (!email) errors.email = "Email is required";
-    if (!password) errors.password = "Password is required";
-  } else {
-    // ⛔ Force role for non-system users
-    role = "sales-person";
-  }
-
-  if (Object.keys(errors).length > 0) {
-    return res.status(400).json({
-      success: false,
-      message: "Missing required fields",
-      errors,
-    });
-  }
-
   try {
-    // Find role_id from roles table
-    const [roleRows] = await pool.query("SELECT id FROM roles WHERE name=?", [
-      role,
-    ]);
-    const roleId = roleRows[0]?.id;
-    if (!roleId)
+    let {
+      name,
+      email,
+      password,
+      short_form,
+      roles = [], // <-- must be role IDs
+      user_type = "system_user",
+    } = req.body;
+
+    // Validate user info
+    if (!name || !short_form)
+      return res.status(400).json({ message: "Missing required fields" });
+
+    if (user_type === "system_user") {
+      if (!email || !password)
+        return res.status(400).json({
+          message: "Email and password required for system_user",
+        });
+    }
+
+    // Convert roles input to array of IDs
+    if (!Array.isArray(roles)) roles = [roles];
+
+    // Sales person -> force sales-person role
+    if (user_type === "sales_person") {
+      const [[salesRole]] = await pool.query(
+        "SELECT id FROM roles WHERE name='sales-person'"
+      );
+      roles = [salesRole.id];
+    }
+
+    // Validate roles exist
+    if (roles.length === 0)
       return res
         .status(400)
-        .json({ success: false, message: `Invalid role: ${role}` });
+        .json({ message: "At least one valid role is required" });
 
-    // Hash password if provided
+    const [validRoleRows] = await pool.query(
+      "SELECT id FROM roles WHERE id IN (?)",
+      [roles]
+    );
+
+    if (validRoleRows.length !== roles.length)
+      return res.status(400).json({ message: "One or more invalid role IDs" });
+
+    // Create user
     const hashed = password ? await bcrypt.hash(password, 10) : null;
 
     const [result] = await pool.query(
-      `INSERT INTO users (name, email, short_form, password, role_id, user_type)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [name, email, short_form, hashed, roleId, user_type]
+      `INSERT INTO users (name, email, short_form, password, user_type)
+       VALUES (?, ?, ?, ?, ?)`,
+      [name, email, short_form, hashed, user_type]
     );
 
-    // Fetch the newly created user
-    const [newUserRows] = await pool.query(
-      `SELECT u.id, u.name, u.email, u.short_form, r.name AS role_name, u.user_type, u.created_at
-   FROM users u
-   LEFT JOIN roles r ON r.id = u.role_id
-   WHERE u.id = ?`,
-      [result.insertId]
+    const userId = result.insertId;
+
+    // Insert roles into user_roles
+    const values = roles.map((roleId) => [userId, roleId]);
+    await pool.query("INSERT INTO user_roles (user_id, role_id) VALUES ?", [
+      values,
+    ]);
+
+    // Fetch new user with roles
+    const [[newUser]] = await pool.query(
+      `SELECT 
+      u.id, u.name, u.email, u.short_form, u.user_type,
+      JSON_ARRAYAGG(r.name) AS roles
+      FROM users u
+      LEFT JOIN user_roles ur ON ur.user_id = u.id
+      LEFT JOIN roles r ON r.id = ur.role_id
+      WHERE u.id = ?
+      GROUP BY u.id`,
+      [userId]
     );
 
-    const newUser = newUserRows[0];
+    newUser.roles = safeParseRoles(newUser.roles);
 
     res.status(201).json({
       success: true,
-      message: "User registered successfully",
+      message: "User created successfully",
       data: newUser,
     });
   } catch (err) {
-    if (err.code === "ER_DUP_ENTRY") {
-      return res
-        .status(409)
-        .json({ success: false, message: "Email already exists" });
-    }
-    res.status(500).json({ success: false, message: err.message });
+    console.error("register error:", err);
+    return res.status(500).json({ message: err.message });
   }
 }
 
@@ -95,10 +108,12 @@ export async function login(req, res) {
   try {
     const { email, password } = req.body;
     const [rows] = await pool.query(
-      `SELECT u.*, r.name AS role_name
+      `SELECT u.*, JSON_ARRAYAGG(r.name) AS roles
        FROM users u
-       LEFT JOIN roles r ON u.role_id = r.id
-       WHERE u.email=?`,
+       LEFT JOIN user_roles ur ON ur.user_id = u.id
+       LEFT JOIN roles r ON r.id = ur.role_id
+       WHERE u.email=?
+       GROUP BY u.id`,
       [email]
     );
 
@@ -108,14 +123,6 @@ export async function login(req, res) {
         .json({ success: false, message: "User not found" });
 
     const user = rows[0];
-
-    // ❌ Sales person cannot login
-    if (user.user_type === "sales_person") {
-      return res.status(403).json({
-        success: false,
-        message: "Sales person does not have login access",
-      });
-    }
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid)
@@ -167,10 +174,12 @@ export async function verifyOTP(req, res) {
         .json({ success: false, message: "Email and OTP are required" });
 
     const [rows] = await pool.query(
-      `SELECT u.*, r.name AS role_name
+      `SELECT u.*, JSON_ARRAYAGG(r.name) AS roles
        FROM users u
-       LEFT JOIN roles r ON u.role_id = r.id
-       WHERE u.email=?`,
+       LEFT JOIN user_roles ur ON ur.user_id = u.id
+       LEFT JOIN roles r ON r.id = ur.role_id
+       WHERE u.email=?
+       GROUP BY u.id`,
       [email]
     );
 
@@ -181,24 +190,27 @@ export async function verifyOTP(req, res) {
 
     const user = rows[0];
 
+    // ---- FIXED HERE ----
+    const roles = safeParseRoles(user.roles);
+
     // Validate OTP
     if (user.otp_code !== otp)
       return res.status(400).json({ success: false, message: "Invalid OTP" });
 
-    const otpExpiry = new Date(user.otp_expires + " UTC"); // now properly UTC
+    const otpExpiry = new Date(user.otp_expires + " UTC");
 
     if (otpExpiry < new Date()) {
       return res.status(400).json({ success: false, message: "OTP expired" });
     }
 
-    // ✅ Create JWT
+    // Create JWT
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role_name || "user" },
+      { id: user.id, email: user.email, roles },
       process.env.JWT_SECRET,
       { expiresIn: "8h" }
     );
 
-    // Clear OTP after success
+    // Clear OTP
     await pool.query(
       "UPDATE users SET otp_code=NULL, otp_expires=NULL, token=? WHERE id=?",
       [token, user.id]
@@ -213,7 +225,7 @@ export async function verifyOTP(req, res) {
         name: user.name,
         email: user.email,
         short_form: user.short_form,
-        role: user.role_name,
+        roles,
       },
     });
   } catch (err) {

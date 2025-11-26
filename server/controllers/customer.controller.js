@@ -18,10 +18,11 @@ function checkPermission(roles, action, resource) {
 /** CREATE */
 export async function createCustomer(req, res) {
   try {
-    const roles = Array.isArray(req.user?.role)
-      ? req.user.role
-      : [req.user?.role || "user"];
+    const roles = Array.isArray(req.user?.roles)
+      ? req.user.roles
+      : [req.user?.roles || "user"];
 
+    // Permission guard
     if (!checkPermission(roles, "createAny", "customer")) {
       return res.status(403).json({
         success: false,
@@ -29,6 +30,7 @@ export async function createCustomer(req, res) {
       });
     }
 
+    // Extract data
     let {
       name,
       email = [],
@@ -36,8 +38,10 @@ export async function createCustomer(req, res) {
       code = null,
       salesperson_id = null,
     } = req.body || {};
+
     name = String(name || "").trim();
-    // normalize email
+
+    // Email normalization
     if (!Array.isArray(email)) {
       if (typeof email === "string" && email.trim()) {
         email = email
@@ -48,27 +52,33 @@ export async function createCustomer(req, res) {
         email = [];
       }
     }
-    web_address = web_address == null ? null : String(web_address).trim();
-    code = code == null ? null : String(code).trim();
+
+    web_address = web_address ? String(web_address).trim() : null;
+    code = code ? String(code).trim() : null;
 
     if (!name) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Name is required" });
+      return res.status(400).json({
+        success: false,
+        message: "Name is required",
+      });
     }
 
+    // Insert
     const [r] = await pool.query(
       "INSERT INTO customers (name, email, web_address, code, salesperson_id) VALUES (?, CAST(? AS JSON), ?, ?, ?)",
       [name, JSON.stringify(email), web_address, code, salesperson_id || null]
     );
+
     const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [
       r.insertId,
     ]);
 
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) {
+    // Duplicate errors
     if (err.code === "ER_DUP_ENTRY") {
       const msg = (err.sqlMessage || "").toLowerCase();
+
       if (msg.includes("uniq_customer_name")) {
         return res.status(409).json({
           success: false,
@@ -76,6 +86,7 @@ export async function createCustomer(req, res) {
           message: "Customer name already exists",
         });
       }
+
       if (msg.includes("uniq_customer_email")) {
         return res.status(409).json({
           success: false,
@@ -83,10 +94,8 @@ export async function createCustomer(req, res) {
           message: "Email already exists",
         });
       }
-      return res
-        .status(409)
-        .json({ success: false, message: "Duplicate entry" });
     }
+
     return res.status(500).json({ success: false, message: err.message });
   }
 }
@@ -94,10 +103,11 @@ export async function createCustomer(req, res) {
 /** READ: list with optional search + pagination */
 export async function listCustomers(req, res) {
   try {
-    const roles = Array.isArray(req.user?.role)
-      ? req.user.role
-      : [req.user?.role || "user"];
+    const roles = Array.isArray(req.user?.roles)
+      ? req.user.roles
+      : [req.user?.roles || "user"];
 
+    // permissions needed: readAny OR readOwn
     if (
       !checkPermission(roles, "readAny", "customer") &&
       !checkPermission(roles, "readOwn", "customer")
@@ -127,10 +137,10 @@ export async function listCustomers(req, res) {
          LEFT JOIN users u ON u.id = c.salesperson_id
          WHERE 
             c.name LIKE ? OR 
-            c.email LIKE ? OR 
+            JSON_EXTRACT(c.email, '$[*]') LIKE ? OR 
             c.web_address LIKE ? OR 
             c.code LIKE ?
-         ORDER BY c.name COLLATE utf8mb4_unicode_ci ASC
+         ORDER BY c.name ASC
          LIMIT ? OFFSET ?`,
         [like, like, like, like, limit, offset]
       );
@@ -141,7 +151,7 @@ export async function listCustomers(req, res) {
          LEFT JOIN users u ON u.id = c.salesperson_id
          WHERE 
             c.name LIKE ? OR 
-            c.email LIKE ? OR 
+            JSON_EXTRACT(c.email, '$[*]') LIKE ? OR 
             c.web_address LIKE ? OR 
             c.code LIKE ?`,
         [like, like, like, like]
@@ -162,7 +172,7 @@ export async function listCustomers(req, res) {
       [countRows] = await pool.query(`SELECT COUNT(*) as total FROM customers`);
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: rows,
       page,
@@ -171,7 +181,7 @@ export async function listCustomers(req, res) {
       total_pages: Math.ceil(countRows[0].total / limit),
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: err.message });
   }
 }
 
@@ -293,7 +303,7 @@ export async function updateCustomer(req, res) {
     // ⭐ NEW — salesperson_id
     if (salesperson_id !== undefined) {
       updates.push("salesperson_id=?");
-      params.push(salesperson_id || null);  // allow null
+      params.push(salesperson_id || null); // allow null
     }
 
     if (!updates.length) {
@@ -321,7 +331,6 @@ export async function updateCustomer(req, res) {
     );
 
     return res.json({ success: true, data: rows[0] });
-
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
       return res.status(409).json({

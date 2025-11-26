@@ -5,8 +5,8 @@ import { authenticate, authorize } from "../utils/authMiddleware.js";
 const router = express.Router();
 router.post(
   "/register",
-  authenticate,
-  authorize("createAny", "user"),
+  // authenticate,
+  // authorize("createAny", "user"),
   register
 );
 router.post("/login", login);

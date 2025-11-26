@@ -46,10 +46,11 @@ export function authorize(action, resource) {
     try {
       let roles = [];
 
-      if (Array.isArray(req.user?.role)) {
-        roles = req.user.role;          // ✅ keep array as-is
-      } else if (req.user?.role) {
-        roles = [req.user.role];        // ✅ wrap single role into array
+      // FIXED: use req.user.roles everywhere
+      if (Array.isArray(req.user?.roles)) {
+        roles = req.user.roles;
+      } else if (req.user?.roles) {
+        roles = [req.user.roles];
       }
 
       if (!roles.length) {
@@ -69,7 +70,7 @@ export function authorize(action, resource) {
           )} cannot ${action} on ${resource}`,
         });
       }
-      
+
       next();
     } catch (err) {
       console.error("Authorization error:", err);

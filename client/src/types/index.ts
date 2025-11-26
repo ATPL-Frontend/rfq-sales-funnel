@@ -22,8 +22,10 @@ export type CustomerList = {
   email: string[];
   web_address: string;
   code: string;
+  salesperson_id: number | null;
+  salesperson_name: string | null;
+  salesperson_short_form: string | null;
   created_at: string;
-  updated_at: string;
 };
 
 export type Customers = {

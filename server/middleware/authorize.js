@@ -35,25 +35,35 @@ export function authenticate(req, res, next) {
 export function authorize(action, resource) {
   return (req, res, next) => {
     try {
-      // Extract role
-      const role = Array.isArray(req.user?.role)
-        ? req.user.role[0]
-        : req.user?.role;
+      let roles = [];
 
-      if (!role) {
+      // JWT now contains req.user.roles → use it
+      if (Array.isArray(req.user?.roles)) {
+        roles = req.user.roles;
+      } else if (req.user?.roles) {
+        roles = [req.user.roles];
+      }
+      console.log("Authorizing roles:", roles);
+      if (!roles.length) {
         return res.status(403).json({ message: "Missing role in token" });
       }
 
-      // 🟢 Super-Admin Bypass
-      if (role === "super-admin") {
-        return next(); // always allow
+      // SUPER-ADMIN bypass
+      if (roles.includes("super-admin")) {
+        return next();
       }
 
-      // Check permission via AccessControl
-      const permission = ac.can(role)[action](resource);
-      if (!permission.granted) {
+      // Check if ANY role grants permission
+      const granted = roles.some((role) => {
+        const perm = ac.can(role)[action](resource);
+        return perm.granted;
+      });
+
+      if (!granted) {
         return res.status(403).json({
-          message: `Forbidden: ${role} cannot ${action} on ${resource}`,
+          message: `Forbidden: ${roles.join(
+            ", "
+          )} cannot ${action} on ${resource}`,
         });
       }
 

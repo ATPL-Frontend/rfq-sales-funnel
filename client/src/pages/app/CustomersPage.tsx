@@ -1,4 +1,5 @@
-import { Badge, Edit, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Edit, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
@@ -13,18 +14,17 @@ import {
   DialogTitle,
 } from "../../components/ui/dialog";
 import api from "../../lib/api";
-import CustomerForm, {
-  type Customer,
-} from "./../../components/modal/CustomerModal";
+import CustomerForm from "./../../components/modal/CustomerModal";
+import type { CustomerList } from "@/types/index.ts";
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customers, setCustomers] = useState<CustomerList[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerList | null>(
     null
   );
   const [totalCustomers, setTotalCustomers] = useState(0);
@@ -38,7 +38,7 @@ export default function CustomersPage() {
     setLoading(true);
     try {
       const { data } = await api.get(`/api/customers?page=${page}&limit=20`);
-      const results: Customer[] = data.data || [];
+      const results: CustomerList[] = data.data || [];
 
       setCustomers((prev) => {
         const existingIds = new Set(prev.map((c) => c.id));
@@ -68,13 +68,13 @@ export default function CustomersPage() {
   };
 
   // ✅ Edit
-  const handleEdit = (customer: Customer) => {
+  const handleEdit = (customer: CustomerList) => {
     setSelectedCustomer(customer);
     setFormOpen(true);
   };
 
   // ✅ Delete
-  const handleDelete = (customer: Customer) => {
+  const handleDelete = (customer: CustomerList) => {
     setSelectedCustomer(customer);
     setDeleteOpen(true);
   };
@@ -92,7 +92,7 @@ export default function CustomersPage() {
   };
 
   // ✅ Handle form success
-  const handleFormSuccess = (customer: Customer, isEdit: boolean) => {
+  const handleFormSuccess = (customer: CustomerList, isEdit: boolean) => {
     if (isEdit) {
       setCustomers((prev) =>
         prev.map((c) => (c.id === customer.id ? customer : c))
@@ -103,11 +103,11 @@ export default function CustomersPage() {
     setFormOpen(false);
   };
 
-  const columns: Column<Customer>[] = [
+  const columns: Column<CustomerList>[] = [
     {
       key: "sn",
       label: "S/N",
-      render: (_row, index) => (index + 1),
+      render: (_row, index) => index + 1,
     },
     {
       key: "name",
@@ -166,7 +166,9 @@ export default function CustomersPage() {
   return (
     <>
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-xl font-semibold">Customers <Badge>{totalCustomers}</Badge></h1>
+        <h1 className="text-xl font-semibold">
+          Customers <Badge variant="secondary">{totalCustomers}</Badge>
+        </h1>
         <Button onClick={handleCreate}>Create Customer</Button>
       </div>
 

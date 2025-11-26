@@ -26,7 +26,7 @@ type Option = {
 type UserSelectPopoverProps = {
   label: string;
   options: Option[];
-  value: string | string[];
+  value: string | string[] | number | null;
   onChange: (value: string | string[]) => void;
   multiple?: boolean;
   placeholder?: string;

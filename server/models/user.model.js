@@ -1,10 +1,9 @@
-// models/user.model.js
 import { pool } from "../lib/dbconnect-mysql.js";
 
 /**
  * ✅ Creates the `users` table (if not exists)
  * Each user belongs to a single role via `role_id` (FK → roles.id).
- * 
+ *
  * Fields:
  * - id: primary key
  * - name, email, short_form: identity fields
@@ -24,18 +23,13 @@ export const createUserTable = async () => {
     short_form VARCHAR(20),
     password VARCHAR(255) NULL,
     token VARCHAR(512),
-    role_id INT NULL,
     otp_code VARCHAR(10),
     otp_expires DATETIME,
     user_type ENUM('system_user', 'sales_person') NOT NULL DEFAULT 'system_user',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     deactivated_at DATETIME NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_users_roles FOREIGN KEY (role_id)
-      REFERENCES roles(id)
-      ON DELETE SET NULL
-      ON UPDATE CASCADE
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `;
 
@@ -44,6 +38,23 @@ export const createUserTable = async () => {
     console.log("✅ Users table created (if not exists)");
   } catch (err) {
     console.error("❌ Failed to create users table:", err.message);
+  }
+};
+
+export const createUserRoleTable = async () => {
+  const sql = `CREATE TABLE IF NOT EXISTS user_roles (
+      user_id INT NOT NULL,
+      role_id INT NOT NULL,
+      PRIMARY KEY (user_id, role_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `;
+  try {
+    await pool.query(sql);
+    console.log("✅ User-Roles junction table created (if not exists)");
+  } catch (err) {
+    console.error("❌ Failed to create User-Roles table:", err.message);
   }
 };
 
@@ -79,9 +90,22 @@ export const seedSuperAdminUser = async () => {
     const hashed = await bcrypt.default.hash("12345678", 10);
 
     await pool.query(
-      `INSERT INTO users (name, email, short_form, password, role_id)
-       VALUES (?, ?, ?, ?, ?)`,
-      ["Fayezur Rahman", "frahman@ampec.com.au", "FR", hashed, role.id]
+      `INSERT INTO users (name, email, short_form, password)
+       VALUES (?, ?, ?, ?)`,
+      ["Fayezur Rahman", "frahman@ampec.com.au", "FR", hashed]
+    );
+
+    const [result] = await pool.query(
+      `INSERT INTO users (name, email, short_form, password)
+      VALUES (?, ?, ?, ?)`,
+      ["Fayezur Rahman", "frahman@ampec.com.au", "FR", hashed]
+    );
+
+    const userId = result.insertId;
+
+    await pool.query(
+      "INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)",
+      [userId, role.id]
     );
 
     console.log("✅ Default super-admin user created:");
