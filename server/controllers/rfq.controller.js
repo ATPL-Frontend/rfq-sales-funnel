@@ -47,9 +47,7 @@ async function insertPreparedPeople(conn, rfqId, userIds) {
 export async function createRFQ(req, res) {
   const conn = await pool.getConnection();
   try {
-    const roles = Array.isArray(req.user?.role)
-      ? req.user.role
-      : [req.user?.role || "user"];
+    const roles = req.user?.roles || ["user"];
 
     if (!checkPermission(roles, "createAny", "rfq")) {
       return res.status(403).json({

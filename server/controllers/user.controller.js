@@ -1,26 +1,23 @@
 import bcrypt from "bcrypt";
 import { pool } from "../lib/dbconnect-mysql.js";
+import { safeParseRoles } from "../utils/role.js";
 
 /** Helper: check if the authenticated user has a given role */
 function hasRole(req, roleName) {
-  return req.user?.role === roleName || req.user?.role_name === roleName;
+  return Array.isArray(req.user?.roles) && req.user.roles.includes(roleName);
 }
 
 /** GET /api/users — list all users (admin/super-admin only) */
 export async function listUsers(req, res) {
   try {
     if (!hasRole(req, "admin") && !hasRole(req, "super-admin")) {
-      return res.status(403).json({
-        success: false,
-        message: "Forbidden: insufficient permissions",
-      });
+      return res.status(403).json({ success: false, message: "Forbidden" });
     }
 
     const q = (req.query.q || "").trim();
-    // 🧩 Filters
-    const role = req.query.role || "all"; // default → all roles
-    const user_type = req.query.user_type || "all"; // default → all user types
-    const is_active = req.query.is_active ?? "true"; // default → ONLY active users
+    const role = req.query.role || "all";
+    const user_type = req.query.user_type || "all";
+    const is_active = req.query.is_active ?? "true";
 
     const limit = Math.min(parseInt(req.query.limit || "50", 10), 200);
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
@@ -52,12 +49,14 @@ export async function listUsers(req, res) {
 
     const [rows] = await pool.query(
       `SELECT 
-          u.id, u.name, u.email, u.short_form, u.user_type, 
-          u.is_active, u.created_at, 
-          r.name AS role_name
+          u.id, u.name, u.email, u.short_form, u.user_type,
+          u.is_active, u.created_at,
+          JSON_ARRAYAGG(r.name) AS roles
        FROM users u
-       LEFT JOIN roles r ON u.role_id = r.id
+       LEFT JOIN user_roles ur ON ur.user_id = u.id
+       LEFT JOIN roles r ON r.id = ur.role_id
        ${where}
+       GROUP BY u.id
        ORDER BY u.id DESC
        LIMIT ? OFFSET ?`,
       [...params, limit, offset]
@@ -66,14 +65,18 @@ export async function listUsers(req, res) {
     const [[{ total }]] = await pool.query(
       `SELECT COUNT(*) AS total
        FROM users u
-       LEFT JOIN roles r ON u.role_id = r.id
+       LEFT JOIN user_roles ur ON ur.user_id = u.id
+       LEFT JOIN roles r ON r.id = ur.role_id
        ${where}`,
       params
     );
 
     res.json({
       success: true,
-      data: rows,
+      data: rows.map((u) => ({
+        ...u,
+        roles: safeParseRoles(u.roles || "[]"),
+      })),
       page,
       limit,
       total,
@@ -89,29 +92,31 @@ export async function listUsers(req, res) {
 export async function getUserById(req, res) {
   try {
     if (!hasRole(req, "admin") && !hasRole(req, "super-admin")) {
-      return res.status(403).json({
-        success: false,
-        message: "Forbidden: insufficient permissions",
-      });
+      return res.status(403).json({ message: "Forbidden" });
     }
 
     const id = Number(req.params.id);
     const [rows] = await pool.query(
-      `SELECT u.id, u.name, u.email, u.short_form, u.created_at, r.name AS role_name
+      `SELECT u.id, u.name, u.email, u.short_form, u.created_at, 
+              JSON_ARRAYAGG(r.name) AS roles
        FROM users u
-       LEFT JOIN roles r ON u.role_id = r.id
-       WHERE u.id = ?`,
+       LEFT JOIN user_roles ur ON ur.user_id = u.id
+       LEFT JOIN roles r ON r.id = ur.role_id
+       WHERE u.id = ?
+       GROUP BY u.id`,
       [id]
     );
 
     if (!rows.length)
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-    res.json({ success: true, data: rows[0] });
+      return res.status(404).json({ message: "User not found" });
+
+    const user = rows[0];
+    user.roles = safeParseRoles(user.roles || "[]");
+
+    res.json({ success: true, data: user });
   } catch (err) {
-    console.error("getUserById error:", err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error("getUser error:", err);
+    res.status(500).json({ message: err.message });
   }
 }
 
@@ -119,27 +124,29 @@ export async function getUserById(req, res) {
 export async function getMe(req, res) {
   try {
     const id = req.user?.id;
-    if (!id)
-      return res
-        .status(401)
-        .json({ success: false, message: "Not authenticated" });
+    if (!id) return res.status(401).json({ message: "Not authenticated" });
 
     const [rows] = await pool.query(
-      `SELECT u.id, u.name, u.email, u.short_form, u.created_at, r.name AS role_name
+      `SELECT u.id, u.name, u.email, u.short_form, u.created_at,
+              JSON_ARRAYAGG(r.name) AS roles
        FROM users u
-       LEFT JOIN roles r ON u.role_id = r.id
-       WHERE u.id = ?`,
+       LEFT JOIN user_roles ur ON ur.user_id = u.id
+       LEFT JOIN roles r ON r.id = ur.role_id
+       WHERE u.id = ?
+       GROUP BY u.id`,
       [id]
     );
 
     if (!rows.length)
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-    res.json({ success: true, data: rows[0] });
+      return res.status(404).json({ message: "User not found" });
+
+    const user = rows[0];
+    user.roles = safeParseRoles(user.roles || "[]");
+
+    res.json({ success: true, data: user });
   } catch (err) {
     console.error("getMe error:", err);
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ message: err.message });
   }
 }
 
@@ -149,8 +156,8 @@ export async function updateUser(req, res) {
     const targetId = Number(req.params.id);
     const actorId = req.user?.id;
 
-    const isSuper = hasRole(req, "super-admin");
-    const isAdmin = hasRole(req, "admin");
+    const isSuper = req.user.roles?.includes("super-admin");
+    const isAdmin = req.user.roles?.includes("admin");
 
     // Normal users can only edit their own profile
     if (!isSuper && !isAdmin && actorId !== targetId) {
@@ -162,10 +169,12 @@ export async function updateUser(req, res) {
 
     // Fetch existing user
     const [[target]] = await pool.query(
-      `SELECT u.*, r.name AS role_name 
+      `SELECT u.*, JSON_ARRAYAGG(r.name) AS roles
        FROM users u
-       LEFT JOIN roles r ON u.role_id = r.id
-       WHERE u.id = ?`,
+       LEFT JOIN user_roles ur ON ur.user_id = u.id
+       LEFT JOIN roles r ON r.id = ur.role_id
+       WHERE u.id = ?
+       GROUP BY u.id`,
       [targetId]
     );
 
@@ -175,14 +184,14 @@ export async function updateUser(req, res) {
         .json({ success: false, message: "User not found" });
     }
 
-    // Extract fields (FIXED: email included)
-    let { name, email, short_form, password, role, user_type } = req.body || {};
+    let { name, email, short_form, password, roles, user_type } =
+      req.body || {};
 
     const updates = [];
     const params = [];
 
     // -------------------------------
-    // BASIC UPDATES
+    // NAME
     // -------------------------------
     if (name !== undefined) {
       name = String(name).trim();
@@ -190,22 +199,27 @@ export async function updateUser(req, res) {
         return res
           .status(400)
           .json({ success: false, message: "Name cannot be empty" });
+
       updates.push("name=?");
       params.push(name);
     }
 
+    // -------------------------------
+    // SHORT FORM
+    // -------------------------------
     if (short_form !== undefined) {
       short_form = String(short_form).trim();
       if (!short_form)
         return res
           .status(400)
           .json({ success: false, message: "Short form cannot be empty" });
+
       updates.push("short_form=?");
       params.push(short_form);
     }
 
     // -------------------------------
-    // USER TYPE UPDATE
+    // USER TYPE
     // -------------------------------
     if (user_type !== undefined) {
       if (!["system_user", "sales_person"].includes(user_type)) {
@@ -217,41 +231,37 @@ export async function updateUser(req, res) {
       updates.push("user_type=?");
       params.push(user_type);
 
-      // Convert sales_person → system_user requires email
+      // sales_person → system_user must have email
       if (target.user_type === "sales_person" && user_type === "system_user") {
         if (!email) {
           return res.status(400).json({
             success: false,
-            message: "Email is required when converting to system_user",
+            message: "Email required when converting to system_user",
           });
         }
       }
 
-      // Convert system_user → sales_person → remove password
+      // system_user → sales_person clears password
       if (target.user_type === "system_user" && user_type === "sales_person") {
         updates.push("password=NULL");
       }
     }
 
     // -------------------------------
-    // EMAIL UPDATE
+    // EMAIL
     // -------------------------------
     if (email !== undefined) {
       email = email ? String(email).trim().toLowerCase() : null;
 
-      const finalType = user_type || target.user_type;
+      const newType = user_type || target.user_type;
 
-      // ---------- SYSTEM USER ----------
-      if (finalType === "system_user") {
-        // system user cannot change own email
+      if (newType === "system_user") {
         if (!isAdmin && !isSuper) {
           return res.status(403).json({
             success: false,
-            message: "System users cannot change their email",
+            message: "System users cannot change email",
           });
         }
-
-        // email must exist
         if (!email) {
           return res.status(400).json({
             success: false,
@@ -260,60 +270,17 @@ export async function updateUser(req, res) {
         }
       }
 
-      // ---------- SALES PERSON ----------
-      if (finalType === "sales_person") {
-        // if no email existed, allow first-time setup
-        if (target.email === null) {
-          // first time email assignment is allowed
-          // (no extra rules)
-        } else {
-          // cannot change if email already exists
-          if (!isAdmin && !isSuper) {
-            return res.status(403).json({
-              success: false,
-              message: "Sales person cannot change email once assigned",
-            });
-          }
-        }
-      }
-
-      // Apply email update
       updates.push("email=?");
       params.push(email);
     }
 
     // -------------------------------
-    // ROLE UPDATE (super-admin only)
-    // -------------------------------
-    if (role !== undefined) {
-      if (!isSuper) {
-        return res.status(403).json({
-          success: false,
-          message: "Only super-admin can change roles",
-        });
-      }
-
-      const [roleRows] = await pool.query("SELECT id FROM roles WHERE name=?", [
-        role,
-      ]);
-
-      if (!roleRows.length) {
-        return res
-          .status(400)
-          .json({ success: false, message: `Invalid role: ${role}` });
-      }
-
-      updates.push("role_id=?");
-      params.push(roleRows[0].id);
-    }
-
-    // -------------------------------
-    // PASSWORD UPDATE
+    // PASSWORD
     // -------------------------------
     if (password !== undefined) {
-      const finalType = user_type || target.user_type;
+      const newType = user_type || target.user_type;
 
-      if (finalType === "sales_person") {
+      if (newType === "sales_person") {
         return res.status(400).json({
           success: false,
           message: "Sales person cannot have password",
@@ -332,31 +299,54 @@ export async function updateUser(req, res) {
       }
     }
 
-    // No updates?
-    if (!updates.length) {
+    // -------------------------------
+    // ROLES UPDATE
+    // -------------------------------
+    let rolesUpdated = false;
+
+    if (roles !== undefined) {
+      if (!isSuper) {
+        return res.status(403).json({
+          success: false,
+          message: "Only super-admin can change roles",
+        });
+      }
+
+      rolesUpdated = true;
+
+      // Clear existing roles
+      await pool.query("DELETE FROM user_roles WHERE user_id=?", [targetId]);
+
+      // Expect roles = [1,2,4]
+      for (const roleId of roles) {
+        await pool.query(
+          "INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)",
+          [targetId, roleId]
+        );
+      }
+    }
+
+    // -------------------------------
+    // RUN SQL UPDATE ONLY IF NEEDED
+    // -------------------------------
+    if (updates.length > 0) {
+      params.push(targetId);
+      await pool.query(
+        `UPDATE users SET ${updates.join(", ")} WHERE id=?`,
+        params
+      );
+    }
+
+    if (!updates.length && !rolesUpdated) {
       return res
         .status(400)
         .json({ success: false, message: "No updates provided" });
     }
 
-    // Execute update
-    params.push(targetId);
-    await pool.query(
-      `UPDATE users SET ${updates.join(", ")} WHERE id=?`,
-      params
-    );
-
-    // Return updated user
-    const [updated] = await pool.query(
-      `SELECT u.id, u.name, u.email, u.short_form, u.user_type,
-              u.created_at, r.name AS role_name
-       FROM users u
-       LEFT JOIN roles r ON u.role_id = r.id
-       WHERE u.id=?`,
-      [targetId]
-    );
-
-    res.json({ success: true, data: updated[0] });
+    // -------------------------------
+    // RETURN UPDATED USER
+    // -------------------------------
+    return getUserById({ params: { id: targetId }, user: req.user }, res);
   } catch (err) {
     console.error("updateUser error:", err);
     res.status(500).json({ success: false, message: err.message });
@@ -367,78 +357,49 @@ export async function updateUser(req, res) {
 export async function deleteUser(req, res) {
   try {
     const id = Number(req.params.id);
-    const actorId = req.user?.id;
 
     if (!hasRole(req, "super-admin")) {
-      return res.status(403).json({
-        success: false,
-        message: "Only super-admin can deactivate users",
-      });
+      return res.status(403).json({ message: "Only super-admin allowed" });
     }
 
-    if (id === actorId) {
-      return res.status(400).json({
-        success: false,
-        message: "You cannot deactivate your own account",
-      });
-    }
-
-    // Fetch user & role
-    const [[target]] = await pool.query(
-      `SELECT u.id, u.is_active, r.name AS role_name
+    // Find roles of this user
+    const [[user]] = await pool.query(
+      `SELECT u.is_active, JSON_ARRAYAGG(r.name) AS roles
        FROM users u
-       LEFT JOIN roles r ON u.role_id = r.id
-       WHERE u.id=?`,
+       LEFT JOIN user_roles ur ON ur.user_id = u.id
+       LEFT JOIN roles r ON r.id = ur.role_id
+       WHERE u.id=?
+       GROUP BY u.id`,
       [id]
     );
 
-    if (!target) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Prevent deactivating last super-admin
-    if (target.role_name === "super-admin") {
-      const [[row]] = await pool.query(
+    const roles = JSON.parse(user.roles || "[]");
+
+    if (roles.includes("super-admin")) {
+      const [[countRow]] = await pool.query(
         `SELECT COUNT(*) AS cnt
          FROM users u
-         JOIN roles r ON u.role_id = r.id
+         JOIN user_roles ur ON ur.user_id = u.id
+         JOIN roles r ON r.id = ur.role_id
          WHERE r.name='super-admin' AND u.is_active=TRUE`
       );
-
-      if (Number(row.cnt) <= 1) {
+      if (countRow.cnt <= 1)
         return res.status(400).json({
-          success: false,
-          message: "Cannot deactivate the last active super-admin",
+          message: "Cannot deactivate last active super-admin",
         });
-      }
     }
 
-    // If already inactive → no need to update
-    if (!target.is_active) {
-      return res.json({
-        success: true,
-        message: "User is already deactivated",
-      });
-    }
-
-    // SOFT DELETE (deactivate user)
     await pool.query(
-      `UPDATE users
-       SET is_active = FALSE,
-           deactivated_at = NOW()
-       WHERE id = ?`,
+      `UPDATE users SET is_active=FALSE, deactivated_at=NOW() WHERE id=?`,
       [id]
     );
 
-    res.json({
-      success: true,
-      message: "User deactivated successfully",
-    });
+    res.json({ success: true, message: "User deactivated" });
   } catch (err) {
     console.error("deleteUser error:", err);
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ message: err.message });
   }
 }
 

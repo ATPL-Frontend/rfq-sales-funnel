@@ -18,7 +18,7 @@ import {
   createRFQTable,
 } from "./models/rfq.model.js";
 import { createSalesFunnelTable } from "./models/salesFunnel.model.js";
-import { createUserTable } from "./models/user.model.js";
+import { createUserRoleTable, createUserTable } from "./models/user.model.js";
 
 // 🆕 Role-Permission Models
 import {
@@ -27,7 +27,7 @@ import {
 } from "./models/rolePermission.model.js";
 
 // 🆕 AccessControl Loader
-import ac, { loadAccessControlFromDB } from "./utils/roles.js";
+import { loadAccessControlFromDB } from "./utils/roles.js";
 
 // ===============================
 // 🚦 Routers
@@ -160,9 +160,14 @@ async function ensureSuperAdmin() {
       throw new Error("Super-admin role still not found after seeding!");
 
     const hashed = await bcrypt.hash(password, 10);
+    const [result] = await pool.query(
+      "INSERT INTO users (name, email, short_form, password) VALUES (?, ?, ?, ?)",
+      [name, email, short_form, hashed]
+    );
+
     await pool.query(
-      "INSERT INTO users (name, email, short_form, password, role_id) VALUES (?, ?, ?, ?, ?)",
-      [name, email, short_form, hashed, roleId]
+      "INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)",
+      [result.insertId, roleId]
     );
 
     console.log(`✅ Super-admin created: ${email} / ${password}`);
@@ -187,6 +192,7 @@ async function ensureSuperAdmin() {
     // ✅ Step 2: Create application tables
     console.log("🧱 Ensuring base tables exist...");
     await createUserTable();
+    await createUserRoleTable();
     await createCustomerTable();
     await createRFQTable();
     await createRFQPreparedPeopleTable();
@@ -198,7 +204,7 @@ async function ensureSuperAdmin() {
 
     console.log("🔐 Loading AccessControl rules from DB...");
     await loadAccessControlFromDB();
-  
+
     app.listen(PORT, () =>
       console.log(`✅ Server running at: http://localhost:${PORT}`)
     );
