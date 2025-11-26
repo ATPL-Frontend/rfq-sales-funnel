@@ -1,4 +1,4 @@
-import { Edit, Trash2 } from "lucide-react";
+import { Badge, Edit, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
@@ -27,6 +27,7 @@ export default function CustomersPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null
   );
+  const [totalCustomers, setTotalCustomers] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -44,7 +45,7 @@ export default function CustomersPage() {
         const unique = results.filter((c) => !existingIds.has(c.id));
         return [...prev, ...unique];
       });
-
+      setTotalCustomers(data.total || 0);
       setPage((prev) => prev + 1);
       setHasMore(data.page < data.total_pages);
     } catch (err) {
@@ -165,7 +166,7 @@ export default function CustomersPage() {
   return (
     <>
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-xl font-semibold">Customers</h1>
+        <h1 className="text-xl font-semibold">Customers <Badge>{totalCustomers}</Badge></h1>
         <Button onClick={handleCreate}>Create Customer</Button>
       </div>
 

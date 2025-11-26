@@ -73,13 +73,11 @@ export async function register(req, res) {
 
     const newUser = newUserRows[0];
 
-    res
-      .status(201)
-      .json({
-        success: true,
-        message: "User registered successfully",
-        data: newUser,
-      });
+    res.status(201).json({
+      success: true,
+      message: "User registered successfully",
+      data: newUser,
+    });
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
       return res
@@ -118,7 +116,7 @@ export async function login(req, res) {
         message: "Sales person does not have login access",
       });
     }
-    
+
     const valid = await bcrypt.compare(password, user.password);
     if (!valid)
       return res
@@ -127,7 +125,7 @@ export async function login(req, res) {
 
     // ✅ Generate and save OTP
     const otp = generateOTP();
-    const expiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
+    const expiry = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes from now
 
     await pool.query("UPDATE users SET otp_code=?, otp_expires=? WHERE id=?", [
       otp,
@@ -187,7 +185,9 @@ export async function verifyOTP(req, res) {
     if (user.otp_code !== otp)
       return res.status(400).json({ success: false, message: "Invalid OTP" });
 
-    if (!user.otp_expires || new Date(user.otp_expires) < new Date()) {
+    const otpExpiry = new Date(user.otp_expires + " UTC"); // now properly UTC
+
+    if (otpExpiry < new Date()) {
       return res.status(400).json({ success: false, message: "OTP expired" });
     }
 

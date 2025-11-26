@@ -1,87 +1,3 @@
-// import { ArrowRight } from "lucide-react";
-// import { useState } from "react";
-// import { Link, useLocation, useNavigate } from "react-router-dom";
-// import { Button } from "../../components/ui/button";
-// import {
-//   Card,
-//   CardContent,
-//   CardHeader,
-//   CardTitle,
-// } from "../../components/ui/card";
-// import { Input } from "../../components/ui/input";
-// import { Separator } from "../../components/ui/separator";
-// import { useAuth } from "../../lib/auth";
-
-// export default function AuthPage() {
-//   const { login } = useAuth();
-//   const navigate = useNavigate();
-//   const location = useLocation();
-//   const [formData, setFormData] = useState({
-//     email: "",
-//     password: "",
-//   });
-
-//   const onSubmit = (e: React.FormEvent) => {
-//     e.preventDefault();
-//     console.log(formData);
-
-//     // login("demo");
-//     // const to = location?.state?.from?.pathname || "/app/rfq";
-//     // navigate(to, { replace: true });
-//   };
-
-//   return (
-//     <Card>
-//       <CardHeader>
-//         <CardTitle className="text-4xl py-0 my-0 font-bold text-center">
-//           Sign in
-//         </CardTitle>
-//       </CardHeader>
-//       <Separator />
-//       <CardContent>
-//         <form onSubmit={onSubmit} className="space-y-4">
-//           <div className="space-y-1">
-//             <label className="text-sm font-medium">Email</label>
-//             <Input
-//               type="email"
-//               placeholder="Please enter your email"
-//               required
-//               onChange={(e) =>
-//                 setFormData({ ...formData, email: e.target.value })
-//               }
-//             />
-//           </div>
-//           <div className="space-y-1">
-//             <label className="text-sm font-medium">Password</label>
-//             <Input
-//               type="password"
-//               placeholder="Please enter your password"
-//               required
-//               onChange={(e) =>
-//                 setFormData({ ...formData, password: e.target.value })
-//               }
-//             />
-//           </div>
-//           <Button type="submit" className="w-full">
-//             Continue
-//             <ArrowRight strokeWidth={3} />
-//           </Button>
-//         </form>
-//         <Separator className="my-6" />
-//         <div className="text-center text-gray-500 text-sm">
-//           Don&apos;t have an account?{" "}
-//           <Link
-//             to="/register"
-//             className="hover:text-teal-800 hover:underline text-primary"
-//           >
-//             Sign up
-//           </Link>
-//         </div>
-//       </CardContent>
-//     </Card>
-//   );
-// }
-
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import OtpDialog from "../../components/OtpDialog";
@@ -97,7 +13,7 @@ import { Separator } from "../../components/ui/separator";
 import { useAuth } from "../../lib/auth";
 
 export default function AuthPage() {
-  const { loginWithPassword, needsOtp } = useAuth();
+  const { loginWithPassword } = useAuth();
   const navigate = useNavigate();
   const location = useLocation() as any;
 
@@ -168,7 +84,7 @@ export default function AuthPage() {
       </Card>
 
       <OtpDialog
-        open={openOtp || needsOtp}
+        open={openOtp}
         onOpenChange={setOpenOtp}
         onSuccess={handleOtpSuccess}
       />

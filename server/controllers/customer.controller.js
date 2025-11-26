@@ -29,7 +29,13 @@ export async function createCustomer(req, res) {
       });
     }
 
-    let { name, email = [], web_address = null, code = null } = req.body || {};
+    let {
+      name,
+      email = [],
+      web_address = null,
+      code = null,
+      salesperson_id = null,
+    } = req.body || {};
     name = String(name || "").trim();
     // normalize email
     if (!Array.isArray(email)) {
@@ -52,13 +58,13 @@ export async function createCustomer(req, res) {
     }
 
     const [r] = await pool.query(
-      "INSERT INTO customers (name, email, web_address, code) VALUES (?, CAST(? AS JSON), ?, ?)",
-      [name, JSON.stringify(email), web_address, code]
+      "INSERT INTO customers (name, email, web_address, code, salesperson_id) VALUES (?, CAST(? AS JSON), ?, ?, ?)",
+      [name, JSON.stringify(email), web_address, code, salesperson_id || null]
     );
     const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [
       r.insertId,
     ]);
-    // rows[0].email = JSON.parse(rows[0].email || "[]");
+
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
@@ -108,26 +114,51 @@ export async function listCustomers(req, res) {
     const offset = (page - 1) * limit;
 
     let rows, countRows;
+
     if (q) {
       const like = `%${q}%`;
+
       [rows] = await pool.query(
-        `SELECT * FROM customers
-         WHERE name LIKE ? OR email LIKE ? OR web_address LIKE ? OR code LIKE ?
-         ORDER BY name COLLATE utf8mb4_unicode_ci ASC
+        `SELECT 
+            c.*, 
+            u.name AS salesperson_name,
+            u.short_form AS salesperson_short_form
+         FROM customers c
+         LEFT JOIN users u ON u.id = c.salesperson_id
+         WHERE 
+            c.name LIKE ? OR 
+            c.email LIKE ? OR 
+            c.web_address LIKE ? OR 
+            c.code LIKE ?
+         ORDER BY c.name COLLATE utf8mb4_unicode_ci ASC
          LIMIT ? OFFSET ?`,
         [like, like, like, like, limit, offset]
       );
+
       [countRows] = await pool.query(
         `SELECT COUNT(*) as total
-         FROM customers
-         WHERE name LIKE ? OR email LIKE ? OR web_address LIKE ? OR code LIKE ?`,
+         FROM customers c
+         LEFT JOIN users u ON u.id = c.salesperson_id
+         WHERE 
+            c.name LIKE ? OR 
+            c.email LIKE ? OR 
+            c.web_address LIKE ? OR 
+            c.code LIKE ?`,
         [like, like, like, like]
       );
     } else {
       [rows] = await pool.query(
-        `SELECT * FROM customers ORDER BY name ASC LIMIT ? OFFSET ?`,
+        `SELECT 
+            c.*, 
+            u.name AS salesperson_name,
+            u.short_form AS salesperson_short_form
+         FROM customers c
+         LEFT JOIN users u ON u.id = c.salesperson_id
+         ORDER BY c.name ASC
+         LIMIT ? OFFSET ?`,
         [limit, offset]
       );
+
       [countRows] = await pool.query(`SELECT COUNT(*) as total FROM customers`);
     }
 
@@ -162,17 +193,35 @@ export async function getCustomerById(req, res) {
     }
 
     const id = Number(req.params.id);
-    const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [id]);
+    const [rows] = await pool.query(
+      `SELECT 
+          c.*,
+          u.name AS salesperson_name,
+          u.short_form AS salesperson_short_form
+       FROM customers c
+       LEFT JOIN users u ON u.id = c.salesperson_id
+       WHERE c.id = ?`,
+      [id]
+    );
 
-    // rows.forEach((r) => {
-    //   r.email = JSON.parse(r.email || "[]");
-    // });
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found",
+      });
+    }
 
-    if (!rows.length)
-      return res
-        .status(404)
-        .json({ success: false, message: "Customer not found" });
-    res.json({ success: false, data: rows[0] });
+    const customer = rows[0];
+    if (customer.email) {
+      try {
+        customer.email = JSON.parse(customer.email);
+      } catch {}
+    }
+
+    res.json({
+      success: true,
+      data: customer,
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -196,24 +245,28 @@ export async function updateCustomer(req, res) {
     const [exists] = await pool.query("SELECT * FROM customers WHERE id=?", [
       id,
     ]);
+
     if (!exists.length)
       return res
         .status(404)
         .json({ success: false, message: "Customer not found" });
 
-    let { name, email, web_address, code } = req.body || {};
+    let { name, email, web_address, code, salesperson_id } = req.body || {};
     const updates = [];
     const params = [];
 
+    // sanitize
     if (name !== undefined) name = String(name).trim();
-    if (email !== undefined) email = String(email).trim().toLowerCase();
     if (web_address !== undefined) web_address = String(web_address).trim();
     if (code !== undefined) code = code == null ? null : String(code).trim();
 
+    // name
     if (name !== undefined) {
       updates.push("name=?");
       params.push(name);
     }
+
+    // email (JSON)
     if (email !== undefined) {
       if (!Array.isArray(email)) {
         email = String(email)
@@ -224,13 +277,23 @@ export async function updateCustomer(req, res) {
       updates.push("email=CAST(? AS JSON)");
       params.push(JSON.stringify(email));
     }
+
+    // web_address
     if (web_address !== undefined) {
       updates.push("web_address=?");
       params.push(web_address);
     }
+
+    // code
     if (code !== undefined) {
       updates.push("code=?");
       params.push(code);
+    }
+
+    // ⭐ NEW — salesperson_id
+    if (salesperson_id !== undefined) {
+      updates.push("salesperson_id=?");
+      params.push(salesperson_id || null);  // allow null
     }
 
     if (!updates.length) {
@@ -245,29 +308,26 @@ export async function updateCustomer(req, res) {
       params
     );
 
-    const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [id]);
-    // rows[0].email = JSON.parse(rows[0].email || "[]");
+    // return updated with salesperson info
+    const [rows] = await pool.query(
+      `SELECT 
+          c.*, 
+          u.name AS salesperson_name,
+          u.short_form AS salesperson_short_form
+       FROM customers c
+       LEFT JOIN users u ON u.id = c.salesperson_id
+       WHERE c.id = ?`,
+      [id]
+    );
+
     return res.json({ success: true, data: rows[0] });
+
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
-      const msg = (err.sqlMessage || "").toLowerCase();
-      if (msg.includes("uniq_customer_name")) {
-        return res.status(409).json({
-          success: false,
-          field: "name",
-          message: "Customer name already exists",
-        });
-      }
-      if (msg.includes("uniq_customer_email")) {
-        return res.status(409).json({
-          success: false,
-          field: "email",
-          message: "Email already exists",
-        });
-      }
-      return res
-        .status(409)
-        .json({ success: false, message: "Duplicate entry" });
+      return res.status(409).json({
+        success: false,
+        message: "Duplicate entry",
+      });
     }
     return res.status(500).json({ success: false, message: err.message });
   }
