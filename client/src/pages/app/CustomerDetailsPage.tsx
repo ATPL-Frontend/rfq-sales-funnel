@@ -10,21 +10,12 @@ import {
 } from "../../components/ui/card";
 import api from "../../lib/api";
 import { dateHelper } from "../../lib/dateHelper";
-
-type Customer = {
-  id: number;
-  name: string;
-  email: string;
-  web_address: string;
-  code: string;
-  created_at: string;
-  updated_at: string;
-};
+import type { CustomerList } from "@/types/index.ts";
 
 export default function CustomerDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [customer, setCustomer] = useState<CustomerList | null>(null);
   const [loading, setLoading] = useState(false);
 
   const fetchCustomer = useCallback(async () => {
@@ -103,11 +94,11 @@ export default function CustomerDetailsPage() {
           <p className="font-medium text-muted-foreground">Code</p>
           <p>{customer.code}</p>
 
-          <p className="font-medium text-muted-foreground">Created At</p>
-          <p>{new Date(customer.created_at).toLocaleString()}</p>
+          <p className="font-medium text-muted-foreground">Sales Person</p>
+          <p>{customer.salesperson_name} <span className="text-primary font-semibold">({customer.salesperson_short_form})</span></p>
 
-          <p className="font-medium text-muted-foreground">Updated At</p>
-          <p>{dateHelper(customer.updated_at)}</p>
+          <p className="font-medium text-muted-foreground">Created At</p>
+          <p>{dateHelper(customer.created_at)}</p>
         </div>
       </CardContent>
     </Card>

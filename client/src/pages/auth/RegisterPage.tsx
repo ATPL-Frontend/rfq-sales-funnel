@@ -149,7 +149,7 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
           type="email"
           value={form.email}
           onChange={(e) => setForm({ ...form, email: e.target.value })}
-          disabled={form.user_type === "sales_person"}
+          disabled={form.user_type === "sales_person" || !!user?.id}
           placeholder={
             form.user_type === "sales_person"
               ? "Not required for Sales Person"

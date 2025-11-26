@@ -1,5 +1,7 @@
+import SearchSelectPopover from "@/components/SearchSelectPopover";
+import type { CustomerList, SalesPerson } from "@/types/index.ts";
 import { X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "../../components/ui/button";
 import { DialogFooter } from "../../components/ui/dialog";
@@ -62,19 +64,9 @@ function EmailTagsInput({
   );
 }
 
-export type Customer = {
-  id: number;
-  name: string;
-  email: Array<string>;
-  web_address: string;
-  code: string;
-  created_at: string;
-  updated_at: string;
-};
-
 type Props = {
-  customer: Customer | null; // null = create mode
-  onSuccess: (customer: Customer, isEdit: boolean) => void;
+  customer: CustomerList | null; // null = create mode
+  onSuccess: (customer: CustomerList, isEdit: boolean) => void;
   onCancel: () => void;
 };
 
@@ -84,7 +76,9 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Props) {
     email: customer?.email || [],
     web_address: customer?.web_address || "",
     code: customer?.code || "",
+    salesperson_id: customer?.salesperson_id || null,
   });
+  const [salespersons, setSalespersons] = useState<SalesPerson[]>([]);
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,6 +104,21 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Props) {
       setSaving(false);
     }
   };
+
+  const fetchSalesPersons = async () => {
+    if (salespersons.length > 0) return;
+    try {
+      const { data } = await api.get("/api/users?limit=200&role=sales-person");
+      const allUsers = data.data || [];
+      setSalespersons(allUsers);
+    } catch (err) {
+      toast.error("Failed to load sales persons or users list");
+    }
+  };
+
+  useEffect(() => {
+    fetchSalesPersons();
+  }, []);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -149,6 +158,19 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Props) {
           placeholder="WAT123"
         />
       </div>
+
+      <SearchSelectPopover
+        label="Sales Person"
+        options={salespersons}
+        value={form.salesperson_id}
+        onChange={(val) =>
+          setForm((prev) => ({
+            ...prev,
+            salesperson_id: val ? Number(val) : null,
+          }))
+        }
+        placeholder="Select customer"
+      />
 
       <DialogFooter>
         <Button type="button" variant="secondary" onClick={onCancel}>
