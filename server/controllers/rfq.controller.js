@@ -1,4 +1,5 @@
 import { pool } from "../lib/dbconnect-mysql.js";
+import { hasPermission } from "../utils/role.js";
 import ac from "../utils/roles.js";
 
 const RFQ_PROGRESS = [
@@ -12,15 +13,6 @@ const RFQ_PROGRESS = [
   "Sent to Salesperson (100%)",
   "Sent to Customer (Done)",
 ];
-
-/** ✅ Helper: AccessControl permission check */
-function checkPermission(roles, action, resource) {
-  for (const role of roles) {
-    const permission = ac.can(role)[action](resource);
-    if (permission.granted) return true;
-  }
-  return false;
-}
 
 /** ✅ Helper: Normalize prepared_by array into user IDs */
 function normalizePreparedIds(input) {
@@ -47,9 +39,9 @@ async function insertPreparedPeople(conn, rfqId, userIds) {
 export async function createRFQ(req, res) {
   const conn = await pool.getConnection();
   try {
-    const roles = req.user?.roles || ["user"];
+    const ok = hasPermission(req, ["createAny", "createOwn"], "rfq");
 
-    if (!checkPermission(roles, "createAny", "rfq")) {
+    if (!ok) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: insufficient permissions",
@@ -75,15 +67,18 @@ export async function createRFQ(req, res) {
     const [[salesperson]] = await pool.query(
       `SELECT u.id, r.name AS role_name
       FROM users u
-      JOIN roles r ON r.id = u.role_id
-      WHERE u.id = ?`,
+      JOIN user_roles ur ON ur.user_id = u.id
+      JOIN roles r ON r.id = ur.role_id
+      WHERE u.id = ?
+        AND r.name = 'sales-person'
+      LIMIT 1`,
       [salesperson_id]
     );
 
     if (!salesperson) {
       return res.status(400).json({
         success: false,
-        message: "Invalid salesperson_id (user does not exist)",
+        message: "Invalid salesperson_id (must be a sales-person user)",
       });
     }
 
@@ -169,14 +164,9 @@ export async function createRFQ(req, res) {
 /** LIST */
 export async function listRFQs(req, res) {
   try {
-    const roles = Array.isArray(req.user?.role)
-      ? req.user.role
-      : [req.user?.role || "user"];
+    const ok = hasPermission(req, ["readAny", "readOwn"], "rfq");
 
-    if (
-      !checkPermission(roles, "readAny", "rfq") &&
-      !checkPermission(roles, "readOwn", "rfq")
-    ) {
+    if (!ok) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: insufficient permissions",
@@ -287,14 +277,9 @@ export async function listRFQs(req, res) {
 /** READ ONE */
 export async function getRFQById(req, res) {
   try {
-    const roles = Array.isArray(req.user?.role)
-      ? req.user.role
-      : [req.user?.role || "user"];
+    const ok = hasPermission(req, ["readAny", "readOwn"], "rfq");
 
-    if (
-      !checkPermission(roles, "readAny", "rfq") &&
-      !checkPermission(roles, "readOwn", "rfq")
-    ) {
+    if (!ok) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: insufficient permissions",
@@ -357,11 +342,9 @@ export async function getRFQById(req, res) {
 export async function updateRFQ(req, res) {
   const conn = await pool.getConnection();
   try {
-    const roles = Array.isArray(req.user?.role)
-      ? req.user.role
-      : [req.user?.role || "user"];
+    const ok = hasPermission(req, "updateAny", "rfq");
 
-    if (!checkPermission(roles, "updateAny", "rfq")) {
+    if (!ok) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: insufficient permissions",
@@ -456,11 +439,9 @@ export async function updateRFQ(req, res) {
 /** DELETE */
 export async function deleteRFQ(req, res) {
   try {
-    const roles = Array.isArray(req.user?.role)
-      ? req.user.role
-      : [req.user?.role || "user"];
+    const ok = hasPermission(req, "deleteAny", "rfq");
 
-    if (!checkPermission(roles, "deleteAny", "rfq")) {
+    if (!ok) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: insufficient permissions",

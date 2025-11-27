@@ -131,12 +131,14 @@ export default function RfqPage() {
 
       // filter only sales-persons
       const salesPersons = allUsers
-        .filter((u: any) => u.role_name === "sales-person")
-        .map((u: any) => ({
-          id: u.id,
-          name: u.name,
-          short_form: u.short_form,
-        }));
+      .filter(
+        (u: any) => Array.isArray(u.roles) && u.roles.includes("sales-person")
+      )
+      .map((u: any) => ({
+        id: String(u.id),
+        name: u.name,
+        short_form: u.short_form,
+      }));
 
       // set state for salesperson dropdown/list
       setSalesPerson(salesPersons);

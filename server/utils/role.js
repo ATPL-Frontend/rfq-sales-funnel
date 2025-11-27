@@ -1,14 +1,25 @@
-export const ALLOWED_ROLES = new Set(["admin", "super-admin", "sales-person", "user"]);
+import ac from "./roles.js";
 
-/** Normalize roles into an array of canonical roles. */
+
+// Allowed role names
+export const ALLOWED_ROLES = new Set([
+  "admin",
+  "super-admin",
+  "sales-person",
+  "user"
+]);
+
+/**
+ * Normalize any roles input into an array.
+ */
 export function normalizeRoleList(input) {
-  if (input == null) return ["sales-person"]; // default one role
+  if (!input) return ["user"];
 
   let value = input;
 
-  // If it's a string, it might be a JSON array or a comma list or a single value
   if (typeof value === "string") {
     const trimmed = value.trim();
+
     if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
       try {
         value = JSON.parse(trimmed);
@@ -22,53 +33,96 @@ export function normalizeRoleList(input) {
     }
   }
 
-  // Now coerce to an array
   const arr = Array.isArray(value) ? value : [value];
-
-  // Clean, lowercase, dedupe, and validate
   const out = [];
+
   for (const r of arr) {
-    const v = String(r || "").trim().toLowerCase();
-    if (!v) continue;
+    const v = String(r).trim().toLowerCase();
     if (!ALLOWED_ROLES.has(v)) {
-      throw new Error("Invalid role. Must be one of: admin, super-admin, sales-person, user.");
+      throw new Error(
+        "Invalid role. Must be one of: admin, super-admin, sales-person, user."
+      );
     }
     if (!out.includes(v)) out.push(v);
   }
 
-  // ensure at least one role
-  if (out.length === 0) out.push("sales-person");
-  return out;
+  return out.length ? out : ["user"];
 }
 
+/**
+ * Safe parser for DB roles.
+ */
 export function safeParseRoles(raw) {
   if (!raw) return [];
 
-  // If already an array (MySQL JSON parsed)
-  if (Array.isArray(raw)) {
-    return raw.map(String);
-  }
+  if (Array.isArray(raw)) return raw.map(String);
 
-  // If a number (unlikely but safe)
-  if (typeof raw === "number") {
-    return [String(raw)];
-  }
-
-  // Ensure string
   raw = String(raw).trim();
 
-  // If JSON array string → parse
   if (raw.startsWith("[") && raw.endsWith("]")) {
     try {
       return JSON.parse(raw).map(String);
-    } catch {
-      // fallback to comma parsing
-    }
+    } catch {}
   }
 
-  // Fallback: split "user,super-admin"
-  return raw
-    .split(",")
-    .map((r) => r.trim())
-    .filter(Boolean);
+  return raw.split(",").map(r => r.trim()).filter(Boolean);
+}
+
+/**
+ * Standard AccessControl permission check.
+ */
+export function checkPermission(roles, action, resource) {
+  for (const role of roles) {
+    if (ac.can(role)[action](resource).granted) return true;
+  }
+  return false;
+}
+
+/**
+ * Extract roles from req.user
+ */
+export function getUserRoles(req) {
+  return Array.isArray(req.user?.roles)
+    ? req.user.roles
+    : [req.user?.roles || "user"];
+}
+
+/**
+ * Main helper for controllers
+ */
+export function hasPermission(req, actions, resource) {
+  const roles = getUserRoles(req);
+  const actionsArray = Array.isArray(actions) ? actions : [actions];
+
+  return actionsArray.some(action =>
+    checkPermission(roles, action, resource)
+  );
+}
+
+/**
+ * EXPRESS MIDDLEWARE VERSION
+ * Usage:
+ *    router.get("/customers/:id",
+ *      authorize(["readAny", "readOwn"], "customer"),
+ *      getCustomerById
+ *    );
+ */
+export function authorize(actions, resource) {
+  const actionsArray = Array.isArray(actions) ? actions : [actions];
+
+  return (req, res, next) => {
+    const roles = getUserRoles(req);
+    const has = actionsArray.some(action =>
+      checkPermission(roles, action, resource)
+    );
+
+    if (!has) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
+    }
+
+    next();
+  };
 }

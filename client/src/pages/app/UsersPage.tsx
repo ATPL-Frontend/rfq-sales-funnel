@@ -4,21 +4,21 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  Check,
+  ChevronsUpDown,
   CircleCheckBig,
   CircleOff,
   Edit,
   Eye,
   Trash2,
-  ChevronsUpDown,
-  Check,
 } from "lucide-react";
 
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 
-import CommonTable from "../../components/CommonTable";
 import type { Column } from "../../components/CommonTable";
+import CommonTable from "../../components/CommonTable";
 
 import {
   Popover,
@@ -28,10 +28,10 @@ import {
 
 import {
   Command,
+  CommandEmpty,
   CommandGroup,
   CommandItem,
   CommandList,
-  CommandEmpty,
 } from "@/components/ui/command";
 
 import { Button } from "../../components/ui/button";
@@ -43,30 +43,21 @@ import {
   DialogTitle,
 } from "../../components/ui/dialog";
 
-import api from "../../lib/api";
-import UserForm from "../auth/RegisterPage";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-
-type User = {
-  id: number;
-  name: string;
-  email: string;
-  short_form: string;
-  role_name: string;
-  user_type: "system_user" | "sales_person";
-  created_at: string;
-};
+import api from "../../lib/api";
+import UserForm from "../auth/RegisterPage";
+import type { UserList } from "@/types/index.ts";
 
 export default function UsersPage() {
   const navigate = useNavigate();
 
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<UserList[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
-
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [roleList, setRoleList] = useState<string[]>([]);
+  const [selectedUser, setSelectedUser] = useState<UserList | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -84,8 +75,6 @@ export default function UsersPage() {
   const [roleOpen, setRoleOpen] = useState(false);
   const [typeOpen, setTypeOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
-
-  const roles = ["super-admin", "admin", "sales-person", "user"];
   const types = ["system_user", "sales_person"];
   const statusList = [
     { value: "true", label: "Active" },
@@ -123,6 +112,20 @@ export default function UsersPage() {
     [appliedFilters]
   );
 
+  const fetchRoles = useCallback(async () => {
+    try {
+      const { data } = await api.get("/api/roles");
+      const roleNames = data.data.map((r: any) => r.name);
+      setRoleList(roleNames);
+    } catch {
+      toast.error("Failed to load roles");
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRoles();
+  }, [fetchRoles]);
+
   useEffect(() => {
     fetchUsers(page);
   }, [fetchUsers, page]);
@@ -135,12 +138,12 @@ export default function UsersPage() {
     setFormOpen(true);
   };
 
-  const handleEdit = (u: User) => {
+  const handleEdit = (u: UserList) => {
     setSelectedUser(u);
     setFormOpen(true);
   };
 
-  const handleDelete = (u: User) => {
+  const handleDelete = (u: UserList) => {
     setSelectedUser(u);
     setDeleteOpen(true);
   };
@@ -157,7 +160,7 @@ export default function UsersPage() {
     }
   };
 
-  const handleFormSuccess = (user: User, isEdit: boolean) => {
+  const handleFormSuccess = (user: UserList, isEdit: boolean) => {
     if (isEdit) {
       setUsers((prev) =>
         prev.map((u) => (u.id === user.id ? { ...u, ...user } : u))
@@ -171,7 +174,7 @@ export default function UsersPage() {
   // ===============================
   // TABLE COLUMNS
   // ===============================
-  const columns: Column<User>[] = [
+  const columns: Column<UserList>[] = [
     {
       key: "name",
       label: "Name",
@@ -185,7 +188,17 @@ export default function UsersPage() {
       ),
     },
     { key: "email", label: "Email" },
-    { key: "role_name", label: "Role" },
+    {
+      key: "roles",
+      label: "Role",
+      render: (row) => (
+        <span>
+          {Array.isArray(row.roles)
+            ? row.roles.join(", ")
+            : row.roles}
+        </span>
+      ),
+    },
     { key: "short_form", label: "Short Form" },
 
     {
@@ -254,7 +267,6 @@ export default function UsersPage() {
           FILTERS PANEL (same as Invoices)
       ============================ */}
       <div className="p-4 mb-4 border border-primary border-dashed rounded grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-
         {/* SEARCH */}
         <Input
           placeholder="Search name, email or code..."
@@ -266,7 +278,7 @@ export default function UsersPage() {
         <Popover open={roleOpen} onOpenChange={setRoleOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" className="justify-between">
-              {filters.role || "Role"}
+              {filters.role || "Select Role"}
               <ChevronsUpDown className="w-4 h-4 opacity-50" />
             </Button>
           </PopoverTrigger>
@@ -276,7 +288,7 @@ export default function UsersPage() {
               <CommandList>
                 <CommandEmpty>No roles found.</CommandEmpty>
                 <CommandGroup>
-                  {roles.map((r) => (
+                  {roleList.map((r) => (
                     <CommandItem
                       key={r}
                       value={r}
@@ -347,10 +359,8 @@ export default function UsersPage() {
         <Popover open={statusOpen} onOpenChange={setStatusOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" className="justify-between">
-              {
-                statusList.find((s) => s.value === filters.is_active)?.label ||
-                "Status"
-              }
+              {statusList.find((s) => s.value === filters.is_active)?.label ||
+                "Status"}
               <ChevronsUpDown className="w-4 h-4 opacity-50" />
             </Button>
           </PopoverTrigger>
@@ -442,6 +452,7 @@ export default function UsersPage() {
           </DialogHeader>
           <UserForm
             user={selectedUser}
+            roles={roleList}
             onSuccess={handleFormSuccess}
             onCancel={() => setFormOpen(false)}
           />

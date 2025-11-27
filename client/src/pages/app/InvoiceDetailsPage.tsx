@@ -1,4 +1,6 @@
 import { Badge } from "@/components/ui/badge";
+import type { Invoice } from "@/types/index.ts";
+import { Mail } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate, useParams } from "react-router-dom";
@@ -11,19 +13,6 @@ import {
 } from "../../components/ui/card";
 import api from "../../lib/api";
 import { dateHelper, OFFER_EXPIRED_DATE_FORMAT } from "../../lib/dateHelper";
-
-interface Invoice {
-  id: number;
-  invoice_date: string;
-  customer_name: string;
-  invoice_no: string;
-  customer_email: string | string[];
-  customer_id: number;
-  customer_code: string;
-  amount: number | string;
-  currency: string;
-  gst: boolean;
-}
 
 export default function InvoiceDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -81,7 +70,8 @@ export default function InvoiceDetailsPage() {
           <div>
             <h1 className="text-xl font-bold text-gray-900">Invoice Details</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Invoice #{invoice.invoice_no} • {dateHelper(invoice.invoice_date, OFFER_EXPIRED_DATE_FORMAT)}
+              Invoice #{invoice.invoice_no} •{" "}
+              {dateHelper(invoice.invoice_date, OFFER_EXPIRED_DATE_FORMAT)}
             </p>
           </div>
           <Button variant="outline" onClick={() => navigate(-1)}>
@@ -100,23 +90,36 @@ export default function InvoiceDetailsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-3">
                   <div>
-                    <p className="text-xs text-gray-500 uppercase">Invoice Number</p>
+                    <p className="text-xs text-gray-500 uppercase">
+                      Invoice Number
+                    </p>
                     <p className="font-medium">{invoice.invoice_no}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase">Invoice Date</p>
-                    <p className="font-medium">{dateHelper(invoice.invoice_date, OFFER_EXPIRED_DATE_FORMAT)}</p>
+                    <p className="text-xs text-gray-500 uppercase">
+                      Invoice Date
+                    </p>
+                    <p className="font-medium">
+                      {dateHelper(
+                        invoice.invoice_date,
+                        OFFER_EXPIRED_DATE_FORMAT
+                      )}
+                    </p>
                   </div>
                 </div>
-                
+
                 <div className="space-y-3">
                   <div>
                     <p className="text-xs text-gray-500 uppercase">Amount</p>
                     <div className="flex items-center gap-2">
                       <p className="text-lg font-bold">
-                        {Number(invoice.amount).toLocaleString()} {invoice.currency}
+                        {Number(invoice.amount).toLocaleString()}{" "}
+                        {invoice.currency}
                       </p>
-                      <Badge variant={invoice.gst ? "default" : "secondary"} className="text-xs">
+                      <Badge
+                        variant={invoice.gst ? "default" : "secondary"}
+                        className="text-xs"
+                      >
                         {invoice.gst ? "GST Included" : "GST Excluded"}
                       </Badge>
                     </div>
@@ -139,25 +142,48 @@ export default function InvoiceDetailsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-3">
                   <div>
-                    <p className="text-xs text-gray-500 uppercase">Customer Name</p>
-                    <p className="font-medium">{invoice.customer_name || "—"}</p>
+                    <p className="text-xs text-gray-500 uppercase">
+                      Customer Name
+                    </p>
+                    <p className="font-medium">
+                      {invoice.customer_name || "—"}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase">Customer Code</p>
-                    <p className="font-medium">{invoice.customer_code || "—"}</p>
+                    <p className="text-xs text-gray-500 uppercase">
+                      Customer Code
+                    </p>
+                    <p className="font-medium">
+                      {invoice.customer_code || "—"}
+                    </p>
                   </div>
                 </div>
-                
+
                 <div className="space-y-3">
                   <div>
-                    <p className="text-xs text-gray-500 uppercase">Email Address</p>
+                    <p className="text-xs text-gray-500 uppercase">
+                      Email Address
+                    </p>
                     <div className="mt-1">
                       {Array.isArray(invoice.customer_email) ? (
                         <div className="space-y-1">
                           {invoice.customer_email.map((email, index) => (
-                            <div key={index} className="flex items-center text-sm">
-                              <svg className="h-3.5 w-3.5 text-gray-400 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            <div
+                              key={index}
+                              className="flex items-center text-sm"
+                            >
+                              <svg
+                                className="h-3.5 w-3.5 text-gray-400 mr-1.5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                                />
                               </svg>
                               {email}
                             </div>
@@ -165,13 +191,21 @@ export default function InvoiceDetailsPage() {
                         </div>
                       ) : (
                         <div className="flex items-center text-sm">
-                          <svg className="h-3.5 w-3.5 text-gray-400 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                          </svg>
+                          <Mail />
                           {invoice.customer_email}
                         </div>
                       )}
                     </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase">
+                      Sales Person
+                    </p>
+                    <p className="font-medium">
+                      {invoice.salesperson_id
+                        ? `${invoice.salesperson_name} (${invoice.salesperson_short_form})`
+                        : "—"}
+                    </p>
                   </div>
                 </div>
               </div>

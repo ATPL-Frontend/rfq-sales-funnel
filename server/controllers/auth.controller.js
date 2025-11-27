@@ -18,7 +18,7 @@ export async function register(req, res) {
       email,
       password,
       short_form,
-      roles = [], // <-- must be role IDs
+      roles = [],
       user_type = "system_user",
     } = req.body;
 
@@ -35,13 +35,11 @@ export async function register(req, res) {
 
     // Convert roles input to array of IDs
     if (!Array.isArray(roles)) roles = [roles];
+    roles = roles.map((r) => String(r).trim()).filter(Boolean);
 
     // Sales person -> force sales-person role
     if (user_type === "sales_person") {
-      const [[salesRole]] = await pool.query(
-        "SELECT id FROM roles WHERE name='sales-person'"
-      );
-      roles = [salesRole.id];
+      roles = ["sales-person"];
     }
 
     // Validate roles exist
@@ -50,13 +48,16 @@ export async function register(req, res) {
         .status(400)
         .json({ message: "At least one valid role is required" });
 
-    const [validRoleRows] = await pool.query(
-      "SELECT id FROM roles WHERE id IN (?)",
+    const [valid] = await pool.query(
+      "SELECT name, id FROM roles WHERE name IN (?)",
       [roles]
     );
 
-    if (validRoleRows.length !== roles.length)
-      return res.status(400).json({ message: "One or more invalid role IDs" });
+    if (valid.length !== roles.length) {
+      return res.status(400).json({
+        message: "One or more invalid role names",
+      });
+    }
 
     // Create user
     const hashed = password ? await bcrypt.hash(password, 10) : null;
@@ -70,7 +71,7 @@ export async function register(req, res) {
     const userId = result.insertId;
 
     // Insert roles into user_roles
-    const values = roles.map((roleId) => [userId, roleId]);
+    const values = valid.map((role) => [userId, role.id]);
     await pool.query("INSERT INTO user_roles (user_id, role_id) VALUES ?", [
       values,
     ]);

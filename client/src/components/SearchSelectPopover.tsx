@@ -30,6 +30,7 @@ type UserSelectPopoverProps = {
   onChange: (value: string | string[]) => void;
   multiple?: boolean;
   placeholder?: string;
+  searchable?: boolean;
 };
 
 export default function UserSelectPopover({
@@ -38,6 +39,7 @@ export default function UserSelectPopover({
   value,
   onChange,
   placeholder = "Select option",
+  searchable = true,
 }: UserSelectPopoverProps) {
   const [open, setOpen] = useState(false);
 
@@ -87,7 +89,9 @@ export default function UserSelectPopover({
 
         <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
           <Command className="max-h-64 overflow-y-auto">
-            <CommandInput placeholder={`Search ${label.toLowerCase()}...`} />
+            {searchable !== false && (
+              <CommandInput placeholder={`Search ${label.toLowerCase()}...`} />
+            )}
             <CommandList>
               <CommandEmpty>No {label.toLowerCase()}s found.</CommandEmpty>
               <CommandGroup>

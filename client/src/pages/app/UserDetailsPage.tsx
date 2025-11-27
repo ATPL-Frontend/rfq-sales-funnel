@@ -10,20 +10,12 @@ import {
 } from "../../components/ui/card";
 import api from "../../lib/api";
 import { dateHelper } from "../../lib/dateHelper";
-
-type User = {
-  id: number;
-  name: string;
-  email: string;
-  short_form: string;
-  role_name: string;
-  created_at: string;
-};
+import type { UserList } from "../../types";
 
 export default function UserDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [user, setUser] = React.useState<User | null>(null);
+  const [user, setUser] = React.useState<UserList | null>(null);
   const [loading, setLoading] = React.useState(false);
 
   const fetchUser = React.useCallback(async () => {
@@ -89,7 +81,11 @@ export default function UserDetailsPage() {
           <p>{user.short_form}</p>
 
           <p className="font-medium text-muted-foreground">Role</p>
-          <p>{user.role_name}</p>
+          <p>
+            {Array.isArray(user.roles)
+              ? user.roles.join(", ")
+              : user.roles}
+          </p>
 
           <p className="font-medium text-muted-foreground">Created At</p>
           <p>{dateHelper(user.created_at)}</p>
