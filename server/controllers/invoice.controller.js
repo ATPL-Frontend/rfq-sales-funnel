@@ -1,5 +1,5 @@
 import { pool } from "../lib/dbconnect-mysql.js";
-import ac from "../utils/roles.js";
+import { hasPermission } from "../utils/role.js";
 
 const CURRENCIES = ["AUD", "USD"];
 
@@ -9,22 +9,13 @@ const CURRENCIES = ["AUD", "USD"];
  * @param {string} action - e.g. "createAny"
  * @param {string} resource - e.g. "invoice"
  */
-function checkPermission(roles, action, resource) {
-  for (const role of roles) {
-    const permission = ac.can(role)[action](resource);
-    if (permission.granted) return true;
-  }
-  return false;
-}
 
 /** CREATE */
 export async function createInvoice(req, res) {
   try {
-    const roles = Array.isArray(req.user?.roles)
-      ? req.user.roles
-      : [req.user?.roles || "user"];
+    const ok = hasPermission(req, "createAny", "invoice");
 
-    if (!checkPermission(roles, "createAny", "invoice")) {
+    if (!ok) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: insufficient permissions",
@@ -100,14 +91,9 @@ export async function createInvoice(req, res) {
 /** READ: list with optional filters */
 export async function listInvoices(req, res) {
   try {
-    const roles = Array.isArray(req.user?.roles)
-      ? req.user.roles
-      : [req.user?.roles || "user"];
+    const ok = hasPermission(req, ["readAny", "readOwn"], "invoice");
 
-    if (
-      !checkPermission(roles, "readAny", "invoice") &&
-      !checkPermission(roles, "readOwn", "invoice")
-    ) {
+    if (!ok) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: insufficient permissions",
@@ -218,14 +204,9 @@ export async function listInvoices(req, res) {
 /** READ: one */
 export async function getInvoiceById(req, res) {
   try {
-    const roles = Array.isArray(req.user?.roles)
-      ? req.user.roles
-      : [req.user?.roles || "user"];
+    const ok = hasPermission(req, ["readAny", "readOwn"], "invoice");
 
-    if (
-      !checkPermission(roles, "readAny", "invoice") &&
-      !checkPermission(roles, "readOwn", "invoice")
-    ) {
+    if (!ok) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: insufficient permissions",
@@ -234,10 +215,14 @@ export async function getInvoiceById(req, res) {
 
     const id = Number(req.params.id);
     const [rows] = await pool.query(
-      `SELECT i.*, c.name AS customer_name, c.email AS customer_email, c.code AS customer_code
-       FROM invoices i
-       JOIN customers c ON c.id = i.customer_id
-       WHERE i.id = ?`,
+      `SELECT i.*, c.name AS customer_name, c.email AS customer_email, c.code AS customer_code,
+        u.id   AS salesperson_id, u.name AS salesperson_name, u.short_form AS salesperson_short_form
+        FROM invoices i
+        JOIN customers c 
+          ON c.id = i.customer_id
+        LEFT JOIN users u 
+          ON u.id = c.salesperson_id
+        WHERE i.id = ?`,
       [id]
     );
 
@@ -256,11 +241,9 @@ export async function getInvoiceById(req, res) {
 /** UPDATE */
 export async function updateInvoice(req, res) {
   try {
-    const roles = Array.isArray(req.user?.roles)
-      ? req.user.roles
-      : [req.user?.roles || "user"];
+    const ok = hasPermission(req, "updateAny", "invoice");
 
-    if (!checkPermission(roles, "updateAny", "invoice")) {
+    if (!ok) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: insufficient permissions",
@@ -383,11 +366,9 @@ export async function updateInvoice(req, res) {
 /** DELETE */
 export async function deleteInvoice(req, res) {
   try {
-    const roles = Array.isArray(req.user?.roles)
-      ? req.user.roles
-      : [req.user?.roles || "user"];
+    const ok = hasPermission(req, "deleteAny", "invoice");
 
-    if (!checkPermission(roles, "deleteAny", "invoice")) {
+    if (!ok) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: insufficient permissions",
@@ -411,6 +392,14 @@ export async function deleteInvoice(req, res) {
 export async function getInvoiceSummary(req, res) {
   try {
     const { from, to } = req.query;
+
+    const ok = hasPermission(req, "readAny", "invoice");
+    if (!ok) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
+    }
 
     // Validate dates
     const isValidDate = (d) => !!d && !isNaN(new Date(d).getTime());

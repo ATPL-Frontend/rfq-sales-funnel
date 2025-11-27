@@ -314,16 +314,32 @@ export async function updateUser(req, res) {
 
       rolesUpdated = true;
 
+      // Normalize to array
+      if (!Array.isArray(roles)) roles = [roles];
+
+      // Convert all role names → ids
+      const [roleRows] = await pool.query(
+        "SELECT id, name FROM roles WHERE name IN (?)",
+        [roles]
+      );
+
+      if (roleRows.length !== roles.length) {
+        return res.status(400).json({
+          success: false,
+          message: "One or more invalid role names",
+        });
+      }
+
+      const roleIds = roleRows.map((r) => r.id);
+
       // Clear existing roles
       await pool.query("DELETE FROM user_roles WHERE user_id=?", [targetId]);
 
-      // Expect roles = [1,2,4]
-      for (const roleId of roles) {
-        await pool.query(
-          "INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)",
-          [targetId, roleId]
-        );
-      }
+      // Insert new roles
+      const values = roleIds.map((id) => [targetId, id]);
+      await pool.query("INSERT INTO user_roles (user_id, role_id) VALUES ?", [
+        values,
+      ]);
     }
 
     // -------------------------------

@@ -1,64 +1,55 @@
+import UserSelectPopover from "@/components/SearchSelectPopover";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "../../components/ui/button";
 import { DialogFooter } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
 import api from "../../lib/api";
-
-type User = {
-  id?: number;
-  name: string;
-  email: string;
-  password?: string;
-  short_form: string;
-  role_name: string;
-  user_type?: "system_user" | "sales_person";
-};
+import type { UserList } from "../../types";
 
 type Props = {
-  user: Partial<User> | null;
+  user: UserList | null;
+  roles: string[]; // this is your roles list from API
   onSuccess: (user: any, isEdit: boolean) => void;
   onCancel: () => void;
 };
 
-export default function UserForm({ user, onSuccess, onCancel }: Props) {
-  const [form, setForm] = useState({
+export default function UserForm({ user, roles, onSuccess, onCancel }: Props) {
+  const [form, setForm] = useState<{
+    name: string;
+    email: string;
+    password: string;
+    short_form: string;
+    roles: string[]; // IMPORTANT: roles = array of role names
+    user_type: "system_user" | "sales_person";
+  }>({
     name: user?.name || "",
     email: user?.email || "",
     password: "",
     short_form: user?.short_form || "",
-    role: user?.role_name || "",
+    roles: user?.roles || [], // user.roles already returns ["admin","user"]
     user_type: user?.user_type || "system_user",
   });
+
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+
     try {
-      const payload: any = {
+      const payload = {
         name: form.name,
         email: form.email || null,
         short_form: form.short_form,
-        role: form.role,
+        roles: form.roles, // names only
         user_type: form.user_type,
+        ...(form.password ? { password: form.password } : {}),
       };
 
-      if (form.user_type === "system_user" && form.password) {
-        payload.password = form.password;
-      }
-
       let data;
-
       if (user?.id) {
         const res = await api.put(`/api/users/${user.id}`, payload);
         data = res.data;
@@ -79,7 +70,7 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* ✅ User type selection (styled as cards) */}
+      {/* USER TYPE */}
       <div className="space-y-2">
         <Label className="text-sm font-medium">User Type</Label>
 
@@ -90,7 +81,6 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
           }
           className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2"
         >
-          {/* System User Card */}
           <label
             htmlFor="sys"
             className={`flex items-start gap-3 border rounded-lg p-3 cursor-pointer transition-all ${
@@ -101,16 +91,13 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
           >
             <RadioGroupItem value="system_user" id="sys" className="mt-1" />
             <div>
-              <span className="font-semibold text-sm leading-tight">
-                System User
-              </span>
+              <span className="font-semibold text-sm">System User</span>
               <p className="text-xs text-muted-foreground">
                 Has login access and can use the system.
               </p>
             </div>
           </label>
 
-          {/* Sales Person Card */}
           <label
             htmlFor="sales"
             className={`flex items-start gap-3 border rounded-lg p-3 cursor-pointer transition-all ${
@@ -121,9 +108,7 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
           >
             <RadioGroupItem value="sales_person" id="sales" className="mt-1" />
             <div>
-              <span className="font-semibold text-sm leading-tight">
-                Sales Person
-              </span>
+              <span className="font-semibold text-sm">Sales Person</span>
               <p className="text-xs text-muted-foreground">
                 Doesn’t require login. Used for sales tracking only.
               </p>
@@ -132,8 +117,9 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
         </RadioGroup>
       </div>
 
+      {/* NAME */}
       <div className="space-y-2">
-        <label className="text-sm font-medium">Name</label>{" "}
+        <label className="text-sm font-medium">Name</label>
         <span className="text-red-500">*</span>
         <Input
           value={form.name}
@@ -142,9 +128,13 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
           placeholder="John Doe"
         />
       </div>
+
+      {/* EMAIL */}
       <div className="space-y-2">
         <label className="text-sm font-medium">Email</label>
-        {form.user_type === "system_user" && <span className="text-red-500">*</span>}
+        {form.user_type === "system_user" && (
+          <span className="text-red-500">*</span>
+        )}
         <Input
           type="email"
           value={form.email}
@@ -159,6 +149,7 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
         />
       </div>
 
+      {/* SHORT FORM */}
       <div className="space-y-2">
         <label className="text-sm font-medium">Short Form</label>
         <Input
@@ -169,27 +160,21 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
         />
       </div>
 
+      {/* ROLES — MULTI SELECT ONLY (System User Only) */}
       {form.user_type === "system_user" && (
-        <div className="space-y-2">
-          <Label>Role</Label>
-          <Select
-            value={form.role}
-            onValueChange={(value) => setForm({ ...form, role: value })}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select role" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="super-admin">Super Admin</SelectItem>
-              <SelectItem value="user">User</SelectItem>
-              <SelectItem value="sales-person">Sales Person</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <UserSelectPopover
+          label="Roles"
+          options={roles.map((r) => ({ id: r, name: r }))}
+          value={form.roles}
+          onChange={(value) =>
+            setForm({ ...form, roles: value as string[] })
+          }
+          multiple
+          searchable={false}
+        />
       )}
 
-      {/* ✅ Password visible only for system user */}
+      {/* PASSWORD */}
       {form.user_type === "system_user" && !user?.id && (
         <div className="space-y-2">
           <Label>Password</Label>
@@ -198,7 +183,7 @@ export default function UserForm({ user, onSuccess, onCancel }: Props) {
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             placeholder="Enter password"
-            required={form.user_type === "system_user"}
+            required
           />
         </div>
       )}

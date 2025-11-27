@@ -12,31 +12,10 @@ import {
   SelectValue,
 } from "../ui/select";
 
-import type { Customers } from "@/types";
+import type { CustomerList } from "@/types";
+import type { Rfq, SalesPerson } from "@/types/index.ts";
 import SearchSelectPopover from "../SearchSelectPopover";
 import { DialogFooter } from "../ui/dialog";
-
-type Rfq = {
-  id: number;
-  receive_date: string;
-  start_date: string;
-  customer_id: number;
-  salesperson_id: number;
-  quantity: number;
-  price: number;
-  currency: string;
-  prepared_by: number[];
-  end_date: string;
-  progress: string;
-  rfq_location: string;
-  remarks: string;
-};
-
-type SalesPerson = {
-  id: number;
-  name: string;
-  short_form: string;
-};
 
 type Props = {
   rfq: Rfq | null;
@@ -66,7 +45,10 @@ export default function RfqForm({
   onCancel,
 }: Props) {
   const [saving, setSaving] = useState(false);
-  const [customers, setCustomers] = useState<Customers[]>([]);
+  const [customers, setCustomers] = useState<CustomerList[]>([]);
+
+  const storedUser = JSON.parse(localStorage.getItem("auth_user") || "{}");
+  const loggedInUserId = storedUser?.id ? String(storedUser.id) : "";
 
   // -------------------------
   // FORM STATE (clean)
@@ -81,8 +63,10 @@ export default function RfqForm({
     price: rfq?.price || "",
     currency: rfq?.currency || "AUD",
     prepared_by: rfq?.prepared_by
-      ? rfq.prepared_by.map((id) => String(id))
-      : [],
+    ? rfq.prepared_by.map((id) => String(id))
+    : loggedInUserId
+    ? [loggedInUserId]
+    : [],
     progress: rfq?.progress || "",
     rfq_location: rfq?.rfq_location || "",
     remarks: rfq?.remarks || "",
@@ -103,6 +87,8 @@ export default function RfqForm({
   useEffect(() => {
     fetchCustomers();
   }, []);
+
+  console.log("form", form);
 
   // -------------------------
   // SUBMIT HANDLER
@@ -167,16 +153,29 @@ export default function RfqForm({
         label="Customer"
         options={customers}
         value={form.customer_id}
-        onChange={(val) =>
-          setForm((prev) => ({ ...prev, customer_id: String(val) }))
-        }
+        onChange={(val) => {
+          const selectedCustomer = customers.find(
+            (c) => String(c.id) === String(val)
+          );
+          setForm((prev) => ({
+            ...prev,
+            customer_id: String(val),
+            salesperson_id: selectedCustomer?.salesperson_id
+              ? String(selectedCustomer.salesperson_id)
+              : "",
+          }));
+        }}
         placeholder="Select customer"
       />
 
       {/* Salesperson */}
       <SearchSelectPopover
         label="Salesperson"
-        options={salesPerson || []}
+        options={(salesPerson || []).map((sp) => ({
+          id: String(sp.id),
+          name: sp.name,
+          short_form: sp.short_form,
+        }))}
         value={form.salesperson_id}
         onChange={(val) =>
           setForm((prev) => ({ ...prev, salesperson_id: String(val) }))

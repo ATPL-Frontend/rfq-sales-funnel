@@ -1,5 +1,5 @@
 import { pool } from "../lib/dbconnect-mysql.js";
-import ac from "../utils/roles.js";
+import { hasPermission } from "../utils/role.js";
 
 /**
  * Helper to check permission using AccessControl
@@ -7,23 +7,13 @@ import ac from "../utils/roles.js";
  * @param {string} action - e.g., "createAny", "readOwn"
  * @param {string} resource - e.g., "customer"
  */
-function checkPermission(roles, action, resource) {
-  for (const role of roles) {
-    const permission = ac.can(role)[action](resource);
-    if (permission.granted) return true;
-  }
-  return false;
-}
 
 /** CREATE */
 export async function createCustomer(req, res) {
   try {
-    const roles = Array.isArray(req.user?.roles)
-      ? req.user.roles
-      : [req.user?.roles || "user"];
+    const ok = hasPermission(req, ["readAny", "readOwn"], "customer");
 
-    // Permission guard
-    if (!checkPermission(roles, "createAny", "customer")) {
+    if (!ok) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: insufficient permissions",
@@ -103,15 +93,9 @@ export async function createCustomer(req, res) {
 /** READ: list with optional search + pagination */
 export async function listCustomers(req, res) {
   try {
-    const roles = Array.isArray(req.user?.roles)
-      ? req.user.roles
-      : [req.user?.roles || "user"];
+    const ok = hasPermission(req, ["readAny", "readOwn"], "customer");
 
-    // permissions needed: readAny OR readOwn
-    if (
-      !checkPermission(roles, "readAny", "customer") &&
-      !checkPermission(roles, "readOwn", "customer")
-    ) {
+    if (!ok) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: insufficient permissions",
@@ -188,14 +172,9 @@ export async function listCustomers(req, res) {
 /** READ: one */
 export async function getCustomerById(req, res) {
   try {
-    const roles = Array.isArray(req.user?.role)
-      ? req.user.role
-      : [req.user?.role || "user"];
+    const ok = hasPermission(req, ["readAny", "readOwn"], "customer");
 
-    if (
-      !checkPermission(roles, "readAny", "customer") &&
-      !checkPermission(roles, "readOwn", "customer")
-    ) {
+    if (!ok) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: insufficient permissions",
@@ -240,11 +219,9 @@ export async function getCustomerById(req, res) {
 /** UPDATE */
 export async function updateCustomer(req, res) {
   try {
-    const roles = Array.isArray(req.user?.role)
-      ? req.user.role
-      : [req.user?.role || "user"];
+    const ok = hasPermission(req, "updateAny", "customer");
 
-    if (!checkPermission(roles, "updateAny", "customer")) {
+    if (!ok) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: insufficient permissions",
@@ -345,11 +322,9 @@ export async function updateCustomer(req, res) {
 /** DELETE */
 export async function deleteCustomer(req, res) {
   try {
-    const roles = Array.isArray(req.user?.role)
-      ? req.user.role
-      : [req.user?.role || "user"];
+    const ok = hasPermission(req, "deleteAny", "customer");
 
-    if (!checkPermission(roles, "deleteAny", "customer")) {
+    if (!ok) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: insufficient permissions",

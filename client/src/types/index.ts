@@ -1,19 +1,20 @@
 export type UserList = {
-  id: number;
+  id?: number;
   name: string;
   email: string;
+  password?: string;
   short_form: string;
   user_type: "system_user" | "sales_person";
   is_active: boolean;
   created_at: string;
-  role_name: string[];
+  roles: string[];
 };
 
 export type Users = {
   id: number;
   name: string;
   short_form: string;
-  role_name: string;
+  roles: string | string[];
 };
 
 export type CustomerList = {
@@ -41,7 +42,7 @@ export type SalesPerson = {
   short_form: string;
 };
 
-export type Invoice = {
+export type InvoiceList = {
   id: number;
   invoice_date: string;
   customer_name: string;
@@ -55,8 +56,25 @@ export type Invoice = {
   created_at: string;
 };
 
-export type Rfq = {
+export type Invoice = {
   id: number;
+  invoice_date: string;
+  customer_name: string;
+  invoice_no: string;
+  customer_email: string | string[];
+  customer_id: number;
+  customer_code: string;
+  salesperson_id: number | null;
+  salesperson_name: string | null;
+  salesperson_short_form: string | null;
+  amount: number | string;
+  currency: string;
+  gst: boolean;
+  created_at: string;
+};
+
+export type Rfq = {
+  id?: number;
   receive_date: string;
   start_date: string;
   customer_id: number;
