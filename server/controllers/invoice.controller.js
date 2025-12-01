@@ -391,7 +391,7 @@ export async function deleteInvoice(req, res) {
 // 📊 GET /api/invoices/summary?from=YYYY-MM-DD&to=YYYY-MM-DD
 export async function getInvoiceSummary(req, res) {
   try {
-    const { from, to } = req.query;
+    const { from, to, salesperson_id } = req.query;
 
     const ok = hasPermission(req, "readAny", "invoice");
     if (!ok) {
@@ -401,37 +401,49 @@ export async function getInvoiceSummary(req, res) {
       });
     }
 
-    // Validate dates
     const isValidDate = (d) => !!d && !isNaN(new Date(d).getTime());
     const params = [];
-    let where = "";
+    const whereParts = [];
 
+    // Date filters
     if (isValidDate(from) && isValidDate(to)) {
-      where = "WHERE i.invoice_date BETWEEN ? AND ?";
+      whereParts.push("i.invoice_date BETWEEN ? AND ?");
       params.push(from, to);
     } else if (isValidDate(from)) {
-      where = "WHERE i.invoice_date >= ?";
+      whereParts.push("i.invoice_date >= ?");
       params.push(from);
     } else if (isValidDate(to)) {
-      where = "WHERE i.invoice_date <= ?";
+      whereParts.push("i.invoice_date <= ?");
       params.push(to);
-    } else {
-      console.log("⚠️  No valid dates provided — fetching all invoices");
     }
 
+    // Salesperson filter
+    if (salesperson_id) {
+      whereParts.push("c.salesperson_id = ?");
+      params.push(Number(salesperson_id));
+    }
+
+    const where = whereParts.length ? `WHERE ${whereParts.join(" AND ")}` : "";
+
+    // Fetch invoice data
     const [rows] = await pool.query(
       `
       SELECT 
         c.id AS customer_id,
         c.name AS customer_name,
         c.email AS customer_email,
+        u.id AS salesperson_id,
+        u.name AS salesperson_name,
+        u.short_form AS salesperson_short_form,
         i.id AS invoice_id,
         i.invoice_date AS date,
         i.invoice_no,
         i.amount,
-        i.currency
+        i.currency,
+        i.gst
       FROM invoices i
       JOIN customers c ON c.id = i.customer_id
+      LEFT JOIN users u ON u.id = c.salesperson_id
       ${where}
       ORDER BY c.name ASC, i.invoice_date DESC
       `,
@@ -442,43 +454,80 @@ export async function getInvoiceSummary(req, res) {
       return res.json({
         success: true,
         data: [],
+        salespersonSummary: [],
         summary: {
           total_customers: 0,
           total_invoices: 0,
           total_amount_aud: 0,
           total_amount_usd: 0,
         },
-        range: { from, to },
+        range: { from, to, salesperson_id },
       });
 
     // Group by customer
-    const grouped = {};
+    const customerGrouped = {};
+    // Group by salesperson
+    const salespersonGrouped = {};
+
     for (const r of rows) {
-      if (!grouped[r.customer_id]) {
-        grouped[r.customer_id] = {
+      // ---- CUSTOMER SUMMARY ----
+      if (!customerGrouped[r.customer_id]) {
+        customerGrouped[r.customer_id] = {
           customer_name: r.customer_name,
           customer_email: r.customer_email,
+          salesperson_id: r.salesperson_id,
+          salesperson_name: r.salesperson_name,
+          salesperson_short_form: r.salesperson_short_form,
           no_of_invoices: 0,
           total_amount_aud: 0,
           total_amount_usd: 0,
           invoices: [],
         };
       }
-      const g = grouped[r.customer_id];
-      g.no_of_invoices++;
-      if (r.currency === "AUD") g.total_amount_aud += Number(r.amount);
-      if (r.currency === "USD") g.total_amount_usd += Number(r.amount);
-      g.invoices.push({
+
+      const cg = customerGrouped[r.customer_id];
+      cg.no_of_invoices++;
+      if (r.currency === "AUD") cg.total_amount_aud += Number(r.amount);
+      if (r.currency === "USD") cg.total_amount_usd += Number(r.amount);
+
+      cg.invoices.push({
         date: r.date,
         invoice_no: r.invoice_no,
         amount: Number(r.amount),
         currency: r.currency,
+        gst: r.gst ? 1 : 0,
       });
+
+      // ---- SALESPERSON SUMMARY ----
+      if (!salespersonGrouped[r.salesperson_id]) {
+        salespersonGrouped[r.salesperson_id] = {
+          salesperson_id: r.salesperson_id,
+          salesperson_name: r.salesperson_name,
+          salesperson_short_form: r.salesperson_short_form,
+          total_customers: new Set(), // will convert later
+          total_invoices: 0,
+          total_aud: 0,
+          total_usd: 0,
+        };
+      }
+
+      const sg = salespersonGrouped[r.salesperson_id];
+      if (r.customer_id) sg.total_customers.add(r.customer_id);
+      sg.total_invoices++;
+
+      if (r.currency === "AUD") sg.total_aud += Number(r.amount);
+      if (r.currency === "USD") sg.total_usd += Number(r.amount);
     }
 
-    // Build summary totals
-    const customersArray = Object.values(grouped);
+    // Convert sets
+    const salespersonSummary = Object.values(salespersonGrouped).map((s) => ({
+      ...s,
+      total_customers: s.total_customers.size,
+    }));
 
+    const customersArray = Object.values(customerGrouped);
+
+    // MAIN SUMMARY
     const summary = {
       total_customers: customersArray.length,
       total_invoices: customersArray.reduce(
@@ -498,8 +547,9 @@ export async function getInvoiceSummary(req, res) {
     return res.json({
       success: true,
       data: customersArray,
+      salespersonSummary,
       summary,
-      range: { from, to },
+      range: { from, to, salesperson_id },
     });
   } catch (err) {
     console.error("💥 getInvoiceSummary error:", err);
