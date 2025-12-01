@@ -1,3 +1,5 @@
+import SearchSelectPopover from "@/components/SearchSelectPopover";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import api from "@/lib/api";
 import { dateHelper } from "@/lib/dateHelper";
+import type { InvoiceItem, salespersonSummary } from "@/types/index.ts";
 import { endOfMonth, format, startOfMonth } from "date-fns";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
@@ -19,20 +22,15 @@ const now = new Date();
 const defaultFrom = format(startOfMonth(now), "yyyy-MM-dd");
 const defaultTo = format(endOfMonth(now), "yyyy-MM-dd");
 
-type Invoice = {
-  date: string;
-  invoice_no: string;
-  amount: number;
-  currency: "AUD" | "USD";
-};
-
 type CustomerSummary = {
   customer_name: string;
   customer_email: string | string[];
   no_of_invoices: number;
+  salesperson_name: string;
+  salesperson_short_form: string | null;
   total_amount_aud: number;
   total_amount_usd: number;
-  invoices: Invoice[];
+  invoices: InvoiceItem[];
 };
 type Summary = {
   total_invoices: number;
@@ -45,31 +43,53 @@ export default function InvoiceSummaryPage() {
   const [filters, setFilters] = useState({
     date_from: "",
     date_to: "",
+    salesperson_id: "",
   });
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<CustomerSummary[]>([]);
   const [range, setRange] = useState<{ from: string; to: string } | null>(null);
   const [summaryData, setSummaryData] = useState<Summary | null>(null);
+  const [salespersonSummaryData, setSalespersonSummaryData] = useState<
+    salespersonSummary[]
+  >([]);
+  const [salespersons, setSalespersons] = useState<
+    { id: number; name: string }[]
+  >([]);
 
+  // Set defaults on first load
   useEffect(() => {
-    if (!filters.date_from || !filters.date_to) {
-      setFilters({ date_from: defaultFrom, date_to: defaultTo });
-    }
+    setFilters({
+      date_from: defaultFrom,
+      date_to: defaultTo,
+      salesperson_id: "",
+    });
   }, []);
+
+  // Refetch whenever filters are valid
+  useEffect(() => {
+    if (filters.date_from && filters.date_to) {
+      fetchSummary();
+    }
+  }, [filters]);
 
   async function fetchSummary() {
     try {
       setLoading(true);
       const params = new URLSearchParams();
+
       if (filters.date_from) params.append("from", filters.date_from);
       if (filters.date_to) params.append("to", filters.date_to);
+      if (filters.salesperson_id)
+        params.append("salesperson_id", filters.salesperson_id);
 
       const { data } = await api.get(
         `/api/invoices/summary?${params.toString()}`
       );
+
       setSummary(data.data || []);
       setRange(data.range || null);
-      setSummaryData(data.summary || []);
+      setSummaryData(data.summary || null);
+      setSalespersonSummaryData(data.salespersonSummary || []);
     } catch (err: any) {
       toast.error(
         err?.response?.data?.message || "Failed to load invoice summary"
@@ -79,8 +99,19 @@ export default function InvoiceSummaryPage() {
     }
   }
 
+  const fetchSalesPersons = async () => {
+    if (salespersons.length > 0) return;
+    try {
+      const { data } = await api.get("/api/users?limit=200&role=sales-person");
+      const allUsers = data.data || [];
+      setSalespersons(allUsers);
+    } catch (err) {
+      toast.error("Failed to load salespersons");
+    }
+  };
+
   useEffect(() => {
-    fetchSummary();
+    fetchSalesPersons();
   }, []);
 
   return (
@@ -88,9 +119,11 @@ export default function InvoiceSummaryPage() {
       <h1 className="text-2xl font-semibold text-gray-800">Invoice Summary</h1>
 
       {/* 🔍 Filters */}
-      <div className="p-4 mb-4 border border-primary border-dashed rounded grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+      <div
+        className="p-4 mb-4 border border-primary border-dashed rounded grid grid-cols-1 sm:grid-cols-3 gap-4"
+      >
         {/* From Date */}
-        <div className="col-span-1">
+        <div>
           <label className="block text-sm text-gray-600 mb-1">From Date</label>
           <Input
             type="date"
@@ -98,11 +131,12 @@ export default function InvoiceSummaryPage() {
             onChange={(e) =>
               setFilters({ ...filters, date_from: e.target.value })
             }
+            className="w-full"
           />
         </div>
 
         {/* To Date */}
-        <div className="col-span-1">
+        <div>
           <label className="block text-sm text-gray-600 mb-1">To Date</label>
           <Input
             type="date"
@@ -110,19 +144,42 @@ export default function InvoiceSummaryPage() {
             onChange={(e) =>
               setFilters({ ...filters, date_to: e.target.value })
             }
+            className="w-full"
           />
         </div>
 
-        {/* Action buttons */}
-        <div className="col-span-2 md:col-span-1 flex items-end gap-2">
-          <Button onClick={fetchSummary} disabled={loading} className="flex-1">
+        {/* Sales Person */}
+        <div>
+          <SearchSelectPopover
+            label="Sales Person"
+            options={salespersons}
+            value={filters.salesperson_id}
+            onChange={(val) =>
+              setFilters({ ...filters, salesperson_id: val.toString() })
+            }
+            placeholder="Select salesperson"
+          />
+        </div>
+
+        {/* Buttons Row */}
+        <div className="sm:col-span-3 flex gap-4">
+          <Button
+            onClick={fetchSummary}
+            disabled={loading}
+            className="w-full lg:w-auto flex-1"
+          >
             {loading ? "Loading..." : "Apply Filter"}
           </Button>
+
           <Button
             variant="outline"
-            className="flex-1"
+            className="w-full lg:w-auto flex-1"
             onClick={() => {
-              setFilters({ date_from: defaultFrom, date_to: defaultTo });
+              setFilters({
+                date_from: defaultFrom,
+                date_to: defaultTo,
+                salesperson_id: "",
+              });
               fetchSummary();
             }}
           >
@@ -132,7 +189,7 @@ export default function InvoiceSummaryPage() {
       </div>
 
       <div>
-        <h2 className="text-xl font-semibold text-gray-700">
+        <h2 className="sm:text-xl font-semibold text-gray-700">
           Invoices sent from {dateHelper(range?.from ?? "")} to{" "}
           {dateHelper(range?.to ?? "")}
         </h2>
@@ -142,22 +199,22 @@ export default function InvoiceSummaryPage() {
         <Table className="min-w-full">
           <TableHeader className="bg-primary">
             <TableRow className="hover:bg-primary">
-              <TableHead className="py-3 px-4 text-left text-xs font-medium text-white uppercase tracking-wider">
+              <TableHead className="py-3 px-4 text-xs text-center font-medium text-white uppercase tracking-wider">
                 Total Invoices
               </TableHead>
-              <TableHead className="py-3 px-4 text-left text-xs font-medium text-white uppercase tracking-wider">
-                Number of Customers
+              <TableHead className="py-3 px-4 text-xs text-center font-medium text-white uppercase tracking-wider">
+                Total Customers
               </TableHead>
-              <TableHead className="py-3 px-4 text-left text-xs font-medium text-white uppercase tracking-wider">
+              <TableHead className="py-3 px-4 text-xs text-center font-medium text-white uppercase tracking-wider">
                 Total Amount (AUD)
               </TableHead>
-              <TableHead className="py-3 px-4 text-left text-xs font-medium text-white uppercase tracking-wider">
+              <TableHead className="py-3 px-4 text-xs text-center font-medium text-white uppercase tracking-wider">
                 Total Amount (USD)
               </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className="bg-secondary">
-            <TableRow>
+            <TableRow className="text-center">
               <TableCell className="py-3 px-4 text-sm text-gray-700">
                 {summaryData?.total_invoices || 0}
               </TableCell>
@@ -175,6 +232,62 @@ export default function InvoiceSummaryPage() {
         </Table>
       </div>
 
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <Table className="min-w-full">
+          <TableHeader className="bg-primary">
+            <TableRow className="hover:bg-primary">
+              <TableHead className="py-3 px-4 text-xs font-medium text-white uppercase tracking-wider">
+                Sales Person
+              </TableHead>
+              <TableHead className="py-3 px-4 text-xs font-medium text-white uppercase tracking-wider">
+                Total Customers
+              </TableHead>
+              <TableHead className="py-3 px-4 text-xs font-medium text-white uppercase tracking-wider">
+                Total Invoices
+              </TableHead>
+              <TableHead className="py-3 px-4 text-xs font-medium text-white uppercase tracking-wider">
+                Total Amount (AUD)
+              </TableHead>
+              <TableHead className="py-3 px-4 text-xs font-medium text-white uppercase tracking-wider">
+                Total Amount (USD)
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody className="bg-secondary">
+            {salespersonSummaryData.length > 0 ? (
+              salespersonSummaryData.map((sp) => (
+                <TableRow key={sp.salesperson_id}>
+                  <TableCell className="py-3 px-4 text-sm text-gray-700">
+                    {sp.salesperson_name || ""}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-sm text-gray-700">
+                    {sp.total_customers || 0}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-sm text-gray-700">
+                    {sp.total_invoices || 0}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-sm font-medium text-gray-900">
+                    $ {sp.total_aud.toFixed(2) || 0}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-sm font-medium text-gray-900">
+                    $ {sp.total_usd.toFixed(2) || 0}
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  className="py-3 px-4 text-sm text-gray-700 text-center"
+                  colSpan={5}
+                >
+                  No salesperson found for the selected filters.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
       {/* 📊 Summary Tables per Customer */}
       {summary.length === 0 ? (
         <p className="text-center text-gray-500 py-10">
@@ -188,12 +301,12 @@ export default function InvoiceSummaryPage() {
           >
             <CardContent className="p-4">
               {/* Customer summary header */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
                 <div className="bg-gray-100 p-4 rounded-lg border border-gray-100">
                   <p className="text-sm font-medium text-gray-500 mb-1">
                     Customer
                   </p>
-                  <p className="text-lg font-semibold text-gray-800">
+                  <p className="sm:text-lg font-semibold text-gray-800">
                     {cust.customer_name}
                   </p>
                 </div>
@@ -222,10 +335,19 @@ export default function InvoiceSummaryPage() {
 
                 <div className="bg-gray-200 p-4 rounded-lg border border-gray-100">
                   <p className="text-sm font-medium text-gray-500 mb-1">
-                    # of Invoices
+                    Total Invoices
                   </p>
-                  <p className="text-lg font-semibold text-gray-800">
+                  <p className="sm:text-lg font-semibold text-gray-800">
                     {cust.no_of_invoices}
+                  </p>
+                </div>
+
+                <div className="bg-red-50 p-4 rounded-lg border border-red-100">
+                  <p className="text-sm font-medium text-gray-500 mb-1">
+                    Sales Person
+                  </p>
+                  <p className="sm:text-lg font-bold text-primary">
+                    {cust.salesperson_name}
                   </p>
                 </div>
 
@@ -233,7 +355,7 @@ export default function InvoiceSummaryPage() {
                   <p className="text-sm font-medium text-gray-500 mb-1">
                     Total (AUD)
                   </p>
-                  <p className="text-lg font-bold text-green-700">
+                  <p className="sm:text-lg font-bold text-green-700">
                     ${cust.total_amount_aud.toFixed(2)}
                   </p>
                 </div>
@@ -242,7 +364,7 @@ export default function InvoiceSummaryPage() {
                   <p className="text-sm font-medium text-gray-500 mb-1">
                     Total (USD)
                   </p>
-                  <p className="text-lg font-bold text-blue-700">
+                  <p className="sm:text-lg font-bold text-blue-700">
                     ${cust.total_amount_usd.toFixed(2)}
                   </p>
                 </div>
@@ -268,6 +390,9 @@ export default function InvoiceSummaryPage() {
                       <TableHead className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Currency
                       </TableHead>
+                      <TableHead className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        GST
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody className="bg-white divide-y divide-gray-200">
@@ -292,6 +417,11 @@ export default function InvoiceSummaryPage() {
                           <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
                             {inv.currency}
                           </span>
+                        </TableCell>
+                        <TableCell className="py-3 px-4">
+                          <Badge variant={inv.gst ? "secondary" : "excluded"}>
+                            {inv.gst ? "Included" : "Excluded"}
+                          </Badge>
                         </TableCell>
                       </TableRow>
                     ))}

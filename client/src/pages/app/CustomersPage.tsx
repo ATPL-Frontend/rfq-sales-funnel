@@ -143,6 +143,7 @@ export default function CustomersPage() {
     },
     { key: "web_address", label: "Web Address" },
     { key: "code", label: "Code" },
+    { key: "salesperson_name", label: "Salesperson" },
     {
       key: "actions",
       label: "Actions",

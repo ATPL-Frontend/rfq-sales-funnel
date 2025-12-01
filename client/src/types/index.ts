@@ -42,6 +42,16 @@ export type SalesPerson = {
   short_form: string;
 };
 
+export type salespersonSummary = {
+  salesperson_id: number;
+  salesperson_name: string;
+  salesperson_short_form: string | null;
+  total_customers: number;
+  total_invoices: number;
+  total_aud: number;
+  total_usd: number;
+};
+
 export type InvoiceList = {
   id: number;
   invoice_date: string;
@@ -71,6 +81,14 @@ export type Invoice = {
   currency: string;
   gst: boolean;
   created_at: string;
+};
+
+export type InvoiceItem = {
+  date: string;
+  invoice_no: string;
+  amount: number;
+  currency: "AUD" | "USD";
+  gst: boolean;
 };
 
 export type Rfq = {
