@@ -1,3 +1,4 @@
+import InvoiceSummaryPrint from "@/components/InvoiceSummaryPrint";
 import SearchSelectPopover from "@/components/SearchSelectPopover";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,6 @@ import { Printer } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useReactToPrint } from "react-to-print";
-import InvoiceSummaryPrint from "@/components/InvoiceSummaryPrint";
 
 const now = new Date();
 const defaultFrom = format(startOfMonth(now), "yyyy-MM-dd");
@@ -131,7 +131,6 @@ export default function InvoiceSummaryPage() {
 
   return (
     <div className="space-y-6">
-
       <div className="hidden">
         <InvoiceSummaryPrint
           summary={summary}
@@ -141,7 +140,7 @@ export default function InvoiceSummaryPage() {
           ref={printRef}
         />
       </div>
-      
+
       <h1 className="text-2xl font-semibold text-gray-800">Invoice Summary</h1>
 
       {/* 🔍 Filters */}
@@ -186,36 +185,39 @@ export default function InvoiceSummaryPage() {
         </div>
 
         {/* Buttons Row */}
-        <div className="sm:col-span-3 flex gap-4">
-          <Button
-            variant="secondary"
-            onClick={handlePrint}
-            className="w-full lg:w-auto flex-1"
-          >
-            Print <Printer className="ml-2 h-4 w-4" />
-          </Button>
-          <Button
-            onClick={fetchSummary}
-            disabled={loading}
-            className="w-full lg:w-auto flex-1"
-          >
-            {loading ? "Loading..." : "Apply Filter"}
-          </Button>
+        <div className="col-span-1 sm:col-span-3">
+          <div className="grid grid-cols-3 gap-4">
+            <Button
+              onClick={fetchSummary}
+              disabled={loading}
+              className="w-full"
+            >
+              {loading ? "Loading..." : "Apply Filter"}
+            </Button>
 
-          <Button
-            variant="outline"
-            className="w-full lg:w-auto flex-1"
-            onClick={() => {
-              setFilters({
-                date_from: defaultFrom,
-                date_to: defaultTo,
-                salesperson_id: "",
-              });
-              fetchSummary();
-            }}
-          >
-            Reset
-          </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                setFilters({
+                  date_from: defaultFrom,
+                  date_to: defaultTo,
+                  salesperson_id: "",
+                });
+                fetchSummary();
+              }}
+            >
+              Reset
+            </Button>
+            
+            <Button
+              variant="secondary"
+              onClick={handlePrint}
+              className="w-full"
+            >
+              Print <Printer className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
