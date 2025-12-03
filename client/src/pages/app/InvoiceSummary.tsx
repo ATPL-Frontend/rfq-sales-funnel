@@ -15,8 +15,11 @@ import api from "@/lib/api";
 import { dateHelper } from "@/lib/dateHelper";
 import type { InvoiceItem, salespersonSummary } from "@/types/index.ts";
 import { endOfMonth, format, startOfMonth } from "date-fns";
-import { useEffect, useState } from "react";
+import { Printer } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
+import { useReactToPrint } from "react-to-print";
+import InvoiceSummaryPrint from "@/components/InvoiceSummaryPrint";
 
 const now = new Date();
 const defaultFrom = format(startOfMonth(now), "yyyy-MM-dd");
@@ -40,6 +43,7 @@ type Summary = {
 };
 
 export default function InvoiceSummaryPage() {
+  const printRef = useRef(null);
   const [filters, setFilters] = useState({
     date_from: "",
     date_to: "",
@@ -71,6 +75,17 @@ export default function InvoiceSummaryPage() {
       fetchSummary();
     }
   }, [filters]);
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    pageStyle: `
+      @page { size: A4; margin: 10mm; }
+      @media print { 
+        .no-print { display: none !important; }
+        .page-break-inside-avoid { page-break-inside: avoid; }
+      }
+    `,
+  });
 
   async function fetchSummary() {
     try {
@@ -116,12 +131,21 @@ export default function InvoiceSummaryPage() {
 
   return (
     <div className="space-y-6">
+
+      <div className="hidden">
+        <InvoiceSummaryPrint
+          summary={summary}
+          range={range}
+          summaryData={summaryData}
+          salespersonSummaryData={salespersonSummaryData}
+          ref={printRef}
+        />
+      </div>
+      
       <h1 className="text-2xl font-semibold text-gray-800">Invoice Summary</h1>
 
       {/* 🔍 Filters */}
-      <div
-        className="p-4 mb-4 border border-primary border-dashed rounded grid grid-cols-1 sm:grid-cols-3 gap-4"
-      >
+      <div className="p-4 mb-4 border border-primary border-dashed rounded grid grid-cols-1 sm:grid-cols-3 gap-4 no-print">
         {/* From Date */}
         <div>
           <label className="block text-sm text-gray-600 mb-1">From Date</label>
@@ -163,6 +187,13 @@ export default function InvoiceSummaryPage() {
 
         {/* Buttons Row */}
         <div className="sm:col-span-3 flex gap-4">
+          <Button
+            variant="secondary"
+            onClick={handlePrint}
+            className="w-full lg:w-auto flex-1"
+          >
+            Print <Printer className="ml-2 h-4 w-4" />
+          </Button>
           <Button
             onClick={fetchSummary}
             disabled={loading}
