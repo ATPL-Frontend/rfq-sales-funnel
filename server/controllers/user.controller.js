@@ -10,7 +10,7 @@ function hasRole(req, roleName) {
 /** GET /api/users — list all users (admin/super-admin only) */
 export async function listUsers(req, res) {
   try {
-    if (!hasRole(req, "admin") && !hasRole(req, "super-admin")) {
+    if (!hasRole(req, "admin") && !hasRole(req, "super-admin") && !hasRole(req, "user")) {
       return res.status(403).json({ success: false, message: "Forbidden" });
     }
 
