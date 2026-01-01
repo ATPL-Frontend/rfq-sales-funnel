@@ -556,3 +556,164 @@ export async function getInvoiceSummary(req, res) {
     return res.status(500).json({ success: false, message: err.message });
   }
 }
+
+export async function getInvoiceMonthlySummary(req, res) {
+  try {
+    const { from, to, salesperson_id } = req.query;
+
+    const ok = hasPermission(req, "readAny", "invoice");
+    if (!ok) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
+    }
+
+    const isValidDate = (d) => !!d && !isNaN(new Date(d).getTime());
+    const params = [];
+    const whereParts = [];
+
+    if (isValidDate(from) && isValidDate(to)) {
+      whereParts.push("i.invoice_date BETWEEN ? AND ?");
+      params.push(from, to);
+    } else if (isValidDate(from)) {
+      whereParts.push("i.invoice_date >= ?");
+      params.push(from);
+    } else if (isValidDate(to)) {
+      whereParts.push("i.invoice_date <= ?");
+      params.push(to);
+    }
+
+    if (salesperson_id) {
+      whereParts.push("c.salesperson_id = ?");
+      params.push(Number(salesperson_id));
+    }
+
+    // Note: Remove the users condition from the first query since it doesn't join users table
+    const where = whereParts.length ? `WHERE ${whereParts.join(" AND ")}` : "";
+
+    // Query 1: Basic monthly summary (without users join)
+    const monthlySql = `
+      SELECT 
+        DATE_FORMAT(i.invoice_date, '%Y-%m') AS \`year_month\`,
+        DATE_FORMAT(i.invoice_date, '%b %Y') AS month_name,
+        COUNT(i.id) AS num_invoices,
+        SUM(CASE WHEN i.currency = 'AUD' THEN i.amount ELSE 0 END) AS total_aud,
+        SUM(CASE WHEN i.currency = 'USD' THEN i.amount ELSE 0 END) AS total_usd
+      FROM invoices i
+      ${where}
+      GROUP BY DATE_FORMAT(i.invoice_date, '%Y-%m'), DATE_FORMAT(i.invoice_date, '%b %Y')
+      ORDER BY MIN(i.invoice_date) ASC;
+    `;
+
+    // Query 2: Salesperson monthly summary (with users join)
+    const salespersonWhereParts = [...whereParts];
+    const salespersonParams = [...params];
+    
+    // Add active users condition only for the salesperson query
+    salespersonWhereParts.push("(u.id IS NULL OR u.is_active = TRUE)");
+    
+    const salespersonWhere = salespersonWhereParts.length 
+      ? `WHERE ${salespersonWhereParts.join(" AND ")}` 
+      : "";
+
+    const salespersonSql = `
+      SELECT 
+        DATE_FORMAT(i.invoice_date, '%Y-%m') AS \`year_month\`,
+        DATE_FORMAT(i.invoice_date, '%b %Y') AS month_name,
+        u.id AS salesperson_id,
+        u.name AS salesperson_name,
+        u.short_form AS salesperson_short_form,
+        COUNT(i.id) AS num_invoices,
+        SUM(CASE WHEN i.currency = 'AUD' THEN i.amount ELSE 0 END) AS total_aud,
+        SUM(CASE WHEN i.currency = 'USD' THEN i.amount ELSE 0 END) AS total_usd
+      FROM invoices i
+      JOIN customers c ON c.id = i.customer_id
+      LEFT JOIN users u ON u.id = c.salesperson_id
+      ${salespersonWhere}
+      GROUP BY 
+        DATE_FORMAT(i.invoice_date, '%Y-%m'),
+        DATE_FORMAT(i.invoice_date, '%b %Y'),
+        u.id, u.name, u.short_form
+      ORDER BY 
+        MIN(i.invoice_date) ASC,
+        u.name ASC;
+    `;
+
+    // Execute both queries
+    const [monthlyRows] = await pool.query(monthlySql, params);
+    const [salespersonRows] = await pool.query(salespersonSql, salespersonParams);
+
+    // Process monthly data
+    const monthlyData = monthlyRows.map((r) => ({
+      month: r.month_name,
+      year_month: r.year_month,
+      num_invoices: Number(r.num_invoices),
+      total_aud: Number(r.total_aud || 0),
+      total_usd: Number(r.total_usd || 0),
+    }));
+
+    // Process salesperson data
+    const salespersonSummary = {};
+    const flattenedData = [];
+
+    for (const row of salespersonRows) {
+      const spKey = row.salesperson_id || 'unassigned';
+      
+      if (!salespersonSummary[spKey]) {
+        salespersonSummary[spKey] = {
+          salesperson_id: row.salesperson_id,
+          salesperson_name: row.salesperson_name || 'Unassigned',
+          salesperson_short_form: row.salesperson_short_form || 'N/A',
+          total_invoices: 0,
+          total_aud: 0,
+          total_usd: 0,
+          monthly_data: []
+        };
+      }
+
+      const monthData = {
+        month: row.month_name,
+        year_month: row.year_month,
+        num_invoices: Number(row.num_invoices || 0),
+        total_aud: Number(row.total_aud || 0),
+        total_usd: Number(row.total_usd || 0)
+      };
+
+      salespersonSummary[spKey].monthly_data.push(monthData);
+      salespersonSummary[spKey].total_invoices += Number(row.num_invoices || 0);
+      salespersonSummary[spKey].total_aud += Number(row.total_aud || 0);
+      salespersonSummary[spKey].total_usd += Number(row.total_usd || 0);
+
+      flattenedData.push({
+        month: row.month_name,
+        year_month: row.year_month,
+        salesperson_id: row.salesperson_id,
+        salesperson_name: row.salesperson_name || 'Unassigned',
+        salesperson_short_form: row.salesperson_short_form || 'N/A',
+        num_invoices: Number(row.num_invoices || 0),
+        total_aud: Number(row.total_aud || 0),
+        total_usd: Number(row.total_usd || 0)
+      });
+    }
+
+    const summary = {
+      total_invoices: monthlyData.reduce((a, b) => a + b.num_invoices, 0),
+      total_aud: monthlyData.reduce((a, b) => a + b.total_aud, 0),
+      total_usd: monthlyData.reduce((a, b) => a + b.total_usd, 0),
+      total_salespersons: Object.keys(salespersonSummary).length
+    };
+
+    return res.json({
+      success: true,
+      range: { from, to, salesperson_id },
+      data: monthlyData, // For backward compatibility
+      summary,
+      salesperson_summary: Object.values(salespersonSummary),
+      flattened_data: flattenedData
+    });
+  } catch (err) {
+    console.error("💥 getInvoiceMonthlySummary error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}

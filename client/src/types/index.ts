@@ -91,6 +91,14 @@ export type InvoiceItem = {
   gst: boolean;
 };
 
+export type MonthlySummary = {
+  month: string;
+  year_month: string;
+  num_invoices: number;
+  total_aud: number;
+  total_usd: number;
+};
+
 export type Rfq = {
   id?: number;
   receive_date: string;

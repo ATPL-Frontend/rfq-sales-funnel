@@ -1,4 +1,6 @@
+import InvoiceMonthlyChart from "@/components/InvoiceMonthlyChart";
 import InvoiceSummaryPrint from "@/components/InvoiceSummaryPrint";
+import SalespersonChart from "@/components/SalespersonInvoiceChart";
 import SearchSelectPopover from "@/components/SearchSelectPopover";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,6 +61,48 @@ export default function InvoiceSummaryPage() {
   const [salespersons, setSalespersons] = useState<
     { id: number; name: string }[]
   >([]);
+  const [chartdata, setChartdata] = useState<any[]>([]);
+  const [salespersonData, setSalespersonData] = useState<any[]>([]);
+
+  useEffect(() => {
+    const getDateRange = () => {
+      const today = new Date();
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth(); // 0-indexed (0 = January)
+
+      // Calculate start date (2 months before current month, 1st day)
+      const startDate = new Date(currentYear, currentMonth - 2, 1);
+      // Calculate end date (current month, last day)
+      const endDate = new Date(currentYear, currentMonth + 1, 0); // 0th day of next month = last day of current month
+
+      // Format dates as YYYY-MM-DD
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      };
+
+      return {
+        from: formatDate(startDate),
+        to: formatDate(endDate),
+      };
+    };
+
+    (async () => {
+      try {
+        const dateRange = getDateRange();
+
+        const res = await api.get(
+          `/api/invoices/monthly-summary?from=${dateRange.from}&to=${dateRange.to}`
+        );
+        setChartdata(res.data.data || []);
+        setSalespersonData(res.data.salesperson_summary || []);
+      } catch (error) {
+        console.error("Error fetching invoice data:", error);
+      }
+    })();
+  }, []);
 
   // Set defaults on first load
   useEffect(() => {
@@ -131,9 +175,11 @@ export default function InvoiceSummaryPage() {
 
   return (
     <div className="space-y-6">
-      <div className="hidden">
+      <div className="print:block absolute -left-[99999px] top-0 w-[1000px] print:static print:w-auto">
         <InvoiceSummaryPrint
           summary={summary}
+          chartdata={chartdata}
+          salespersonData={salespersonData}
           range={range}
           summaryData={summaryData}
           salespersonSummaryData={salespersonSummaryData}
@@ -209,7 +255,7 @@ export default function InvoiceSummaryPage() {
             >
               Reset
             </Button>
-            
+
             <Button
               variant="secondary"
               onClick={handlePrint}
@@ -218,6 +264,38 @@ export default function InvoiceSummaryPage() {
               Print <Printer className="ml-2 h-4 w-4" />
             </Button>
           </div>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        {/* Invoice Section */}
+        <div>
+          <h1 className="text-2xl font-bold mb-2">Invoice Overview</h1>
+          <p className="text-gray-600 mb-6">
+            Monthly performance metrics for invoices
+          </p>
+          <InvoiceMonthlyChart data={chartdata} />
+        </div>
+
+        {/* Salesperson Section */}
+        <div>
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold">Salesperson Performance</h2>
+            <p className="text-gray-600">
+              Performance metrics by salesperson (showing last 3 months)
+            </p>
+          </div>
+
+          {salespersonData.length > 0 ? (
+            <SalespersonChart data={salespersonData} monthsToShow={3} />
+          ) : (
+            <div className="text-center py-12 text-gray-500 border rounded-lg">
+              <p className="text-lg mb-2">No salesperson data available</p>
+              <p className="text-sm">
+                Data will appear when salespeople create invoices
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
