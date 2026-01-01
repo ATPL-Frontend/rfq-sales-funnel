@@ -102,7 +102,7 @@ export default function InvoiceMonthlyChart({
                   radius={[4, 4, 0, 0]}
                   name="Invoices"
                 >
-                  {recentMonthsData.map((entry, index) => (
+                  {recentMonthsData.map((_, index) => (
                     <Cell
                       key={`cell-${index}`}
                       fill={monthColors[index % monthColors.length]}
@@ -163,7 +163,7 @@ export default function InvoiceMonthlyChart({
                   radius={[4, 4, 0, 0]}
                   name="AUD Amount"
                 >
-                  {recentMonthsData.map((entry, index) => (
+                  {recentMonthsData.map((_, index) => (
                     <Cell
                       key={`cell-${index}`}
                       fill={monthColors[index % monthColors.length]}
@@ -229,7 +229,7 @@ export default function InvoiceMonthlyChart({
                   radius={[4, 4, 0, 0]}
                   name="USD Amount"
                 >
-                  {recentMonthsData.map((entry, index) => (
+                  {recentMonthsData.map((_, index) => (
                     <Cell
                       key={`cell-${index}`}
                       fill={monthColors[index % monthColors.length]}

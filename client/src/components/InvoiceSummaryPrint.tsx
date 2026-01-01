@@ -48,8 +48,6 @@ const InvoiceSummaryPrint = forwardRef<
     {
       summary,
       range,
-      summaryData,
-      salespersonSummaryData,
       chartdata,
       salespersonData,
     },
