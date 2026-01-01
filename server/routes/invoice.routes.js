@@ -5,7 +5,8 @@ import {
   getInvoiceById,
   listInvoices,
   updateInvoice,
-  getInvoiceSummary
+  getInvoiceSummary,
+  getInvoiceMonthlySummary
 } from "../controllers/invoice.controller.js";
 import { authenticate, authorize } from "../utils/authMiddleware.js";
 
@@ -31,6 +32,15 @@ router.get(
   authenticate,
   authorize("readAny", "invoice"),
   getInvoiceSummary
+);
+
+// 📊 Get Invoice Monthly Summary
+// sales-person, admin, super-admin → readAny
+router.get(
+  "/monthly-summary",
+  authenticate,
+  authorize("readAny", "invoice"),
+  getInvoiceMonthlySummary
 );
 
 // 🟢 List all Invoices
