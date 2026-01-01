@@ -246,7 +246,7 @@ export default function SalespersonChart({
                   tickFormatter={(v) => `${v.toLocaleString()}`}
                 />
                 <Tooltip
-                  formatter={(value, name, props) => {
+                  formatter={(value, name) => {
                     if (typeof name === 'string' && name.startsWith('month')) {
                       const monthIndex = parseInt(name.replace('month', '')) - 1;
                       const monthLabel = audAmountData[0]?.[`month${monthIndex + 1}Label`] || recentMonths[monthIndex];
@@ -319,7 +319,7 @@ export default function SalespersonChart({
                   tickFormatter={(v) => `${v.toLocaleString()}`}
                 />
                 <Tooltip
-                  formatter={(value, name, props) => {
+                  formatter={(value, name) => {
                     if (typeof name === 'string' && name.startsWith('month')) {
                       const monthIndex = parseInt(name.replace('month', '')) - 1;
                       const monthLabel = usdAmountData[0]?.[`month${monthIndex + 1}Label`] || recentMonths[monthIndex];
