@@ -50,6 +50,8 @@ const InvoiceSummaryPrint = forwardRef<
       range,
       chartdata,
       salespersonData,
+      summaryData,
+      salespersonSummaryData,
     },
     ref
   ) => {
@@ -58,45 +60,6 @@ const InvoiceSummaryPrint = forwardRef<
         <h1 className="text-2xl font-bold text-center mb-6">
           Invoice Summary Report
         </h1>
-
-        {/* Overall Summary Table */}
-        {/* <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-3">Overall Summary</h3>
-          <Table className="w-full border-collapse border border-gray-300">
-            <TableHeader className="bg-gray-100">
-              <TableRow>
-                <TableHead className="border border-gray-300 p-2 text-center font-medium">
-                  Total Invoices
-                </TableHead>
-                <TableHead className="border border-gray-300 p-2 text-center font-medium">
-                  Total Customers
-                </TableHead>
-                <TableHead className="border border-gray-300 p-2 text-center font-medium">
-                  Total Amount (AUD)
-                </TableHead>
-                <TableHead className="border border-gray-300 p-2 text-center font-medium">
-                  Total Amount (USD)
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell className="border border-gray-300 p-2 text-center">
-                  {summaryData?.total_invoices || 0}
-                </TableCell>
-                <TableCell className="border border-gray-300 p-2 text-center">
-                  {summaryData?.total_customers || 0}
-                </TableCell>
-                <TableCell className="border border-gray-300 p-2 text-center font-medium">
-                  $ {summaryData?.total_amount_aud.toFixed(2) || 0}
-                </TableCell>
-                <TableCell className="border border-gray-300 p-2 text-center font-medium">
-                  $ {summaryData?.total_amount_usd.toFixed(2) || 0}
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div> */}
 
         <div className="space-y-8">
           {/* Invoice Section */}
@@ -128,7 +91,102 @@ const InvoiceSummaryPrint = forwardRef<
             </h2>
           </div>
 
-          {/* rest of component */}
+          {/* Overall Summary Table */}
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold mb-3">Overall Summary</h3>
+            <Table className="w-full border-collapse border border-gray-300">
+              <TableHeader className="bg-gray-100">
+                <TableRow>
+                  <TableHead className="border border-gray-300 p-2 text-center font-medium">
+                    Total Invoices
+                  </TableHead>
+                  <TableHead className="border border-gray-300 p-2 text-center font-medium">
+                    Total Customers
+                  </TableHead>
+                  <TableHead className="border border-gray-300 p-2 text-center font-medium">
+                    Total Amount (AUD)
+                  </TableHead>
+                  <TableHead className="border border-gray-300 p-2 text-center font-medium">
+                    Total Amount (USD)
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow>
+                  <TableCell className="border border-gray-300 p-2 text-center">
+                    {summaryData?.total_invoices || 0}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 p-2 text-center">
+                    {summaryData?.total_customers || 0}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 p-2 text-center font-medium">
+                    $ {summaryData?.total_amount_aud.toFixed(2) || 0}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 p-2 text-center font-medium">
+                    $ {summaryData?.total_amount_usd.toFixed(2) || 0}
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Salesperson Summary Table */}
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold mb-3">Salesperson Summary</h3>
+            <Table className="w-full border-collapse border border-gray-300">
+              <TableHeader className="bg-gray-100">
+                <TableRow>
+                  <TableHead className="border border-gray-300 p-2 font-medium">
+                    Sales Person
+                  </TableHead>
+                  <TableHead className="border border-gray-300 p-2 text-center font-medium">
+                    Total Customers
+                  </TableHead>
+                  <TableHead className="border border-gray-300 p-2 text-center font-medium">
+                    Total Invoices
+                  </TableHead>
+                  <TableHead className="border border-gray-300 p-2 text-center font-medium">
+                    Total Amount (AUD)
+                  </TableHead>
+                  <TableHead className="border border-gray-300 p-2 text-center font-medium">
+                    Total Amount (USD)
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {salespersonSummaryData.length > 0 ? (
+                  salespersonSummaryData.map((sp) => (
+                    <TableRow key={sp.salesperson_id}>
+                      <TableCell className="border border-gray-300 p-2">
+                        {sp.salesperson_name || ""}
+                      </TableCell>
+                      <TableCell className="border border-gray-300 p-2 text-center">
+                        {sp.total_customers || 0}
+                      </TableCell>
+                      <TableCell className="border border-gray-300 p-2 text-center">
+                        {sp.total_invoices || 0}
+                      </TableCell>
+                      <TableCell className="border border-gray-300 p-2 text-center font-medium">
+                        $ {sp.total_aud.toFixed(2) || 0}
+                      </TableCell>
+                      <TableCell className="border border-gray-300 p-2 text-center font-medium">
+                        $ {sp.total_usd.toFixed(2) || 0}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      className="border border-gray-300 p-2 text-center"
+                      colSpan={5}
+                    >
+                      No salesperson found for the selected filters.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
 
         {/* Customer Summary */}
