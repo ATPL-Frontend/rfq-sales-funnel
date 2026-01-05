@@ -106,6 +106,17 @@ export default function InvoiceDetailsPage() {
                       )}
                     </p>
                   </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase">
+                      Created Invoice Date
+                    </p>
+                    <p className="font-medium">
+                      {dateHelper(
+                        invoice.create_invoice_date,
+                        OFFER_EXPIRED_DATE_FORMAT
+                      ) || "N/A"}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="space-y-3">

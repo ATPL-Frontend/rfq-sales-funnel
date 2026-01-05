@@ -50,6 +50,7 @@ import { dateHelper, OFFER_EXPIRED_DATE_FORMAT } from "../../lib/dateHelper";
 type Invoice = {
   id: number;
   invoice_date: string;
+  create_invoice_date: string;
   customer_name: string;
   invoice_no: string;
   customer_email: string;
@@ -201,6 +202,20 @@ export default function InvoicesPage() {
         </span>
       ),
       render: (row) => dateHelper(row.invoice_date, OFFER_EXPIRED_DATE_FORMAT),
+    },
+    {
+      key: "create_invoice_date",
+      label: (
+        <span className="flex items-center gap-2">
+          Created Date{" "}
+          {/* <ArrowDownUp
+            size={16}
+            className="opacity-50 hover:opacity-100 cursor-pointer"
+            onClick={() => handleSort("create_invoice_date")}
+          /> */}
+        </span>
+      ),
+      render: (row) => dateHelper(row.create_invoice_date, OFFER_EXPIRED_DATE_FORMAT),
     },
     { key: "customer_name", label: "Customer" },
     { key: "invoice_no", label: "Invoice No." },

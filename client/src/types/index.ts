@@ -23,6 +23,8 @@ export type CustomerList = {
   email: string[];
   web_address: string;
   code: string;
+  currency: string;
+  gst: boolean;
   salesperson_id: number | null;
   salesperson_name: string | null;
   salesperson_short_form: string | null;
@@ -69,6 +71,7 @@ export type InvoiceList = {
 export type Invoice = {
   id: number;
   invoice_date: string;
+  create_invoice_date: string;
   customer_name: string;
   invoice_no: string;
   customer_email: string | string[];

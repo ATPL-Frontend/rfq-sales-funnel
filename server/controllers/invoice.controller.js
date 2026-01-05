@@ -22,10 +22,20 @@ export async function createInvoice(req, res) {
       });
     }
 
-    let { invoice_date, customer_id, invoice_no, amount, gst, currency } =
-      req.body || {};
+    let {
+      invoice_date,
+      create_invoice_date,
+      customer_id,
+      invoice_no,
+      amount,
+      gst,
+      currency,
+    } = req.body || {};
 
     invoice_date = String(invoice_date || "").trim();
+    create_invoice_date = create_invoice_date
+      ? String(create_invoice_date).trim()
+      : null;
     customer_id = Number(customer_id);
     invoice_no = String(invoice_no || "").trim();
     amount = Number(amount);
@@ -33,6 +43,7 @@ export async function createInvoice(req, res) {
     currency = String(currency || "")
       .trim()
       .toUpperCase();
+
     if (!invoice_date || !customer_id || !invoice_no || !amount || !currency) {
       return res.status(400).json({
         success: false,
@@ -62,9 +73,21 @@ export async function createInvoice(req, res) {
         .json({ success: false, message: `Customer ${customer_id} not found` });
 
     const [r] = await pool.query(
-      `INSERT INTO invoices (invoice_date, customer_id, invoice_no, amount, gst, currency)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [invoice_date, customer_id, invoice_no, amount, gst, currency]
+      `
+      INSERT INTO invoices
+        (invoice_date, create_invoice_date, customer_id, invoice_no, amount, gst, currency)
+      VALUES
+        (?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        invoice_date,
+        create_invoice_date, // ✅ can be NULL
+        customer_id,
+        invoice_no,
+        amount,
+        gst,
+        currency,
+      ]
     );
 
     const [rows] = await pool.query(
@@ -111,17 +134,20 @@ export async function listInvoices(req, res) {
     const amount_to = req.query.amount_to ? Number(req.query.amount_to) : null;
     const date_from = (req.query.date_from || "").trim();
     const date_to = (req.query.date_to || "").trim();
+    // const create_date_from = (req.query.create_date_from || "").trim();
+    // const create_date_to = (req.query.create_date_to || "").trim();
     const q = (req.query.q || "").trim();
     const rawSortField = (req.query.sort_field || "invoice_date").trim();
     const rawSortOrder = (req.query.sort_order || "desc").trim().toLowerCase();
 
     const allowedSortFields = {
       invoice_date: "i.invoice_date",
+      // create_invoice_date: "i.create_invoice_date",
       amount: "i.amount",
     };
 
     const sortField =
-      allowedSortFields[rawSortField] || allowedSortFields["invoice_date"];
+      allowedSortFields[rawSortField] || allowedSortFields["invoice_date"]; //allowedSortFields.invoice_date;
 
     const sortOrder = rawSortOrder === "asc" ? "ASC" : "DESC";
 
@@ -163,6 +189,15 @@ export async function listInvoices(req, res) {
       where.push("i.invoice_date <= ?");
       params.push(date_to);
     }
+    // if (create_date_from) {
+    //   where.push("i.create_invoice_date >= ?");
+    //   params.push(create_date_from);
+    // }
+
+    // if (create_date_to) {
+    //   where.push("i.create_invoice_date <= ?");
+    //   params.push(create_date_to);
+    // }
     if (q) {
       where.push("(c.name LIKE ? OR c.email LIKE ?)");
       params.push(`%${q}%`, `%${q}%`);
@@ -259,6 +294,7 @@ export async function updateInvoice(req, res) {
 
     const allowed = [
       "invoice_date",
+      "create_invoice_date",
       "customer_id",
       "invoice_no",
       "amount",
@@ -334,6 +370,17 @@ export async function updateInvoice(req, res) {
             .status(400)
             .json({ success: false, message: "invoice_date invalid" });
         updates.push("invoice_date = ?");
+        params.push(d);
+        continue;
+      }
+      if (key === "create_invoice_date") {
+        const d =
+          req.body.create_invoice_date === null ||
+          req.body.create_invoice_date === ""
+            ? null
+            : String(req.body.create_invoice_date).trim();
+
+        updates.push("create_invoice_date = ?");
         params.push(d);
         continue;
       }
@@ -437,6 +484,7 @@ export async function getInvoiceSummary(req, res) {
         u.short_form AS salesperson_short_form,
         i.id AS invoice_id,
         i.invoice_date AS date,
+        i.create_invoice_date,
         i.invoice_no,
         i.amount,
         i.currency,
@@ -609,12 +657,12 @@ export async function getInvoiceMonthlySummary(req, res) {
     // Query 2: Salesperson monthly summary (with users join)
     const salespersonWhereParts = [...whereParts];
     const salespersonParams = [...params];
-    
+
     // Add active users condition only for the salesperson query
     salespersonWhereParts.push("(u.id IS NULL OR u.is_active = TRUE)");
-    
-    const salespersonWhere = salespersonWhereParts.length 
-      ? `WHERE ${salespersonWhereParts.join(" AND ")}` 
+
+    const salespersonWhere = salespersonWhereParts.length
+      ? `WHERE ${salespersonWhereParts.join(" AND ")}`
       : "";
 
     const salespersonSql = `
@@ -642,7 +690,10 @@ export async function getInvoiceMonthlySummary(req, res) {
 
     // Execute both queries
     const [monthlyRows] = await pool.query(monthlySql, params);
-    const [salespersonRows] = await pool.query(salespersonSql, salespersonParams);
+    const [salespersonRows] = await pool.query(
+      salespersonSql,
+      salespersonParams
+    );
 
     // Process monthly data
     const monthlyData = monthlyRows.map((r) => ({
@@ -658,17 +709,17 @@ export async function getInvoiceMonthlySummary(req, res) {
     const flattenedData = [];
 
     for (const row of salespersonRows) {
-      const spKey = row.salesperson_id || 'unassigned';
-      
+      const spKey = row.salesperson_id || "unassigned";
+
       if (!salespersonSummary[spKey]) {
         salespersonSummary[spKey] = {
           salesperson_id: row.salesperson_id,
-          salesperson_name: row.salesperson_name || 'Unassigned',
-          salesperson_short_form: row.salesperson_short_form || 'N/A',
+          salesperson_name: row.salesperson_name || "Unassigned",
+          salesperson_short_form: row.salesperson_short_form || "N/A",
           total_invoices: 0,
           total_aud: 0,
           total_usd: 0,
-          monthly_data: []
+          monthly_data: [],
         };
       }
 
@@ -677,7 +728,7 @@ export async function getInvoiceMonthlySummary(req, res) {
         year_month: row.year_month,
         num_invoices: Number(row.num_invoices || 0),
         total_aud: Number(row.total_aud || 0),
-        total_usd: Number(row.total_usd || 0)
+        total_usd: Number(row.total_usd || 0),
       };
 
       salespersonSummary[spKey].monthly_data.push(monthData);
@@ -689,11 +740,11 @@ export async function getInvoiceMonthlySummary(req, res) {
         month: row.month_name,
         year_month: row.year_month,
         salesperson_id: row.salesperson_id,
-        salesperson_name: row.salesperson_name || 'Unassigned',
-        salesperson_short_form: row.salesperson_short_form || 'N/A',
+        salesperson_name: row.salesperson_name || "Unassigned",
+        salesperson_short_form: row.salesperson_short_form || "N/A",
         num_invoices: Number(row.num_invoices || 0),
         total_aud: Number(row.total_aud || 0),
-        total_usd: Number(row.total_usd || 0)
+        total_usd: Number(row.total_usd || 0),
       });
     }
 
@@ -701,7 +752,7 @@ export async function getInvoiceMonthlySummary(req, res) {
       total_invoices: monthlyData.reduce((a, b) => a + b.num_invoices, 0),
       total_aud: monthlyData.reduce((a, b) => a + b.total_aud, 0),
       total_usd: monthlyData.reduce((a, b) => a + b.total_usd, 0),
-      total_salespersons: Object.keys(salespersonSummary).length
+      total_salespersons: Object.keys(salespersonSummary).length,
     };
 
     return res.json({
@@ -710,7 +761,7 @@ export async function getInvoiceMonthlySummary(req, res) {
       data: monthlyData, // For backward compatibility
       summary,
       salesperson_summary: Object.values(salespersonSummary),
-      flattened_data: flattenedData
+      flattened_data: flattenedData,
     });
   } catch (err) {
     console.error("💥 getInvoiceMonthlySummary error:", err);
