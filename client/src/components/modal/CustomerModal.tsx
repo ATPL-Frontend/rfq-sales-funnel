@@ -7,6 +7,14 @@ import { Button } from "../../components/ui/button";
 import { DialogFooter } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
 import api from "../../lib/api";
+import { Checkbox } from "../ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
 
 function EmailTagsInput({
   value,
@@ -77,6 +85,8 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Props) {
     web_address: customer?.web_address || "",
     code: customer?.code || "",
     salesperson_id: customer?.salesperson_id || null,
+    currency: customer?.currency || "AUD",
+    gst: customer?.gst ?? 1,
   });
   const [salespersons, setSalespersons] = useState<SalesPerson[]>([]);
   const [saving, setSaving] = useState(false);
@@ -171,6 +181,44 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Props) {
         }
         placeholder="Select customer"
       />
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Default Currency</label>
+          <Select
+            value={form.currency}
+            onValueChange={(value: string) =>
+              setForm({ ...form, currency: value })
+            }
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="$ Select currency" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="AUD">AUD</SelectItem>
+              <SelectItem value="USD">USD</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center gap-3 mt-4">
+          <Checkbox
+            id="gst"
+            checked={!!form.gst}
+            onCheckedChange={(checked) =>
+              setForm((prev) => ({ ...prev, gst: Boolean(checked) }))
+            }
+          />
+          <label
+            htmlFor="gst"
+            className={`text-sm font-semibold transition-colors ${
+              form.gst ? "text-primary" : "text-gray-400"
+            }`}
+          >
+            GST Included (Default)
+          </label>
+        </div>
+      </div>
 
       <DialogFooter>
         <Button type="button" variant="secondary" onClick={onCancel}>

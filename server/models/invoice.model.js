@@ -21,6 +21,7 @@ export const createInvoiceTable = async () => {
   CREATE TABLE IF NOT EXISTS invoices (
     id INT AUTO_INCREMENT PRIMARY KEY,
     invoice_date DATE NOT NULL,
+    create_invoice_date DATE DEFAULT NULL,
     customer_id ${customerIdType} NOT NULL,
     invoice_no VARCHAR(100) NOT NULL UNIQUE,
     amount DECIMAL(20,2) NOT NULL,
@@ -34,6 +35,7 @@ export const createInvoiceTable = async () => {
       ON UPDATE CASCADE ON DELETE RESTRICT,
 
     KEY idx_invoice_date (invoice_date),
+    KEY idx_create_invoice_date (create_invoice_date),
     KEY idx_invoice_customer (customer_id),
     KEY idx_invoice_currency (currency)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

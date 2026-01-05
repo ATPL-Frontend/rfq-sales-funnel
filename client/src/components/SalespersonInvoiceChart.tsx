@@ -52,7 +52,7 @@ export default function SalespersonChart({
   const recentMonths = allMonths.slice(0, monthsToShow);
   
   // Get unique salesperson names
-  const salespersons = data.map(sp => ({
+  const salespersons = data.map(sp => ({ 
     id: sp.salesperson_id,
     name: sp.salesperson_name,
     shortName: sp.salesperson_short_form || 

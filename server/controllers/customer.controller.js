@@ -27,6 +27,8 @@ export async function createCustomer(req, res) {
       web_address = null,
       code = null,
       salesperson_id = null,
+      currency = "AUD",
+      gst = true,
     } = req.body || {};
 
     name = String(name || "").trim();
@@ -53,10 +55,23 @@ export async function createCustomer(req, res) {
       });
     }
 
+    /** Validate currency */
+    currency = String(currency).toUpperCase();
+    if (!["AUD", "USD"].includes(currency)) {
+      return res.status(400).json({
+        success: false,
+        field: "currency",
+        message: "Currency must be AUD or USD",
+      });
+    }
+
+    /** Normalize GST */
+    gst = gst === true || gst === 1 || gst === "1" ? 1 : 0;
+
     // Insert
     const [r] = await pool.query(
-      "INSERT INTO customers (name, email, web_address, code, salesperson_id) VALUES (?, CAST(? AS JSON), ?, ?, ?)",
-      [name, JSON.stringify(email), web_address, code, salesperson_id || null]
+      "INSERT INTO customers (name, email, web_address, code, salesperson_id, currency, gst) VALUES (?, CAST(? AS JSON), ?, ?, ?, ?, ?)",
+      [name, JSON.stringify(email), web_address, code, salesperson_id || null, currency, gst]
     );
 
     const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [
@@ -238,7 +253,7 @@ export async function updateCustomer(req, res) {
         .status(404)
         .json({ success: false, message: "Customer not found" });
 
-    let { name, email, web_address, code, salesperson_id } = req.body || {};
+    let { name, email, web_address, code, salesperson_id, currency, gst } = req.body || {};
     const updates = [];
     const params = [];
 
@@ -281,6 +296,27 @@ export async function updateCustomer(req, res) {
     if (salesperson_id !== undefined) {
       updates.push("salesperson_id=?");
       params.push(salesperson_id || null); // allow null
+    }
+
+    /** currency */
+    if (currency !== undefined) {
+      currency = String(currency).toUpperCase();
+      if (!["AUD", "USD"].includes(currency)) {
+        return res.status(400).json({
+          success: false,
+          field: "currency",
+          message: "Currency must be AUD or USD",
+        });
+      }
+      updates.push("currency=?");
+      params.push(currency);
+    }
+
+    /** gst */
+    if (gst !== undefined) {
+      gst = gst === true || gst === 1 || gst === "1" ? 1 : 0;
+      updates.push("gst=?");
+      params.push(gst);
     }
 
     if (!updates.length) {

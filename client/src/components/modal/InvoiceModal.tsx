@@ -31,6 +31,7 @@ import {
 type Invoice = {
   id: number;
   invoice_date: string;
+  create_invoice_date: string;
   customer_name: string;
   invoice_no: string;
   customer_email: string;
@@ -52,6 +53,9 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
     invoice_date: invoice?.invoice_date
       ? new Date(invoice.invoice_date).toISOString().split("T")[0]
       : "",
+    create_invoice_date: invoice?.create_invoice_date
+      ? new Date(invoice.create_invoice_date).toISOString().split("T")[0]
+      : "",
     customer_id: invoice?.customer_id ? String(invoice.customer_id) : "",
     invoice_no: invoice?.invoice_no || "",
     amount: invoice?.amount ? invoice.amount.toString() : "",
@@ -61,7 +65,14 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
 
   const [saving, setSaving] = useState(false);
   const [customers, setCustomers] = useState<
-    { id: number; name: string; email: string; code: string }[]
+    {
+      id: number;
+      name: string;
+      email: string[];
+      code: string;
+      currency: "AUD" | "USD";
+      gst: 0 | 1;
+    }[]
   >([]);
   const [open, setOpen] = useState(false);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
@@ -119,6 +130,16 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
       </div>
 
       <div className="space-y-2">
+        <label className="text-sm font-medium">Create Invoice Date</label>
+        <Input
+          type="date"
+          value={form.create_invoice_date}
+          onChange={(e) => setForm({ ...form, create_invoice_date: e.target.value })}
+          // required
+        />
+      </div>
+
+      <div className="space-y-2">
         <label className="text-sm font-medium">Customer</label>
         <Popover open={open} onOpenChange={setOpen} modal>
           <PopoverTrigger asChild>
@@ -152,7 +173,12 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
                       key={c.id}
                       value={c.name}
                       onSelect={() => {
-                        setForm({ ...form, customer_id: String(c.id) });
+                        setForm((prev) => ({
+                          ...prev,
+                          customer_id: String(c.id),
+                          currency: c.currency,
+                          gst: Boolean(c.gst),
+                        }));
                         setOpen(false);
                       }}
                     >

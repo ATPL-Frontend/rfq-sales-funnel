@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import type { CustomerList } from "@/types/index.ts";
 import { Edit, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -15,7 +16,6 @@ import {
 } from "../../components/ui/dialog";
 import api from "../../lib/api";
 import CustomerForm from "./../../components/modal/CustomerModal";
-import type { CustomerList } from "@/types/index.ts";
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerList[]>([]);
@@ -143,6 +143,21 @@ export default function CustomersPage() {
     },
     { key: "web_address", label: "Web Address" },
     { key: "code", label: "Code" },
+    {
+      key: "currency",
+      label: "Currency",
+      render: (row) => <Badge variant="outline">{row.currency}</Badge>,
+    },
+    {
+      key: "gst",
+      label: "GST",
+      render: (row) =>
+        row.gst ? (
+          <Badge variant="default">Included</Badge>
+        ) : (
+          <Badge variant="secondary">Excluded</Badge>
+        ),
+    },
     { key: "salesperson_name", label: "Salesperson" },
     {
       key: "actions",
