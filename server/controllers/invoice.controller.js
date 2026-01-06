@@ -12,6 +12,8 @@ const CURRENCIES = ["AUD", "USD"];
 
 /** CREATE */
 export async function createInvoice(req, res) {
+  const conn = await pool.getConnection();
+
   try {
     const ok = hasPermission(req, "createAny", "invoice");
 
@@ -26,10 +28,7 @@ export async function createInvoice(req, res) {
       invoice_date,
       create_invoice_date,
       customer_id,
-      invoice_no,
-      amount,
-      gst,
-      currency,
+      items,
     } = req.body || {};
 
     invoice_date = String(invoice_date || "").trim();
@@ -37,12 +36,6 @@ export async function createInvoice(req, res) {
       ? String(create_invoice_date).trim()
       : null;
     customer_id = Number(customer_id);
-    invoice_no = String(invoice_no || "").trim();
-    amount = Number(amount);
-    gst = gst === undefined ? true : Boolean(gst);
-    currency = String(currency || "")
-      .trim()
-      .toUpperCase();
 
     if (!invoice_date || !customer_id || !invoice_no || !amount || !currency) {
       return res.status(400).json({
@@ -52,19 +45,8 @@ export async function createInvoice(req, res) {
       });
     }
 
-    if (!CURRENCIES.includes(currency)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "currency must be AUD or USD" });
-    }
-    if (!(amount > 0)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "amount must be greater than 0" });
-    }
-
-    const [[cust]] = await pool.query(
-      "SELECT id, name FROM customers WHERE id=?",
+    const [[cust]] = await conn.query(
+      "SELECT id FROM customers WHERE id = ?",
       [customer_id]
     );
     if (!cust)
@@ -72,42 +54,83 @@ export async function createInvoice(req, res) {
         .status(400)
         .json({ success: false, message: `Customer ${customer_id} not found` });
 
-    const [r] = await pool.query(
-      `
-      INSERT INTO invoices
-        (invoice_date, create_invoice_date, customer_id, invoice_no, amount, gst, currency)
-      VALUES
-        (?, ?, ?, ?, ?, ?, ?)
-      `,
-      [
-        invoice_date,
-        create_invoice_date, // ✅ can be NULL
-        customer_id,
-        invoice_no,
-        amount,
-        gst,
-        currency,
-      ]
-    );
+    await conn.beginTransaction();
 
-    const [rows] = await pool.query(
-      `SELECT i.*, c.name AS customer_name, c.email AS customer_email, c.code AS customer_code
-       FROM invoices i
-       JOIN customers c ON c.id = i.customer_id
-       WHERE i.id = ?`,
-      [r.insertId]
-    );
+    const createdIds = [];
 
-    res
-      .status(201)
-      .json({ success: true, message: "Invoice created", data: rows[0] });
-  } catch (err) {
-    if (err.code === "ER_NO_REFERENCED_ROW_2") {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid foreign key (customer)" });
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+
+      const invoice_no = String(item.invoice_no || "").trim();
+      const amount = Number(item.amount);
+      const currency = String(item.currency || "").trim().toUpperCase();
+      const gst = item.gst === undefined ? true : Boolean(item.gst);
+
+      if (!invoice_no || !currency || !(amount > 0)) {
+        throw new Error(
+          `Invalid invoice item at index ${i + 1}`
+        );
+      }
+
+      if (!CURRENCIES.includes(currency)) {
+        throw new Error(
+          `Invalid currency at invoice item ${i + 1}`
+        );
+      }
+
+      const [r] = await conn.query(
+        `
+        INSERT INTO invoices
+          (invoice_date, create_invoice_date, customer_id, invoice_no, amount, gst, currency)
+        VALUES
+          (?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          invoice_date,
+          create_invoice_date,
+          customer_id,
+          invoice_no,
+          amount,
+          gst,
+          currency,
+        ]
+      );
+
+      createdIds.push(r.insertId);
     }
-    res.status(500).json({ success: false, message: err.message });
+
+    await conn.commit();
+
+    // Fetch all created invoices
+    const [rows] = await conn.query(
+      `
+      SELECT
+        i.*,
+        c.name AS customer_name,
+        c.email AS customer_email,
+        c.code AS customer_code
+      FROM invoices i
+      JOIN customers c ON c.id = i.customer_id
+      WHERE i.id IN (?)
+      ORDER BY i.id ASC
+      `,
+      [createdIds]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Invoices created successfully",
+      data: rows,
+    });
+  } catch (err) {
+    await conn.rollback();
+
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  } finally {
+    conn.release();
   }
 }
 
