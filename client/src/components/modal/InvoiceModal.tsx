@@ -49,6 +49,8 @@ type Props = {
 };
 
 export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
+  const isEditMode = Boolean(invoice?.id);
+
   const [form, setForm] = useState({
     invoice_date: invoice?.invoice_date
       ? new Date(invoice.invoice_date).toISOString().split("T")[0]
@@ -57,10 +59,15 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
       ? new Date(invoice.create_invoice_date).toISOString().split("T")[0]
       : "",
     customer_id: invoice?.customer_id ? String(invoice.customer_id) : "",
-    invoice_no: invoice?.invoice_no || "",
-    amount: invoice?.amount ? invoice.amount.toString() : "",
-    gst: invoice?.gst ?? true,
-    currency: invoice?.currency || "AUD",
+    // ✅ MULTIPLE INVOICES
+    items: [
+      {
+        invoice_no: invoice?.invoice_no || "",
+        amount: invoice?.amount ? invoice.amount.toString() : "",
+        gst: invoice?.gst ?? true,
+        currency: invoice?.currency || "AUD",
+      },
+    ],
   });
 
   const [saving, setSaving] = useState(false);
@@ -97,10 +104,27 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isEditMode && form.items.length !== 1) {
+      toast.error("Only one invoice can be edited at a time");
+      return;
+    }
+
     setSaving(true);
     try {
       if (invoice) {
-        const { data } = await api.put(`/api/invoices/${invoice.id}`, form);
+        const item = form.items[0]; // only one item in edit mode
+
+        const payload = {
+          invoice_date: form.invoice_date,
+          create_invoice_date: form.create_invoice_date || null,
+          customer_id: Number(form.customer_id),
+          invoice_no: item.invoice_no,
+          amount: Number(item.amount),
+          currency: item.currency,
+          gst: item.gst,
+        };
+        const { data } = await api.put(`/api/invoices/${invoice.id}`, payload);
         const updatedInvoice = data.data || data; // normalize
         toast.success("Invoice updated successfully");
         onSuccess(updatedInvoice, true);
@@ -115,6 +139,33 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const addInvoiceItem = () => {
+    setForm((prev) => {
+      // Try to inherit from last item
+      const lastItem = prev.items[prev.items.length - 1];
+
+      return {
+        ...prev,
+        items: [
+          ...prev.items,
+          {
+            invoice_no: "",
+            amount: "",
+            gst: lastItem?.gst ?? true,
+            currency: lastItem?.currency || "AUD",
+          },
+        ],
+      };
+    });
+  };
+
+  const removeInvoiceItem = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index),
+    }));
   };
 
   return (
@@ -134,7 +185,9 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
         <Input
           type="date"
           value={form.create_invoice_date}
-          onChange={(e) => setForm({ ...form, create_invoice_date: e.target.value })}
+          onChange={(e) =>
+            setForm({ ...form, create_invoice_date: e.target.value })
+          }
           // required
         />
       </div>
@@ -176,8 +229,11 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
                         setForm((prev) => ({
                           ...prev,
                           customer_id: String(c.id),
-                          currency: c.currency,
-                          gst: Boolean(c.gst),
+                          items: prev.items.map((item) => ({
+                            ...item,
+                            currency: c.currency,
+                            gst: Boolean(c.gst),
+                          })),
                         }));
                         setOpen(false);
                       }}
@@ -203,72 +259,131 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
         </Popover>
       </div>
 
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Invoice No</label>
-        <Input
-          type="text"
-          value={form.invoice_no}
-          onChange={(e) => setForm({ ...form, invoice_no: e.target.value })}
-          required
-        />
-      </div>
+      {form.items.map((item, index) => (
+        <div key={index} className="border rounded-md p-2 space-y-2">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium">Invoice #{index + 1}</span>
+            {!isEditMode && form.items.length > 1 && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => removeInvoiceItem(index)}
+              >
+                Remove
+              </Button>
+            )}
+          </div>
 
-      <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <label className="text-sm font-medium">Amount</label>
+          <Input
+            placeholder="Invoice No"
+            value={item.invoice_no}
+            onChange={(e) => {
+              const v = e.target.value;
+              setForm((prev) => {
+                const items = [...prev.items];
+                items[index].invoice_no = v;
+                return { ...prev, items };
+              });
+            }}
+            required
+          />
 
-          <div className="flex items-center gap-3">
-            <Checkbox
-              id="gst"
-              checked={!!form.gst} // force strictly boolean
-              onCheckedChange={(checked) =>
-                setForm((prev) => ({ ...prev, gst: Boolean(checked) }))
-              }
-            />
-            <label
-              htmlFor="gst"
-              className={`text-sm font-semibold transition-colors ${
-                form.gst ? "text-primary" : "text-gray-400"
-              }`}
-            >
-              GST Included
-            </label>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-1 col-span-2">
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-medium">Amount</label>
+
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={item.gst}
+                    onCheckedChange={(checked) => {
+                      setForm((prev) => {
+                        const items = [...prev.items];
+                        items[index].gst = Boolean(checked);
+                        return { ...prev, items };
+                      });
+                    }}
+                  />
+                  <label
+                    htmlFor="gst"
+                    className={`text-sm font-semibold transition-colors ${
+                      item.gst ? "text-primary" : "text-gray-400"
+                    }`}
+                  >
+                    GST Included
+                  </label>
+                </div>
+              </div>
+
+              <Input
+                type="number"
+                placeholder="Amount"
+                value={item.amount}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setForm((prev) => {
+                    const items = [...prev.items];
+                    items[index].amount = v;
+                    return { ...prev, items };
+                  });
+                }}
+                required
+              />
+            </div>
+
+            <div className="space-y-2 -mt-1">
+              <label className="text-sm font-medium">Currency</label>
+              <Select
+                value={item.currency}
+                onValueChange={(value) => {
+                  setForm((prev) => {
+                    const items = [...prev.items];
+                    items[index].currency = value;
+                    return { ...prev, items };
+                  });
+                }}
+              >
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="AUD">AUD</SelectItem>
+                  <SelectItem value="USD">USD</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
-
-        <Input
-          type="number"
-          value={form.amount}
-          onChange={(e) => setForm({ ...form, amount: e.target.value })}
-          required
-        />
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Currency</label>
-        <Select
-          value={form.currency}
-          onValueChange={(value: string) =>
-            setForm({ ...form, currency: value })
-          }
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select currency" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="AUD">AUD</SelectItem>
-            <SelectItem value="USD">USD</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      ))}
 
       <DialogFooter>
-        <Button type="button" variant="secondary" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={saving}>
-          {saving ? "Saving..." : invoice ? "Save Changes" : "Create Invoice"}
-        </Button>
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {/* Left / Top */}
+          {!isEditMode && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={addInvoiceItem}
+              className="w-full sm:w-auto"
+            >
+              + More Invoice
+            </Button>
+          )}
+
+          {/* Right / Bottom */}
+          <div className="flex gap-2 justify-end">
+            <Button type="button" variant="secondary" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving
+                ? "Saving..."
+                : invoice
+                ? "Save Changes"
+                : "Create Invoice"}
+            </Button>
+          </div>
+        </div>
       </DialogFooter>
     </form>
   );

@@ -472,7 +472,7 @@ export default function InvoicesPage() {
 
       {/* ✅ Create/Edit Form */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedInvoice ? "Edit Invoice" : "Create Invoice"}
