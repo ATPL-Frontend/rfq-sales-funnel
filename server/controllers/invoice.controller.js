@@ -24,12 +24,8 @@ export async function createInvoice(req, res) {
       });
     }
 
-    let {
-      invoice_date,
-      create_invoice_date,
-      customer_id,
-      items,
-    } = req.body || {};
+    let { invoice_date, create_invoice_date, customer_id, items } =
+      req.body || {};
 
     invoice_date = String(invoice_date || "").trim();
     create_invoice_date = create_invoice_date
@@ -45,10 +41,9 @@ export async function createInvoice(req, res) {
       });
     }
 
-    const [[cust]] = await conn.query(
-      "SELECT id FROM customers WHERE id = ?",
-      [customer_id]
-    );
+    const [[cust]] = await conn.query("SELECT id FROM customers WHERE id = ?", [
+      customer_id,
+    ]);
     if (!cust)
       return res
         .status(400)
@@ -63,19 +58,17 @@ export async function createInvoice(req, res) {
 
       const invoice_no = String(item.invoice_no || "").trim();
       const amount = Number(item.amount);
-      const currency = String(item.currency || "").trim().toUpperCase();
+      const currency = String(item.currency || "")
+        .trim()
+        .toUpperCase();
       const gst = item.gst === undefined ? true : Boolean(item.gst);
 
       if (!invoice_no || !currency || !(amount > 0)) {
-        throw new Error(
-          `Invalid invoice item at index ${i + 1}`
-        );
+        throw new Error(`Invalid invoice item at index ${i + 1}`);
       }
 
       if (!CURRENCIES.includes(currency)) {
-        throw new Error(
-          `Invalid currency at invoice item ${i + 1}`
-        );
+        throw new Error(`Invalid currency at invoice item ${i + 1}`);
       }
 
       const [r] = await conn.query(
@@ -155,22 +148,27 @@ export async function listInvoices(req, res) {
       ? Number(req.query.amount_from)
       : null;
     const amount_to = req.query.amount_to ? Number(req.query.amount_to) : null;
+    // Sent date filters
     const date_from = (req.query.date_from || "").trim();
     const date_to = (req.query.date_to || "").trim();
-    // const create_date_from = (req.query.create_date_from || "").trim();
-    // const create_date_to = (req.query.create_date_to || "").trim();
+
+    // Created date filters
+    const create_date_from = (req.query.create_date_from || "").trim();
+    const create_date_to = (req.query.create_date_to || "").trim();
     const q = (req.query.q || "").trim();
     const rawSortField = (req.query.sort_field || "invoice_date").trim();
     const rawSortOrder = (req.query.sort_order || "desc").trim().toLowerCase();
 
     const allowedSortFields = {
       invoice_date: "i.invoice_date",
-      // create_invoice_date: "i.create_invoice_date",
+      create_invoice_date: "i.create_invoice_date",
       amount: "i.amount",
     };
 
     const sortField =
-      allowedSortFields[rawSortField] || allowedSortFields["invoice_date"]; //allowedSortFields.invoice_date;
+      allowedSortFields[rawSortField] ||
+      allowedSortFields["invoice_date"] ||
+      allowedSortFields.invoice_date;
 
     const sortOrder = rawSortOrder === "asc" ? "ASC" : "DESC";
 
@@ -204,23 +202,19 @@ export async function listInvoices(req, res) {
       where.push("i.currency = ?");
       params.push(currency);
     }
-    if (date_from) {
+    if (date_from || date_to) {
       where.push("i.invoice_date >= ?");
-      params.push(date_from);
-    }
-    if (date_to) {
-      where.push("i.invoice_date <= ?");
-      params.push(date_to);
-    }
-    // if (create_date_from) {
-    //   where.push("i.create_invoice_date >= ?");
-    //   params.push(create_date_from);
-    // }
+      params.push(date_from || "0000-01-01");
 
-    // if (create_date_to) {
-    //   where.push("i.create_invoice_date <= ?");
-    //   params.push(create_date_to);
-    // }
+      where.push("i.invoice_date <= ?");
+      params.push(date_to || "9999-12-31");
+    } else if (create_date_from || create_date_to) {
+      where.push("i.create_invoice_date >= ?");
+      params.push(create_date_from || "0000-01-01");
+
+      where.push("i.create_invoice_date <= ?");
+      params.push(create_date_to || "9999-12-31");
+    }
     if (q) {
       where.push("(c.name LIKE ? OR c.email LIKE ?)");
       params.push(`%${q}%`, `%${q}%`);
@@ -229,13 +223,18 @@ export async function listInvoices(req, res) {
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
     const sql = `
-      SELECT i.*, c.name AS customer_name, c.email AS customer_email, c.code AS customer_code
+      SELECT
+        i.*,
+        c.name AS customer_name,
+        c.email AS customer_email,
+        c.code AS customer_code
       FROM invoices i
       JOIN customers c ON c.id = i.customer_id
       ${whereSql}
       ORDER BY ${sortField} ${sortOrder}, i.id DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
+
     const [rows] = await pool.query(sql, params);
 
     const [[{ total }]] = await pool.query(
@@ -463,6 +462,11 @@ export async function getInvoiceSummary(req, res) {
   try {
     const { from, to, salesperson_id } = req.query;
 
+    const date_type =
+      req.query.date_type === "create_invoice_date"
+        ? "create_invoice_date"
+        : "invoice_date";
+
     const ok = hasPermission(req, "readAny", "invoice");
     if (!ok) {
       return res.status(403).json({
@@ -477,13 +481,13 @@ export async function getInvoiceSummary(req, res) {
 
     // Date filters
     if (isValidDate(from) && isValidDate(to)) {
-      whereParts.push("i.invoice_date BETWEEN ? AND ?");
+      whereParts.push(`i.${date_type} BETWEEN ? AND ?`);
       params.push(from, to);
     } else if (isValidDate(from)) {
-      whereParts.push("i.invoice_date >= ?");
+      whereParts.push(`i.${date_type} >= ?`);
       params.push(from);
     } else if (isValidDate(to)) {
-      whereParts.push("i.invoice_date <= ?");
+      whereParts.push(`i.${date_type} <= ?`);
       params.push(to);
     }
 
@@ -495,7 +499,6 @@ export async function getInvoiceSummary(req, res) {
 
     const where = whereParts.length ? `WHERE ${whereParts.join(" AND ")}` : "";
 
-    // Fetch invoice data
     const [rows] = await pool.query(
       `
       SELECT 
@@ -506,7 +509,7 @@ export async function getInvoiceSummary(req, res) {
         u.name AS salesperson_name,
         u.short_form AS salesperson_short_form,
         i.id AS invoice_id,
-        i.invoice_date AS date,
+        i.invoice_date,
         i.create_invoice_date,
         i.invoice_no,
         i.amount,
@@ -516,7 +519,7 @@ export async function getInvoiceSummary(req, res) {
       JOIN customers c ON c.id = i.customer_id
       LEFT JOIN users u ON u.id = c.salesperson_id
       ${where}
-      ORDER BY c.name ASC, i.invoice_date DESC
+      ORDER BY c.name ASC, i.${date_type} DESC
       `,
       params
     );
@@ -562,7 +565,8 @@ export async function getInvoiceSummary(req, res) {
       if (r.currency === "USD") cg.total_amount_usd += Number(r.amount);
 
       cg.invoices.push({
-        date: r.date,
+        date: r.invoice_date,
+        create_invoice_date: r.create_invoice_date,
         invoice_no: r.invoice_no,
         amount: Number(r.amount),
         currency: r.currency,

@@ -88,6 +88,7 @@ export type Invoice = {
 
 export type InvoiceItem = {
   date: string;
+  create_invoice_date: string;
   invoice_no: string;
   amount: number;
   currency: "AUD" | "USD";
