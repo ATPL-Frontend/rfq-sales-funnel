@@ -97,6 +97,12 @@ export default function CustomerDetailsPage() {
           <p className="font-medium text-muted-foreground">Sales Person</p>
           <p>{customer.salesperson_name} <span className="text-primary font-semibold">({customer.salesperson_short_form})</span></p>
 
+          <p className="font-medium text-muted-foreground">Default Currency</p>
+          <p>{customer.currency}</p>
+
+          <p className="font-medium text-muted-foreground">GST Included</p>
+          <p>{customer.gst ? "Yes" : "No"}</p>
+
           <p className="font-medium text-muted-foreground">Created At</p>
           <p>{dateHelper(customer.created_at)}</p>
         </div>

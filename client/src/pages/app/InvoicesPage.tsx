@@ -83,12 +83,14 @@ export default function InvoicesPage() {
   const [filters, setFilters] = useState({
     customer_id: "",
     invoice_no: "",
+    date_filter_type: "invoice_date",
     date_from: "",
     date_to: "",
     amount_from: "",
     amount_to: "",
     currency: "",
   });
+
   const [appliedFilters, setAppliedFilters] = useState(filters);
 
   // ✅ Fetch invoices with pagination
@@ -102,8 +104,15 @@ export default function InvoicesPage() {
             limit: 20,
             customer_id: appliedFilters.customer_id || undefined,
             invoice_no: appliedFilters.invoice_no || undefined,
-            date_from: appliedFilters.date_from || undefined,
-            date_to: appliedFilters.date_to || undefined,
+            ...(appliedFilters.date_filter_type === "invoice_date"
+              ? {
+                  date_from: appliedFilters.date_from || undefined,
+                  date_to: appliedFilters.date_to || undefined,
+                }
+              : {
+                  create_date_from: appliedFilters.date_from || undefined,
+                  create_date_to: appliedFilters.date_to || undefined,
+                }),
             amount_from: appliedFilters.amount_from || undefined,
             amount_to: appliedFilters.amount_to || undefined,
             currency: appliedFilters.currency || undefined,
@@ -193,7 +202,7 @@ export default function InvoicesPage() {
       key: "invoice_date",
       label: (
         <span className="flex items-center gap-2">
-          Date{" "}
+          Sent Date{" "}
           <ArrowDownUp
             size={16}
             className="opacity-50 hover:opacity-100 cursor-pointer"
@@ -215,7 +224,8 @@ export default function InvoicesPage() {
           /> */}
         </span>
       ),
-      render: (row) => dateHelper(row.create_invoice_date, OFFER_EXPIRED_DATE_FORMAT),
+      render: (row) =>
+        dateHelper(row.create_invoice_date, OFFER_EXPIRED_DATE_FORMAT),
     },
     { key: "customer_name", label: "Customer" },
     { key: "invoice_no", label: "Invoice No." },
@@ -371,6 +381,50 @@ export default function InvoicesPage() {
         </Popover>
 
         <Input
+          type="text"
+          placeholder="Invoice No"
+          value={filters.invoice_no}
+          onChange={(e) =>
+            setFilters({ ...filters, invoice_no: e.target.value })
+          }
+        />
+
+        <Select
+          value={filters.currency}
+          onValueChange={(value: string) =>
+            setFilters({ ...filters, currency: value })
+          }
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="$ Select currency" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="AUD">AUD</SelectItem>
+            <SelectItem value="USD">USD</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={filters.date_filter_type}
+          onValueChange={(value: "invoice_date" | "create_invoice_date") =>
+            setFilters((prev) => ({
+              ...prev,
+              date_filter_type: value,
+              date_from: "",
+              date_to: "", // reset dates when switching
+            }))
+          }
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select date type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="invoice_date">Invoice Sent Date</SelectItem>
+            <SelectItem value="create_invoice_date">Invoice Created Date</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Input
           type="date"
           value={filters.date_from}
           onChange={(e) =>
@@ -382,15 +436,6 @@ export default function InvoicesPage() {
           type="date"
           value={filters.date_to}
           onChange={(e) => setFilters({ ...filters, date_to: e.target.value })}
-        />
-
-        <Input
-          type="text"
-          placeholder="Invoice No"
-          value={filters.invoice_no}
-          onChange={(e) =>
-            setFilters({ ...filters, invoice_no: e.target.value })
-          }
         />
 
         <Input
@@ -411,21 +456,6 @@ export default function InvoicesPage() {
           }
         />
 
-        <Select
-          value={filters.currency}
-          onValueChange={(value: string) =>
-            setFilters({ ...filters, currency: value })
-          }
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="$ Select currency" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="AUD">AUD</SelectItem>
-            <SelectItem value="USD">USD</SelectItem>
-          </SelectContent>
-        </Select>
-
         <div className="flex items-center gap-2 col-span-2 md:col-span-3 lg:col-span-6">
           <Button
             variant="secondary"
@@ -434,6 +464,7 @@ export default function InvoicesPage() {
               const empty = {
                 customer_id: "",
                 invoice_no: "",
+                date_filter_type: "invoice_date",
                 date_from: "",
                 date_to: "",
                 amount_from: "",

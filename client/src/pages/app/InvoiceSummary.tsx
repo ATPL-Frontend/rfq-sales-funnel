@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -44,9 +51,17 @@ type Summary = {
   total_amount_usd: number;
 };
 
+type SummaryFilters = {
+  date_type: "invoice_date" | "create_invoice_date";
+  date_from: string;
+  date_to: string;
+  salesperson_id: string;
+};
+
 export default function InvoiceSummaryPage() {
   const printRef = useRef(null);
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<SummaryFilters>({
+    date_type: "invoice_date", // default = Sent Date
     date_from: "",
     date_to: "",
     salesperson_id: "",
@@ -107,6 +122,7 @@ export default function InvoiceSummaryPage() {
   // Set defaults on first load
   useEffect(() => {
     setFilters({
+      date_type: "invoice_date",
       date_from: defaultFrom,
       date_to: defaultTo,
       salesperson_id: "",
@@ -135,6 +151,8 @@ export default function InvoiceSummaryPage() {
     try {
       setLoading(true);
       const params = new URLSearchParams();
+
+      params.append("date_type", filters.date_type);
 
       if (filters.date_from) params.append("from", filters.date_from);
       if (filters.date_to) params.append("to", filters.date_to);
@@ -169,6 +187,12 @@ export default function InvoiceSummaryPage() {
     }
   };
 
+  const formatDate = (d?: string | null) => {
+    if (!d) return "N/A";
+    const date = new Date(d);
+    return isNaN(date.getTime()) ? "N/A" : date.toLocaleDateString();
+  };
+
   useEffect(() => {
     fetchSalesPersons();
   }, []);
@@ -190,7 +214,30 @@ export default function InvoiceSummaryPage() {
       <h1 className="text-2xl font-semibold text-gray-800">Invoice Summary</h1>
 
       {/* 🔍 Filters */}
-      <div className="p-4 mb-4 border border-primary border-dashed rounded grid grid-cols-1 sm:grid-cols-3 gap-4 no-print">
+      <div className="p-4 mb-4 border border-primary border-dashed rounded grid grid-cols-2 md:grid-cols-4 gap-4 no-print">
+        <div>
+          <label className="block text-sm text-gray-600 mb-1">Date Type</label>
+          <Select
+            value={filters.date_type}
+            onValueChange={(value: "invoice_date" | "create_invoice_date") =>
+              setFilters((prev) => ({
+                ...prev,
+                date_type: value,
+                date_from: "",
+                date_to: "",
+              }))
+            }
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select date type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="invoice_date">Sent Date</SelectItem>
+              <SelectItem value="create_invoice_date">Created Date</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* From Date */}
         <div>
           <label className="block text-sm text-gray-600 mb-1">From Date</label>
@@ -200,7 +247,6 @@ export default function InvoiceSummaryPage() {
             onChange={(e) =>
               setFilters({ ...filters, date_from: e.target.value })
             }
-            className="w-full"
           />
         </div>
 
@@ -231,8 +277,8 @@ export default function InvoiceSummaryPage() {
         </div>
 
         {/* Buttons Row */}
-        <div className="col-span-1 sm:col-span-3">
-          <div className="grid grid-cols-3 gap-4">
+        <div className="col-span-2 md:col-span-4">
+          <div className="grid grid-cols-3 sm:gap-4 gap-2">
             <Button
               onClick={fetchSummary}
               disabled={loading}
@@ -246,6 +292,7 @@ export default function InvoiceSummaryPage() {
               className="w-full"
               onClick={() => {
                 setFilters({
+                  date_type: "invoice_date",
                   date_from: defaultFrom,
                   date_to: defaultTo,
                   salesperson_id: "",
@@ -490,7 +537,10 @@ export default function InvoiceSummaryPage() {
                         S/N
                       </TableHead>
                       <TableHead className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date
+                        Sent Date
+                      </TableHead>
+                      <TableHead className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Created Date
                       </TableHead>
                       <TableHead className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Invoice No
@@ -516,7 +566,10 @@ export default function InvoiceSummaryPage() {
                           {idx + 1}
                         </TableCell>
                         <TableCell className="py-3 px-4 text-sm text-gray-700">
-                          {new Date(inv.date).toLocaleDateString()}
+                          {formatDate(inv.date)}
+                        </TableCell>
+                        <TableCell className="py-3 px-4 text-sm text-gray-700">
+                          {formatDate(inv.create_invoice_date)}
                         </TableCell>
                         <TableCell className="py-3 px-4 text-sm font-medium text-gray-900">
                           {inv.invoice_no}
