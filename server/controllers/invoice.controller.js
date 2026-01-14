@@ -33,13 +33,19 @@ export async function createInvoice(req, res) {
       : null;
     customer_id = Number(customer_id);
 
-    if (!invoice_date || !customer_id || !invoice_no || !amount || !currency) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "invoice_date, customer_id, amount, currency, invoice_no are required",
-      });
-    }
+    // if (!invoice_date || !customer_id) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "invoice_date and customer_id are required",
+    //   });
+    // }
+
+    // if (!Array.isArray(items) || items.length === 0) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "At least one invoice item is required",
+    //   });
+    // }
 
     const [[cust]] = await conn.query("SELECT id FROM customers WHERE id = ?", [
       customer_id,
