@@ -262,7 +262,7 @@ export default function SalespersonChart({
                     return `Salesperson: ${item?.name || label}`;
                   }}
                 />
-                <Legend wrapperStyle={{ fontSize: "11px",  marginBottom: "30px" }} />
+                <Legend wrapperStyle={{ fontSize: "11px",  marginBottom: "30px" }} align="center" />
                 
                 {/* Grouped bars for each month */}
                 {recentMonths.map((month, index) => (
@@ -335,7 +335,7 @@ export default function SalespersonChart({
                     return `Salesperson: ${item?.name || label}`;
                   }}
                 />
-                <Legend wrapperStyle={{ fontSize: "11px", marginBottom: "30px" }} />
+                <Legend wrapperStyle={{ fontSize: "11px", marginBottom: "30px" }} align="center" />
                 
                 {/* Grouped bars for each month */}
                 {recentMonths.map((month, index) => (

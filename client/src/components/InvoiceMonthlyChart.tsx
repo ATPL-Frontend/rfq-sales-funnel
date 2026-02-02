@@ -73,7 +73,7 @@ export default function InvoiceMonthlyChart({
             Invoices per Month
           </CardTitle>
           <p className="text-sm text-gray-500">
-            Number of invoices ({recentMonthsData.length} recent months)
+            Number of invoices
           </p>
         </CardHeader>
         <CardContent className="m-0 p-0 print:w-full">
@@ -128,7 +128,7 @@ export default function InvoiceMonthlyChart({
             AUD Amount per Month
           </CardTitle>
           <p className="text-sm text-gray-500">
-            Total AUD ({recentMonthsData.length} recent months)
+            Total AUD
           </p>
         </CardHeader>
         <CardContent className="m-0 p-0">
@@ -194,7 +194,7 @@ export default function InvoiceMonthlyChart({
             USD Amount per Month
           </CardTitle>
           <p className="text-sm text-gray-500">
-            Total USD ({recentMonthsData.length} recent months)
+            Total USD
           </p>
         </CardHeader>
         <CardContent className="m-0 p-0">
