@@ -38,6 +38,7 @@ interface InvoiceSummaryPrintProps {
   salespersonSummaryData: salespersonSummary[];
   chartdata: any[];
   salespersonData: any[];
+  labels: string;
 }
 
 const InvoiceSummaryPrint = forwardRef<
@@ -52,6 +53,7 @@ const InvoiceSummaryPrint = forwardRef<
       salespersonData,
       summaryData,
       salespersonSummaryData,
+      labels,
     },
     ref
   ) => {
@@ -66,7 +68,7 @@ const InvoiceSummaryPrint = forwardRef<
           <div>
             <h1 className="text-2xl font-bold mb-2">Invoice Overview</h1>
             <p className="text-gray-600 mb-6">
-              Monthly performance metrics for invoices
+              Monthly performance metrics for invoices sent - <span className="font-medium">{labels}</span>
             </p>
             <InvoiceMonthlyChart data={chartdata} />
           </div>

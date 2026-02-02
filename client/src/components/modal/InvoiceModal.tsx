@@ -171,7 +171,7 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-2">
       <div className="space-y-2">
-        <label className="text-sm font-medium">Invoice Date</label>
+        <label className="text-sm font-medium">Invoice Sent Date</label>
         <Input
           type="date"
           value={form.invoice_date}
@@ -181,7 +181,7 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">Create Invoice Date</label>
+        <label className="text-sm font-medium">Invoice Create Date</label>
         <Input
           type="date"
           value={form.create_invoice_date}
@@ -267,7 +267,9 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
               <Button
                 type="button"
                 variant="ghost"
+                className="text-red-500"
                 onClick={() => removeInvoiceItem(index)}
+                size="sm"
               >
                 Remove
               </Button>
@@ -364,7 +366,7 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
               type="button"
               variant="outline"
               onClick={addInvoiceItem}
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto text-primary"
             >
               + More Invoice
             </Button>

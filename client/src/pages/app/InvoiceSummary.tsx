@@ -25,14 +25,28 @@ import api from "@/lib/api";
 import { dateHelper } from "@/lib/dateHelper";
 import type { InvoiceItem, salespersonSummary } from "@/types/index.ts";
 import { endOfMonth, format, startOfMonth } from "date-fns";
-import { Printer } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Printer } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useReactToPrint } from "react-to-print";
 
 const now = new Date();
 const defaultFrom = format(startOfMonth(now), "yyyy-MM-dd");
 const defaultTo = format(endOfMonth(now), "yyyy-MM-dd");
+
+type DateRange = { from: string; to: string };
+
+function formatYMD(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function monthLabel(d: Date) {
+  // "Dec 2026"
+  return d.toLocaleString(undefined, { month: "short", year: "numeric" });
+}
 
 type CustomerSummary = {
   customer_name: string;
@@ -58,6 +72,21 @@ type SummaryFilters = {
   salesperson_id: string;
 };
 
+function build3MonthWindow(endMonthCursor: Date) {
+  const y = endMonthCursor.getFullYear();
+  const m = endMonthCursor.getMonth();
+
+  const start = new Date(y, m - 2, 1); // first day of (end-2) month
+  const end = new Date(y, m + 1, 0); // last day of end month
+
+  return {
+    start,
+    end,
+    range: { from: formatYMD(start), to: formatYMD(end) } as DateRange,
+    label: `${monthLabel(start)} - ${monthLabel(end)}`,
+  };
+}
+
 export default function InvoiceSummaryPage() {
   const printRef = useRef(null);
   const [filters, setFilters] = useState<SummaryFilters>({
@@ -79,45 +108,38 @@ export default function InvoiceSummaryPage() {
   const [chartdata, setChartdata] = useState<any[]>([]);
   const [salespersonData, setSalespersonData] = useState<any[]>([]);
 
+  const [endMonthCursor, setEndMonthCursor] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1); // normalize to month start
+  });
+
+  const window = useMemo(
+    () => build3MonthWindow(endMonthCursor),
+    [endMonthCursor],
+  );
+
   useEffect(() => {
-    const getDateRange = () => {
-      const today = new Date();
-      const currentYear = today.getFullYear();
-      const currentMonth = today.getMonth(); // 0-indexed (0 = January)
-
-      // Calculate start date (2 months before current month, 1st day)
-      const startDate = new Date(currentYear, currentMonth - 2, 1);
-      // Calculate end date (current month, last day)
-      const endDate = new Date(currentYear, currentMonth + 1, 0); // 0th day of next month = last day of current month
-
-      // Format dates as YYYY-MM-DD
-      const formatDate = (date: Date) => {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const day = String(date.getDate()).padStart(2, "0");
-        return `${year}-${month}-${day}`;
-      };
-
-      return {
-        from: formatDate(startDate),
-        to: formatDate(endDate),
-      };
-    };
-
     (async () => {
       try {
-        const dateRange = getDateRange();
-
+        setLoading(true);
         const res = await api.get(
-          `/api/invoices/monthly-summary?from=${dateRange.from}&to=${dateRange.to}`
+          `/api/invoices/monthly-summary?from=${window.range.from}&to=${window.range.to}`,
         );
         setChartdata(res.data.data || []);
         setSalespersonData(res.data.salesperson_summary || []);
       } catch (error) {
         console.error("Error fetching invoice data:", error);
+      } finally {
+        setLoading(false);
       }
     })();
-  }, []);
+  }, [window.range.from, window.range.to]);
+
+  const shiftWindow = (deltaMonths: number) => {
+    setEndMonthCursor(
+      (prev) => new Date(prev.getFullYear(), prev.getMonth() + deltaMonths, 1),
+    );
+  };
 
   // Set defaults on first load
   useEffect(() => {
@@ -160,7 +182,7 @@ export default function InvoiceSummaryPage() {
         params.append("salesperson_id", filters.salesperson_id);
 
       const { data } = await api.get(
-        `/api/invoices/summary?${params.toString()}`
+        `/api/invoices/summary?${params.toString()}`,
       );
 
       setSummary(data.data || []);
@@ -169,7 +191,7 @@ export default function InvoiceSummaryPage() {
       setSalespersonSummaryData(data.salespersonSummary || []);
     } catch (err: any) {
       toast.error(
-        err?.response?.data?.message || "Failed to load invoice summary"
+        err?.response?.data?.message || "Failed to load invoice summary",
       );
     } finally {
       setLoading(false);
@@ -205,6 +227,7 @@ export default function InvoiceSummaryPage() {
           chartdata={chartdata}
           salespersonData={salespersonData}
           range={range}
+          labels={window.label}
           summaryData={summaryData}
           salespersonSummaryData={salespersonSummaryData}
           ref={printRef}
@@ -318,9 +341,28 @@ export default function InvoiceSummaryPage() {
         {/* Invoice Section */}
         <div>
           <h1 className="text-2xl font-bold mb-2">Invoice Overview</h1>
-          <p className="text-gray-600 mb-6">
-            Monthly performance metrics for invoices
-          </p>
+
+          <div className="flex items-center gap-2 select-none mb-2 mx-auto w-max">
+            <Button
+              variant="outline"
+              onClick={() => shiftWindow(-1)}
+              aria-label="Previous 3-month range"
+            >
+              <ChevronLeft />
+            </Button>
+
+            <div className="px-3 py-1 rounded font-medium">
+              {window.label}
+            </div>
+
+            <Button
+              variant="outline"
+              onClick={() => shiftWindow(1)}
+              aria-label="Next 3-month range"
+            >
+              <ChevronRight />
+            </Button>
+          </div>
           <InvoiceMonthlyChart data={chartdata} />
         </div>
 
@@ -329,7 +371,7 @@ export default function InvoiceSummaryPage() {
           <div className="mb-6">
             <h2 className="text-2xl font-bold">Salesperson Performance</h2>
             <p className="text-gray-600">
-              Performance metrics by salesperson (showing last 3 months)
+              Performance metrics by salesperson
             </p>
           </div>
 
