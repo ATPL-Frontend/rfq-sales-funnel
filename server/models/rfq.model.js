@@ -24,6 +24,12 @@ export const createRFQTable = async () => {
     quantity DECIMAL(12,2) NOT NULL,
     price VARCHAR(100) NOT NULL,
     currency ENUM('AUD', 'USD') NOT NULL DEFAULT 'AUD',
+    work_type ENUM(
+      'Buy & Sale',
+      'Cable Assembly',
+      'Box Build',
+      'Engineering Work'
+    ) NOT NULL,
     progress ENUM(
       'Waiting for Drawing',
       'Waiting for Customer\\'s BOM',
@@ -49,7 +55,8 @@ export const createRFQTable = async () => {
     KEY idx_rfq_customer (customer_id),
     KEY idx_rfq_salesperson (salesperson_id),
     KEY idx_rfq_progress (progress),
-    KEY idx_rfq_dates (receive_date, start_date, end_date)
+    KEY idx_rfq_dates (receive_date, start_date, end_date),
+    KEY idx_rfq_work_type (work_type)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `;
   await pool.query(sql);

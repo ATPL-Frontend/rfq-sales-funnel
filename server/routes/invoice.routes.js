@@ -6,15 +6,12 @@ import {
   listInvoices,
   updateInvoice,
   getInvoiceSummary,
-  getInvoiceMonthlySummary
+  getInvoiceMonthlySummary,
+  getCustomerInvoiceFrequency
 } from "../controllers/invoice.controller.js";
 import { authenticate, authorize } from "../utils/authMiddleware.js";
 
 const router = express.Router();
-
-// ================================
-// INVOICE ROUTES WITH ROLE PERMISSIONS
-// ================================
 
 // 🟢 Create Invoice
 // sales-person, admin, and super-admin → createAny
@@ -41,6 +38,14 @@ router.get(
   authenticate,
   authorize("readAny", "invoice"),
   getInvoiceMonthlySummary
+);
+
+// 📊 Customer Invoice Frequency (Month-wise)
+router.get(
+  "/frequency",
+  authenticate,
+  authorize("readAny", "invoice"),
+  getCustomerInvoiceFrequency
 );
 
 // 🟢 List all Invoices

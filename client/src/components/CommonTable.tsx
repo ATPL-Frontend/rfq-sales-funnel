@@ -48,7 +48,7 @@ export default function CommonTable<T>({
       className={`border rounded-lg overflow-x-auto w-full ${className ?? ""}`}
     >
       {/* Table for medium+ screens */}
-      <table className="hidden md:table min-w-full border-collapse">
+      <table className="hidden md:table min-w-full border-collapse text-sm">
         <thead className="bg-muted/50">
           <tr>
             {columns.map((col) => (
@@ -67,7 +67,7 @@ export default function CommonTable<T>({
               }`}
             >
               {columns.map((col) => (
-                <td key={String(col.key)} className="p-2">
+                <td key={String(col.key)} className="p-2 align-middle">
                   {col.render ? col.render(row, idx) : (row as any)[col.key]}
                 </td>
               ))}

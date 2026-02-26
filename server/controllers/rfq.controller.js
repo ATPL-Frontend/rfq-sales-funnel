@@ -1,6 +1,5 @@
 import { pool } from "../lib/dbconnect-mysql.js";
 import { hasPermission } from "../utils/role.js";
-import ac from "../utils/roles.js";
 
 const RFQ_PROGRESS = [
   "Waiting for Drawing",
@@ -13,6 +12,8 @@ const RFQ_PROGRESS = [
   "Sent to Salesperson (100%)",
   "Sent to Customer (Done)",
 ];
+
+const WORK_TYPES = ["Buy & Sale", "Cable Assembly", "Box Build", "Engineering Work"];
 
 /** ✅ Helper: Normalize prepared_by array into user IDs */
 function normalizePreparedIds(input) {
@@ -56,6 +57,7 @@ export async function createRFQ(req, res) {
       quantity,
       price,
       currency = "AUD",
+      work_type = "Buy & Sale",
       prepared_by,
       end_date,
       progress = "Waiting for Drawing",
@@ -108,8 +110,8 @@ export async function createRFQ(req, res) {
 
     const [r] = await conn.query(
       `INSERT INTO rfq
-       (receive_date, start_date, customer_id, salesperson_id, quantity, price, currency, progress, end_date, rfq_location, remarks)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (receive_date, start_date, customer_id, salesperson_id, quantity, price, currency, work_type, progress, end_date, rfq_location, remarks)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         receive_date,
         start_date,
@@ -118,6 +120,7 @@ export async function createRFQ(req, res) {
         quantity,
         price,
         currency,
+        work_type,
         progress,
         end_date,
         rfq_location,
@@ -131,9 +134,9 @@ export async function createRFQ(req, res) {
 
     const [rows] = await pool.query(
       `SELECT r.*,
-              c.name AS customer_name,
-              u1.name AS salesperson_name,
-              JSON_ARRAYAGG(JSON_OBJECT('id', u.id, 'name', u.name, 'email', u.email, 'short_form', u.short_form)) AS prepared_by
+        c.name AS customer_name,
+        u1.name AS salesperson_name,
+        JSON_ARRAYAGG(JSON_OBJECT('id', u.id, 'name', u.name, 'email', u.email, 'short_form', u.short_form)) AS prepared_by
        FROM rfq r
        JOIN customers c ON c.id = r.customer_id
        JOIN users u1     ON u1.id = r.salesperson_id
@@ -363,6 +366,7 @@ export async function updateRFQ(req, res) {
       "salesperson_id",
       "quantity",
       "price",
+      "work_type",
       "progress",
       "end_date",
       "rfq_location",

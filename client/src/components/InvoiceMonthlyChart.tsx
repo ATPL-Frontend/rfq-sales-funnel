@@ -152,10 +152,11 @@ export default function InvoiceMonthlyChart({
                   tickFormatter={(v) => `${v.toLocaleString()}`}
                 />
                 <Tooltip
-                  formatter={(value) => [
-                    formatCurrency(Number(value), "AUD"),
-                    "AUD",
-                  ]}
+                  formatter={(v: number) =>
+                      formatCurrency(v, "AUD")
+                        .replace("A$", "$")
+                        // .replace("$", "")
+                    }
                   labelFormatter={(label) => `Month: ${label}`}
                 />
                 <Bar
