@@ -1,53 +1,21 @@
+import UserFilter from "@/components/filter/UserFilter";
+import { FilterModal } from "@/components/modal/FilterModal";
+import { UserUpsertModal } from "@/components/modal/UserUpsertModal";
+import { Input } from "@/components/ui/input";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  Check,
-  ChevronsUpDown,
-  CircleCheckBig,
-  CircleOff,
-  Edit,
-  Eye,
-  Trash2,
-} from "lucide-react";
-
+import type { UserList } from "@/types/index.ts";
+import { CircleCheckBig, CircleOff, Eye } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
-
 import type { Column } from "../../components/CommonTable";
 import CommonTable from "../../components/CommonTable";
-
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-
-import { Button } from "../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../../components/ui/dialog";
-
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { DeleteModal } from "../../components/modal/DeleteModal";
 import api from "../../lib/api";
-import UserForm from "../auth/RegisterPage";
-import type { UserList } from "@/types/index.ts";
 
 export default function UsersPage() {
   const navigate = useNavigate();
@@ -57,24 +25,15 @@ export default function UsersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [roleList, setRoleList] = useState<string[]>([]);
-  const [selectedUser, setSelectedUser] = useState<UserList | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
 
-  // ===============================
-  // FILTER SYSTEM (like Invoices)
-  // ===============================
   const [filters, setFilters] = useState({
     q: "",
     role: "",
     user_type: "",
-    is_active: "true", // default → show only active users
+    is_active: "true",
   });
 
   const [appliedFilters, setAppliedFilters] = useState(filters);
-  const [roleOpen, setRoleOpen] = useState(false);
-  const [typeOpen, setTypeOpen] = useState(false);
-  const [statusOpen, setStatusOpen] = useState(false);
   const types = ["system_user", "sales_person"];
   const statusList = [
     { value: "true", label: "Active" },
@@ -82,9 +41,6 @@ export default function UsersPage() {
     { value: "all", label: "All" },
   ];
 
-  // ===============================
-  // FETCH USERS
-  // ===============================
   const fetchUsers = useCallback(
     async (pageNum = 1) => {
       setLoading(true);
@@ -109,7 +65,7 @@ export default function UsersPage() {
         setLoading(false);
       }
     },
-    [appliedFilters]
+    [appliedFilters],
   );
 
   const fetchRoles = useCallback(async () => {
@@ -127,48 +83,43 @@ export default function UsersPage() {
   }, [fetchRoles]);
 
   useEffect(() => {
+    const delayDebounce = setTimeout(() => {
+      setAppliedFilters((prev) => ({
+        ...prev,
+        q: filters.q,
+      }));
+      setPage(1);
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(delayDebounce);
+  }, [filters.q]);
+
+  useEffect(() => {
     fetchUsers(page);
   }, [fetchUsers, page]);
 
   // ===============================
   // CRUD HANDLERS
   // ===============================
-  const handleCreate = () => {
-    setSelectedUser(null);
-    setFormOpen(true);
-  };
-
-  const handleEdit = (u: UserList) => {
-    setSelectedUser(u);
-    setFormOpen(true);
-  };
-
-  const handleDelete = (u: UserList) => {
-    setSelectedUser(u);
-    setDeleteOpen(true);
-  };
-
-  const confirmDelete = async () => {
-    if (!selectedUser) return;
+  const confirmDelete = async (id: string | number) => {
     try {
-      await api.delete(`/api/users/${selectedUser.id}`);
-      toast.success("User updated successfully");
-      setUsers((p) => p.filter((u) => u.id !== selectedUser.id));
-      setDeleteOpen(false);
+      await api.delete(`/api/users/${id}`);
+      toast.success("User deleted successfully");
+      setUsers((prev) => prev.filter((u) => u.id !== id));
     } catch {
-      toast.error("Failed to update user");
+      toast.error("Failed to delete user");
+      throw new Error("delete failed"); // important so modal can keep open
     }
   };
 
   const handleFormSuccess = (user: UserList, isEdit: boolean) => {
     if (isEdit) {
       setUsers((prev) =>
-        prev.map((u) => (u.id === user.id ? { ...u, ...user } : u))
+        prev.map((u) => (u.id === user.id ? { ...u, ...user } : u)),
       );
     } else {
       setUsers((prev) => [user, ...prev]);
     }
-    setFormOpen(false);
   };
 
   // ===============================
@@ -193,9 +144,7 @@ export default function UsersPage() {
       label: "Role",
       render: (row) => (
         <span>
-          {Array.isArray(row.roles)
-            ? row.roles.join(", ")
-            : row.roles}
+          {Array.isArray(row.roles) ? row.roles.join(", ") : row.roles}
         </span>
       ),
     },
@@ -208,13 +157,13 @@ export default function UsersPage() {
         <div className="flex justify-center items-center">
           <Tooltip>
             <TooltipTrigger asChild>
-              <div>
+              <span className="inline-flex items-center">
                 {row.user_type === "sales_person" ? (
                   <CircleOff className="text-red-500 size-4" />
                 ) : (
                   <CircleCheckBig className="text-green-600 size-4" />
                 )}
-              </div>
+              </span>
             </TooltipTrigger>
             <TooltipContent side="top">
               {row.user_type === "sales_person"
@@ -230,24 +179,26 @@ export default function UsersPage() {
       key: "actions",
       label: "Actions",
       render: (row) => (
-        <div className="flex gap-2">
-          <Button
+        <div className="flex gap-2 items-center">
+          <Eye
             onClick={() => navigate(`/app/users/${row.id}`)}
-            variant="secondary"
-            size="icon"
-          >
-            <Eye className="w-4 h-4" />
-          </Button>
-          <Button onClick={() => handleEdit(row)} size="icon">
-            <Edit className="w-4 h-4" />
-          </Button>
-          <Button
-            onClick={() => handleDelete(row)}
-            variant="destructive"
-            size="icon"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+            className="text-blue-400 hover:text-blue-600 size-4 cursor-pointer"
+          />
+
+          <UserUpsertModal
+            user={row}
+            roles={roleList}
+            onSuccess={handleFormSuccess}
+            type="icon"
+          />
+
+          <DeleteModal
+            onDeleteItem={confirmDelete}
+            actionLoading={loading}
+            id={row.id}
+            name={row.name}
+            type="icon"
+          />
         </div>
       ),
     },
@@ -258,178 +209,40 @@ export default function UsersPage() {
   // ===============================
   return (
     <>
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4 gap-10">
         <h1 className="text-xl font-semibold">Users</h1>
-        <Button onClick={handleCreate}>Add User</Button>
-      </div>
 
-      {/* ============================
-          FILTERS PANEL (same as Invoices)
-      ============================ */}
-      <div className="p-4 mb-4 border border-primary border-dashed rounded grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        {/* SEARCH */}
-        <Input
-          placeholder="Search name, email or code..."
-          value={filters.q}
-          onChange={(e) => setFilters({ ...filters, q: e.target.value })}
-        />
+        <div className="flex w-full sm:w-auto items-center gap-2">
+          {/* SEARCH (left of filter button) */}
+          <Input
+            className="sm:w-[320px] flex-1"
+            placeholder="Search name, email or code..."
+            value={filters.q}
+            onChange={(e) => setFilters({ ...filters, q: e.target.value })}
+          />
 
-        {/* ROLE FILTER */}
-        <Popover open={roleOpen} onOpenChange={setRoleOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="justify-between">
-              {filters.role || "Select Role"}
-              <ChevronsUpDown className="w-4 h-4 opacity-50" />
-            </Button>
-          </PopoverTrigger>
+          <FilterModal type="button" label="Filters" title="User Filters">
+            {(closeModal) => (
+              <UserFilter
+                filters={filters}
+                setFilters={setFilters}
+                setAppliedFilters={setAppliedFilters}
+                setPage={setPage}
+                roleList={roleList}
+                types={types}
+                statusList={statusList}
+                closeModal={closeModal}
+              />
+            )}
+          </FilterModal>
 
-          <PopoverContent className="w-60 p-0 ml-6">
-            <Command>
-              <CommandList>
-                <CommandEmpty>No roles found.</CommandEmpty>
-                <CommandGroup>
-                  {roleList.map((r) => (
-                    <CommandItem
-                      key={r}
-                      value={r}
-                      onSelect={() => {
-                        setFilters((prev) => ({
-                          ...prev,
-                          role: prev.role === r ? "" : r,
-                        }));
-                        setRoleOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "h-4 w-4",
-                          filters.role === r ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      {r}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-
-        {/* USER TYPE */}
-        <Popover open={typeOpen} onOpenChange={setTypeOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="justify-between">
-              {filters.user_type || "User Type"}
-              <ChevronsUpDown className="w-4 h-4 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-
-          <PopoverContent className="w-60 p-0 ml-6">
-            <Command>
-              <CommandList>
-                <CommandGroup>
-                  {types.map((t) => (
-                    <CommandItem
-                      key={t}
-                      value={t}
-                      onSelect={() => {
-                        setFilters((prev) => ({
-                          ...prev,
-                          user_type: prev.user_type === t ? "" : t,
-                        }));
-                        setTypeOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "h-4 w-4",
-                          filters.user_type === t ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      {t}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-
-        {/* ACTIVE STATUS */}
-        <Popover open={statusOpen} onOpenChange={setStatusOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="justify-between">
-              {statusList.find((s) => s.value === filters.is_active)?.label ||
-                "Status"}
-              <ChevronsUpDown className="w-4 h-4 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-
-          <PopoverContent className="w-60 p-0 ml-6">
-            <Command>
-              <CommandList>
-                <CommandGroup>
-                  {statusList.map((s) => (
-                    <CommandItem
-                      key={s.value}
-                      value={s.label}
-                      onSelect={() => {
-                        setFilters((prev) => ({
-                          ...prev,
-                          is_active: s.value,
-                        }));
-                        setStatusOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "h-4 w-4",
-                          filters.is_active === s.value
-                            ? "opacity-100"
-                            : "opacity-0"
-                        )}
-                      />
-                      {s.label}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-
-        {/* EMPTY CELL FILLER */}
-        <div></div>
-
-        {/* APPLY + CLEAR */}
-        <div className="flex items-center gap-2 col-span-2 md:col-span-3 lg:col-span-6">
-          <Button
-            variant="secondary"
-            className="flex-1"
-            onClick={() => {
-              const cleared = {
-                q: "",
-                role: "",
-                user_type: "",
-                is_active: "true",
-              };
-              setFilters(cleared);
-              setAppliedFilters(cleared);
-              setPage(1);
-            }}
-          >
-            Clear Filters
-          </Button>
-
-          <Button
-            className="flex-1"
-            onClick={() => {
-              setAppliedFilters(filters);
-              setPage(1);
-            }}
-          >
-            Apply Filters
-          </Button>
+          <UserUpsertModal
+            user={null}
+            roles={roleList}
+            onSuccess={handleFormSuccess}
+            type="button"
+            triggerLabel="Add User"
+          />
         </div>
       </div>
 
@@ -441,48 +254,6 @@ export default function UsersPage() {
         hasMore={page < totalPages}
         onLoadMore={() => setPage((p) => p + 1)}
       />
-
-      {/* CREATE/EDIT USER MODAL */}
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedUser ? "Edit User" : "Create User"}
-            </DialogTitle>
-          </DialogHeader>
-          <UserForm
-            user={selectedUser}
-            roles={roleList}
-            onSuccess={handleFormSuccess}
-            onCancel={() => setFormOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* DELETE CONFIRMATION */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Delete User</DialogTitle>
-          </DialogHeader>
-          <p className="text-muted-foreground">
-            Are you sure you want to deactivate{" "}
-            <span className="font-semibold">{selectedUser?.name}</span>?
-          </p>
-          <DialogFooter>
-            <Button variant="secondary" onClick={() => setDeleteOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmDelete}
-              disabled={loading}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

@@ -10,7 +10,11 @@ function hasRole(req, roleName) {
 /** GET /api/users — list all users (admin/super-admin only) */
 export async function listUsers(req, res) {
   try {
-    if (!hasRole(req, "admin") && !hasRole(req, "super-admin") && !hasRole(req, "user")) {
+    if (
+      !hasRole(req, "admin") &&
+      !hasRole(req, "super-admin") &&
+      !hasRole(req, "user")
+    ) {
       return res.status(403).json({ success: false, message: "Forbidden" });
     }
 
@@ -59,7 +63,7 @@ export async function listUsers(req, res) {
        GROUP BY u.id
        ORDER BY u.id DESC
        LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
+      [...params, limit, offset],
     );
 
     const [[{ total }]] = await pool.query(
@@ -68,7 +72,7 @@ export async function listUsers(req, res) {
        LEFT JOIN user_roles ur ON ur.user_id = u.id
        LEFT JOIN roles r ON r.id = ur.role_id
        ${where}`,
-      params
+      params,
     );
 
     res.json({
@@ -104,7 +108,7 @@ export async function getUserById(req, res) {
        LEFT JOIN roles r ON r.id = ur.role_id
        WHERE u.id = ?
        GROUP BY u.id`,
-      [id]
+      [id],
     );
 
     if (!rows.length)
@@ -134,7 +138,7 @@ export async function getMe(req, res) {
        LEFT JOIN roles r ON r.id = ur.role_id
        WHERE u.id = ?
        GROUP BY u.id`,
-      [id]
+      [id],
     );
 
     if (!rows.length)
@@ -175,7 +179,7 @@ export async function updateUser(req, res) {
        LEFT JOIN roles r ON r.id = ur.role_id
        WHERE u.id = ?
        GROUP BY u.id`,
-      [targetId]
+      [targetId],
     );
 
     if (!target) {
@@ -320,7 +324,7 @@ export async function updateUser(req, res) {
       // Convert all role names → ids
       const [roleRows] = await pool.query(
         "SELECT id, name FROM roles WHERE name IN (?)",
-        [roles]
+        [roles],
       );
 
       if (roleRows.length !== roles.length) {
@@ -349,7 +353,7 @@ export async function updateUser(req, res) {
       params.push(targetId);
       await pool.query(
         `UPDATE users SET ${updates.join(", ")} WHERE id=?`,
-        params
+        params,
       );
     }
 
@@ -386,12 +390,14 @@ export async function deleteUser(req, res) {
        LEFT JOIN roles r ON r.id = ur.role_id
        WHERE u.id=?
        GROUP BY u.id`,
-      [id]
+      [id],
     );
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const roles = JSON.parse(user.roles || "[]");
+    const roles = Array.isArray(user.roles)
+      ? user.roles
+      : JSON.parse(user.roles || "[]");
 
     if (roles.includes("super-admin")) {
       const [[countRow]] = await pool.query(
@@ -399,7 +405,7 @@ export async function deleteUser(req, res) {
          FROM users u
          JOIN user_roles ur ON ur.user_id = u.id
          JOIN roles r ON r.id = ur.role_id
-         WHERE r.name='super-admin' AND u.is_active=TRUE`
+         WHERE r.name='super-admin' AND u.is_active=TRUE`,
       );
       if (countRow.cnt <= 1)
         return res.status(400).json({
@@ -409,7 +415,7 @@ export async function deleteUser(req, res) {
 
     await pool.query(
       `UPDATE users SET is_active=FALSE, deactivated_at=NOW() WHERE id=?`,
-      [id]
+      [id],
     );
 
     res.json({ success: true, message: "User deactivated" });

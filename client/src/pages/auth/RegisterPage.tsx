@@ -1,7 +1,7 @@
 import UserSelectPopover from "@/components/SearchSelectPopover";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "../../components/ui/button";
 import { DialogFooter } from "../../components/ui/dialog";
@@ -34,6 +34,17 @@ export default function UserForm({ user, roles, onSuccess, onCancel }: Props) {
   });
 
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setForm({
+      name: user?.name || "",
+      email: user?.email || "",
+      password: "",
+      short_form: user?.short_form || "",
+      roles: (user?.roles as string[]) || [],
+      user_type: user?.user_type || "system_user",
+    });
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -166,9 +177,7 @@ export default function UserForm({ user, roles, onSuccess, onCancel }: Props) {
           label="Roles"
           options={roles.map((r) => ({ id: r, name: r }))}
           value={form.roles}
-          onChange={(value) =>
-            setForm({ ...form, roles: value as string[] })
-          }
+          onChange={(value) => setForm({ ...form, roles: value as string[] })}
           multiple
           searchable={false}
         />
