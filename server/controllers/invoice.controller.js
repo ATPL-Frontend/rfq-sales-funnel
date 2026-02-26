@@ -801,3 +801,99 @@ export async function getInvoiceMonthlySummary(req, res) {
     return res.status(500).json({ success: false, message: err.message });
   }
 }
+
+export async function getCustomerInvoiceFrequency(req, res) {
+  try {
+    const { from, to, salesperson_id } = req.query;
+
+    const ok = hasPermission(req, "readAny", "invoice");
+    if (!ok) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: insufficient permissions",
+      });
+    }
+
+    const isValidDate = (d) => !!d && !isNaN(new Date(d).getTime());
+
+    // Default: current year if no range provided
+    const now = new Date();
+    const defaultFrom = `${now.getFullYear()}-01-01`;
+    const defaultTo = `${now.getFullYear()}-12-31`;
+
+    const startDate = isValidDate(from) ? from : defaultFrom;
+    const endDate = isValidDate(to) ? to : defaultTo;
+
+    const params = [startDate, endDate];
+    let salespersonFilter = "";
+
+    if (salesperson_id) {
+      salespersonFilter = "AND c.salesperson_id = ?";
+      params.push(Number(salesperson_id));
+    }
+
+    const sql = `
+      SELECT 
+        c.id AS customer_id,
+        c.name AS customer_name,
+        DATE_FORMAT(i.create_invoice_date, '%Y-%m') AS 'year_month',
+        DATE_FORMAT(i.create_invoice_date, '%b %Y') AS month_name,
+        COUNT(i.id) AS invoice_count
+      FROM invoices i
+      JOIN customers c ON c.id = i.customer_id
+      WHERE i.create_invoice_date BETWEEN ? AND ?
+      ${salespersonFilter}
+      GROUP BY 
+        c.id,
+        c.name,
+        DATE_FORMAT(i.create_invoice_date, '%Y-%m'),
+        DATE_FORMAT(i.create_invoice_date, '%b %Y')
+      ORDER BY 
+        c.name ASC,
+        MIN(i.create_invoice_date) ASC
+    `;
+
+    const [rows] = await pool.query(sql, params);
+
+    if (!rows.length) {
+      return res.json({
+        success: true,
+        range: { from: startDate, to: endDate },
+        data: [],
+      });
+    }
+
+    // Group by customer
+    const grouped = {};
+
+    for (const row of rows) {
+      if (!grouped[row.customer_id]) {
+        grouped[row.customer_id] = {
+          customer_id: row.customer_id,
+          customer_name: row.customer_name,
+          total_invoices: 0,
+          monthly_data: [],
+        };
+      }
+
+      grouped[row.customer_id].monthly_data.push({
+        year_month: row.year_month,
+        month: row.month_name,
+        invoice_count: Number(row.invoice_count),
+      });
+
+      grouped[row.customer_id].total_invoices += Number(
+        row.invoice_count
+      );
+    }
+
+    return res.json({
+      success: true,
+      range: { from: startDate, to: endDate },
+      data: Object.values(grouped),
+    });
+  } catch (err) {
+    console.error("💥 getCustomerInvoiceFrequency error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}

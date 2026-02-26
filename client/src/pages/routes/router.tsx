@@ -14,6 +14,7 @@ import AuthPage from "../auth/AuthPage";
 import NotFoundPage from "../misc/NotFoundPage";
 import InvoiceDetailsPage from "../app/InvoiceDetailsPage";
 import InvoiceSummary from "../app/InvoiceSummary";
+import InvoiceFrequency from "../app/InvoiceFrequency";
 
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/app" replace /> },
@@ -47,6 +48,7 @@ export const router = createBrowserRouter([
       { path: "invoices", element: <InvoicesPage /> },
       { path: "invoices/:id", element: <InvoiceDetailsPage /> },
       { path: "summary", element: <InvoiceSummary /> },
+      { path: "invoice-frequency", element: <InvoiceFrequency /> },
     ],
   },
   { path: "*", element: <NotFoundPage /> },

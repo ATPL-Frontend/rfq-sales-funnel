@@ -22,7 +22,7 @@ const AppLayout = () => {
       <AppSidebar/>
 
       <SidebarInset className="flex flex-col w-full overflow-hidden">
-        <header className="flex justify-between h-[45px] shrink-0 items-center gap-2 border-b px-4">
+        <header className="flex justify-between h-[45px] shrink-0 items-center gap-2 border-b px-4 shadow">
           <SidebarTrigger />
 
           <LogOut

@@ -1,19 +1,5 @@
 import { pool } from "../lib/dbconnect-mysql.js";
 
-/**
- * ✅ Creates the `users` table (if not exists)
- * Each user belongs to a single role via `role_id` (FK → roles.id).
- *
- * Fields:
- * - id: primary key
- * - name, email, short_form: identity fields
- * - password: bcrypt hash
- * - token: JWT or session token (optional)
- * - role_id: foreign key to `roles`
- * - otp_code / otp_expires: for temporary login verification
- * - is_active / deactivated_at: soft deletion support
- * - created_at / updated_at: timestamps
- */
 export const createUserTable = async () => {
   const sql = `
   CREATE TABLE IF NOT EXISTS users (

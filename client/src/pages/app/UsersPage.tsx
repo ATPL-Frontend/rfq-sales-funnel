@@ -179,7 +179,7 @@ export default function UsersPage() {
       key: "actions",
       label: "Actions",
       render: (row) => (
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-3 items-center">
           <Eye
             onClick={() => navigate(`/app/users/${row.id}`)}
             className="text-blue-400 hover:text-blue-600 size-4 cursor-pointer"
@@ -215,7 +215,7 @@ export default function UsersPage() {
         <div className="flex w-full sm:w-auto items-center gap-2">
           {/* SEARCH (left of filter button) */}
           <Input
-            className="sm:w-[320px] flex-1"
+            className="sm:w-[320px] flex-1 h-8"
             placeholder="Search name, email or code..."
             value={filters.q}
             onChange={(e) => setFilters({ ...filters, q: e.target.value })}

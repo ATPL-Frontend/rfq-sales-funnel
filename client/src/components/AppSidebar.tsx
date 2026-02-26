@@ -1,4 +1,9 @@
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
@@ -12,11 +17,13 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { ChevronRight } from "lucide-react";
+  ChevronRight,
+  Cone,
+  FileText,
+  FileUser,
+  MessageSquareQuote,
+  Users,
+} from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 // import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -25,29 +32,38 @@ const menu = [
   {
     title: "Users",
     url: "/app/users",
+    icon: Users,
   },
   {
     title: "Customers",
     url: "/app/customers",
+    icon: FileUser,
   },
   {
     title: "RFQ",
     url: "/app/rfq",
+    icon: MessageSquareQuote,
   },
   {
     title: "Sales Funnel",
     url: "/app/sales-funnel",
+    icon: Cone,
   },
   {
     title: "Invoices",
+    icon: FileText,
     subMenus: [
       {
-        title: "All Invoices",
+        title: "Invoice List",
         url: "/app/invoices",
       },
       {
         title: "Invoice Summary",
         url: "/app/summary",
+      },
+      {
+        title: "Invoice Frequency",
+        url: "/app/invoice-frequency",
       },
     ],
   },
@@ -55,13 +71,13 @@ const menu = [
 
 const AppSidebar = () => {
   const { pathname } = useLocation();
-//   const isMobile = useIsMobile();
+  //   const isMobile = useIsMobile();
 
-//   const handleClick = () => {
-//     if (isMobile) {
-//       setSidebarOpen(false);
-//     }
-//   };
+  //   const handleClick = () => {
+  //     if (isMobile) {
+  //       setSidebarOpen(false);
+  //     }
+  //   };
 
   return (
     <Sidebar>
@@ -82,7 +98,7 @@ const AppSidebar = () => {
                   <Collapsible
                     key={item.title}
                     defaultOpen={item.subMenus.some(
-                      (sub) => pathname === sub.url
+                      (sub) => pathname === sub.url,
                     )}
                     className="group/collapsible"
                   >
@@ -90,12 +106,12 @@ const AppSidebar = () => {
                       <CollapsibleTrigger asChild>
                         <SidebarMenuButton
                           className={cn(
-                            item.subMenus.some(
-                              (sub) => pathname === sub.url
-                            ) &&
-                              "bg-accent text-accent-foreground font-semibold"
+                            item.subMenus.some((sub) => pathname === sub.url) &&
+                              "bg-accent text-accent-foreground font-semibold",
+                            "flex items-center gap-2",
                           )}
                         >
+                          {item.icon && <item.icon className="h-4 w-4" />}
                           <span>{item.title}</span>
                           <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                         </SidebarMenuButton>
@@ -106,7 +122,7 @@ const AppSidebar = () => {
                           {item.subMenus.map((sub) => (
                             <SidebarMenuSubItem
                               key={sub.title}
-                            //   onClick={handleClick}
+                              //   onClick={handleClick}
                             >
                               <SidebarMenuSubButton asChild>
                                 <Link
@@ -115,7 +131,7 @@ const AppSidebar = () => {
                                     "w-full",
                                     pathname === sub.url
                                       ? "bg-accent text-accent-foreground font-semibold"
-                                      : "hover:bg-accent hover:text-accent-foreground"
+                                      : "hover:bg-accent hover:text-accent-foreground",
                                   )}
                                 >
                                   {sub.title}
@@ -136,15 +152,16 @@ const AppSidebar = () => {
                       asChild
                       className={cn(
                         pathname === item.url &&
-                          "bg-accent text-accent-foreground font-semibold"
+                          "bg-accent text-accent-foreground font-semibold",
                       )}
                     >
-                      <Link to={item.url}>
-                        {item.title}
+                      <Link to={item.url} className="flex items-center gap-2">
+                        {item.icon && <item.icon className="h-4 w-4" />}
+                        <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                )
+                ),
               )}
             </SidebarMenu>
           </SidebarGroupContent>

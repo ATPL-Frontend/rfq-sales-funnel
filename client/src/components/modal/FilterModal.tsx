@@ -35,7 +35,7 @@ export function FilterModal({
           type="button"
           disabled={disabled}
           variant={type === "button" ? "default" : "ghost"}
-          size={type === "button" ? "default" : "sm"}
+          size="sm"
           className={
             type === "button"
               ? ""
