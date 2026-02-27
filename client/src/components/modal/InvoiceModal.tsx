@@ -81,15 +81,33 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
       gst: 0 | 1;
     }[]
   >([]);
-  const [open, setOpen] = useState(false);
+  const [customerOpen, setCustomerOpen] = useState(false);
+  const [customerPage, setCustomerPage] = useState(1);
+  const [hasMoreCustomers, setHasMoreCustomers] = useState(true);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
 
   const fetchCustomers = async () => {
-    if (customers.length > 0 || loadingCustomers) return;
+    if (loadingCustomers || !hasMoreCustomers) return;
+
     setLoadingCustomers(true);
     try {
-      const { data } = await api.get("/api/customers?limit=100");
-      setCustomers(data.data || []);
+      const { data } = await api.get("/api/customers", {
+        params: {
+          page: customerPage,
+          limit: 20,
+        },
+      });
+
+      const newCustomers = data.data || [];
+
+      setCustomers((prev) => {
+        const existingIds = new Set(prev.map((c) => c.id));
+        const unique = newCustomers.filter((c: any) => !existingIds.has(c.id));
+        return [...prev, ...unique];
+      });
+
+      setHasMoreCustomers(data.page < data.total_pages);
+      setCustomerPage((prev) => prev + 1);
     } catch (err) {
       toast.error("Failed to load customers");
     } finally {
@@ -98,9 +116,18 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
   };
 
   useEffect(() => {
-    fetchCustomers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (customerOpen && customers.length === 0) {
+      fetchCustomers();
+    }
+  }, [customerOpen]);
+
+  const handleCustomerScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+
+    if (scrollHeight - scrollTop <= clientHeight + 20) {
+      fetchCustomers();
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,14 +221,14 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
 
       <div className="space-y-2">
         <label className="text-sm font-medium">Customer</label>
-        <Popover open={open} onOpenChange={setOpen} modal>
+        <Popover open={customerOpen} onOpenChange={setCustomerOpen} modal>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
               role="combobox"
               className={cn(
                 "w-full justify-between overflow-hidden",
-                !form.customer_id && "text-muted-foreground"
+                !form.customer_id && "text-muted-foreground",
               )}
             >
               <span className="truncate max-w-[90%]">
@@ -218,7 +245,10 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
           <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
             <Command className="max-h-64 overflow-y-auto">
               <CommandInput placeholder="Search customer..." />
-              <CommandList className="max-h-64 overflow-y-auto">
+              <CommandList
+                className="max-h-80 overflow-y-auto"
+                onScroll={handleCustomerScroll}
+              >
                 <CommandEmpty>No customers found.</CommandEmpty>
                 <CommandGroup>
                   {customers.map((c) => (
@@ -235,7 +265,7 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
                             gst: Boolean(c.gst),
                           })),
                         }));
-                        setOpen(false);
+                        setCustomerOpen(false);
                       }}
                     >
                       <Check
@@ -243,7 +273,7 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
                           "mr-2 h-4 w-4",
                           String(c.id) === form.customer_id
                             ? "opacity-100"
-                            : "opacity-0"
+                            : "opacity-0",
                         )}
                       />
                       {c.name}{" "}
@@ -381,8 +411,8 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
               {saving
                 ? "Saving..."
                 : invoice
-                ? "Save Changes"
-                : "Create Invoice"}
+                  ? "Save Changes"
+                  : "Create Invoice"}
             </Button>
           </div>
         </div>
