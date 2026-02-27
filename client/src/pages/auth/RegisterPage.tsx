@@ -80,7 +80,7 @@ export default function UserForm({ user, roles, onSuccess, onCancel }: Props) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-2">
       {/* USER TYPE */}
       <div className="space-y-2">
         <Label className="text-sm font-medium">User Type</Label>
@@ -90,7 +90,7 @@ export default function UserForm({ user, roles, onSuccess, onCancel }: Props) {
           onValueChange={(v: "system_user" | "sales_person") =>
             setForm({ ...form, user_type: v })
           }
-          className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2"
+          className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1"
         >
           <label
             htmlFor="sys"
@@ -121,7 +121,7 @@ export default function UserForm({ user, roles, onSuccess, onCancel }: Props) {
             <div>
               <span className="font-semibold text-sm">Sales Person</span>
               <p className="text-xs text-muted-foreground">
-                Doesn’t require login. Used for sales tracking only.
+                Doesn't require login. Used for sales tracking only.
               </p>
             </div>
           </label>
@@ -130,8 +130,9 @@ export default function UserForm({ user, roles, onSuccess, onCancel }: Props) {
 
       {/* NAME */}
       <div className="space-y-2">
-        <label className="text-sm font-medium">Name</label>
-        <span className="text-red-500">*</span>
+        <Label className="text-sm font-medium">
+          Name <span className="text-red-500">*</span>
+        </Label>
         <Input
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -142,10 +143,13 @@ export default function UserForm({ user, roles, onSuccess, onCancel }: Props) {
 
       {/* EMAIL */}
       <div className="space-y-2">
-        <label className="text-sm font-medium">Email</label>
-        {form.user_type === "system_user" && (
-          <span className="text-red-500">*</span>
-        )}
+        <Label className="text-sm font-medium">
+          Email
+          {form.user_type === "system_user" && (
+            <span className="text-red-500">*</span>
+          )}
+        </Label>
+
         <Input
           type="email"
           value={form.email}
@@ -162,7 +166,7 @@ export default function UserForm({ user, roles, onSuccess, onCancel }: Props) {
 
       {/* SHORT FORM */}
       <div className="space-y-2">
-        <label className="text-sm font-medium">Short Form</label>
+        <Label className="text-sm font-medium">Short Form</Label>
         <Input
           value={form.short_form}
           onChange={(e) => setForm({ ...form, short_form: e.target.value })}
@@ -185,8 +189,8 @@ export default function UserForm({ user, roles, onSuccess, onCancel }: Props) {
 
       {/* PASSWORD */}
       {form.user_type === "system_user" && !user?.id && (
-        <div className="space-y-2">
-          <Label>Password</Label>
+        <div className="space-y-2 pb-2">
+          <Label>Password <span className="text-red-500">*</span></Label>
           <Input
             type="password"
             value={form.password}

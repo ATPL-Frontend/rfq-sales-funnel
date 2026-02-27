@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { useState } from "react";
+import { Label } from "./ui/label";
 
 type Option = {
   id: number | string;
@@ -70,7 +71,7 @@ export default function UserSelectPopover({
 
   return (
     <div className="space-y-1">
-      <label className="text-sm font-medium">{label}</label>
+      <Label className="text-sm font-medium">{label} <span className="text-red-500">*</span></Label>
 
       <Popover open={open} onOpenChange={setOpen} modal>
         <PopoverTrigger asChild>

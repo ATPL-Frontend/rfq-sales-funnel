@@ -37,6 +37,13 @@ const PROGRESS_OPTIONS = [
   "Sent to Customer (Done)",
 ];
 
+const WORK_TYPE_OPTIONS = [
+  "Buy & Sale",
+  "Cable Assembly",
+  "Box Build",
+  "Engineering Work",
+];
+
 export default function RfqForm({
   rfq,
   salesPerson,
@@ -62,6 +69,7 @@ export default function RfqForm({
     quantity: rfq?.quantity || "",
     price: rfq?.price || "",
     currency: rfq?.currency || "AUD",
+    work_type: rfq?.work_type || "",
     prepared_by: rfq?.prepared_by
     ? rfq.prepared_by.map((id) => String(id))
     : loggedInUserId
@@ -88,11 +96,6 @@ export default function RfqForm({
     fetchCustomers();
   }, []);
 
-  console.log("form", form);
-
-  // -------------------------
-  // SUBMIT HANDLER
-  // -------------------------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -116,9 +119,6 @@ export default function RfqForm({
     }
   };
 
-  // -------------------------
-  // RENDER
-  // -------------------------
   return (
     <form onSubmit={handleSubmit} className="space-y-2">
       <div className="space-y-1 flex gap-2">
@@ -239,6 +239,27 @@ export default function RfqForm({
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-sm font-medium">Work Type</label>
+        <Select
+          value={form.work_type}
+          onValueChange={(value) =>
+            setForm((prev) => ({ ...prev, work_type: value }))
+          }
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select work type" />
+          </SelectTrigger>
+          <SelectContent>
+            {WORK_TYPE_OPTIONS.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Prepared By */}
