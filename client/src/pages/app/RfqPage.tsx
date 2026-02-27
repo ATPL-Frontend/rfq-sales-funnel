@@ -233,6 +233,7 @@ export default function RfqPage() {
     { key: "quantity", label: "Qty" },
     { key: "price", label: "Price" },
     { key: "currency", label: "Currency" },
+    { key: "work_type", label: "Work Type" },
     {
       key: "prepared_by",
       label: "Prepared By",

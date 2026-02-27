@@ -112,6 +112,7 @@ export type Rfq = {
   quantity: number;
   price: number;
   currency: string;
+  work_type: string;
   prepared_by: number[];
   end_date: string;
   progress: string;

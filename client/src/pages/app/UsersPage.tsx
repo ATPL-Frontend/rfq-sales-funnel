@@ -1,6 +1,5 @@
 import UserFilter from "@/components/filter/UserFilter";
-import { FilterModal } from "@/components/modal/FilterModal";
-import { UserUpsertModal } from "@/components/modal/UserUpsertModal";
+import { Modal } from "@/components/modal/Modal";
 import { Input } from "@/components/ui/input";
 import {
   Tooltip,
@@ -8,7 +7,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { UserList } from "@/types/index.ts";
-import { CircleCheckBig, CircleOff, Eye } from "lucide-react";
+import { CircleCheckBig, CircleOff, Eye, } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
@@ -16,6 +15,7 @@ import type { Column } from "../../components/CommonTable";
 import CommonTable from "../../components/CommonTable";
 import { DeleteModal } from "../../components/modal/DeleteModal";
 import api from "../../lib/api";
+import UserForm from "../auth/RegisterPage";
 
 export default function UsersPage() {
   const navigate = useNavigate();
@@ -185,12 +185,25 @@ export default function UsersPage() {
             className="text-blue-400 hover:text-blue-600 size-4 cursor-pointer"
           />
 
-          <UserUpsertModal
-            user={row}
-            roles={roleList}
-            onSuccess={handleFormSuccess}
+          <Modal
+            title={row.name}
+            icon="edit"
             type="icon"
-          />
+            size="md"
+          >
+            {(closeModal) => (
+              <UserForm
+                key={row.id}
+                user={row}
+                roles={roleList}
+                onSuccess={(savedUser, wasEdit) => {
+                  handleFormSuccess(savedUser, wasEdit);
+                  closeModal();
+                }}
+                onCancel={closeModal}
+              />
+            )}
+          </Modal>
 
           <DeleteModal
             onDeleteItem={confirmDelete}
@@ -204,9 +217,6 @@ export default function UsersPage() {
     },
   ];
 
-  // ===============================
-  // RENDER
-  // ===============================
   return (
     <>
       <div className="flex justify-between items-center mb-4 gap-10">
@@ -221,7 +231,12 @@ export default function UsersPage() {
             onChange={(e) => setFilters({ ...filters, q: e.target.value })}
           />
 
-          <FilterModal type="button" label="Filters" title="User Filters">
+          <Modal
+            type="button"
+            icon="filter"
+            label="Filters"
+            title="User Filters"
+          >
             {(closeModal) => (
               <UserFilter
                 filters={filters}
@@ -234,15 +249,28 @@ export default function UsersPage() {
                 closeModal={closeModal}
               />
             )}
-          </FilterModal>
+          </Modal>
 
-          <UserUpsertModal
-            user={null}
-            roles={roleList}
-            onSuccess={handleFormSuccess}
+          <Modal
             type="button"
-            triggerLabel="Add User"
-          />
+            icon="userplus"
+            label="Add User"
+            title="Create User"
+            size="md"
+          >
+            {(closeModal) => (
+              <UserForm
+                key="create"
+                user={null}
+                roles={roleList}
+                onSuccess={(savedUser, wasEdit) => {
+                  handleFormSuccess(savedUser, wasEdit);
+                  closeModal();
+                }}
+                onCancel={closeModal}
+              />
+            )}
+          </Modal>
         </div>
       </div>
 

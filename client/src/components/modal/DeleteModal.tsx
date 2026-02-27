@@ -45,30 +45,11 @@ export function DeleteModal({
         {type === "button" ? (
           <Button variant="destructive" size="sm">
             <Trash2 className="size-4" />
-            <span>{triggerLabel}</span>
+            <span className="sm:block hidden">{triggerLabel}</span>
           </Button>
         ) : (
           <Trash2 className="size-4 text-red-400 hover:text-red-600 cursor-pointer" />
         )}
-        {/* <Button
-          variant={type === "button" ? "destructive" : "ghost"}
-          className={
-            type === "button"
-              ? ""
-              : "text-red-500 hover:text-red-600 hover:bg-red-100"
-          }
-          type="button"
-          size={type === "button" ? "default" : "sm"}
-        >
-          {type === "button" ? (
-            <>
-              <Trash2 className="size-4" />
-              <span>{triggerLabel}</span>
-            </>
-          ) : (
-            <Trash2 className="size-4" />
-          )}
-        </Button> */}
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-[425px]">

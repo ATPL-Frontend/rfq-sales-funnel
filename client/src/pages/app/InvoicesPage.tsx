@@ -75,9 +75,12 @@ export default function InvoicesPage() {
   const [customers, setCustomers] = useState<
     { id: number; name: string; email: string; code: string }[]
   >([]);
+
+  const [customerPage, setCustomerPage] = useState(1);
+  const [hasMoreCustomers, setHasMoreCustomers] = useState(true);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [sortField, setSortField] = useState<string>("invoice_date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [customerOpen, setCustomerOpen] = useState(false);
 
   const [filters, setFilters] = useState({
@@ -130,16 +133,32 @@ export default function InvoicesPage() {
         setLoading(false);
       }
     },
-    [appliedFilters, sortField, sortOrder] // Only changes when these change
+    [appliedFilters, sortField, sortOrder], // Only changes when these change
   );
 
   const fetchCustomers = async () => {
-    if (customers.length > 0 || loadingCustomers) return;
+    if (loadingCustomers || !hasMoreCustomers) return;
+
     setLoadingCustomers(true);
     try {
-      const { data } = await api.get("/api/customers?limit=100");
-      setCustomers(data.data || []);
-    } catch (err) {
+      const { data } = await api.get("/api/customers", {
+        params: {
+          page: customerPage,
+          limit: 20,
+        },
+      });
+
+      const newCustomers = data.data || [];
+
+      setCustomers((prev) => {
+        const existingIds = new Set(prev.map((c) => c.id));
+        const unique = newCustomers.filter((c: any) => !existingIds.has(c.id));
+        return [...prev, ...unique];
+      });
+
+      setHasMoreCustomers(data.page < data.total_pages);
+      setCustomerPage((prev) => prev + 1);
+    } catch {
       toast.error("Failed to load customers");
     } finally {
       setLoadingCustomers(false);
@@ -147,12 +166,22 @@ export default function InvoicesPage() {
   };
 
   useEffect(() => {
-    fetchCustomers();
-  }, []);
+    if (customerOpen && customers.length === 0) {
+      fetchCustomers();
+    }
+  }, [customerOpen]);
 
   useEffect(() => {
     fetchInvoices(page);
   }, [fetchInvoices, page]);
+
+  const handleCustomerScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+
+    if (scrollHeight - scrollTop <= clientHeight + 20) {
+      fetchCustomers();
+    }
+  };
 
   // ✅ Create New Invoice
   const handleCreate = () => {
@@ -296,8 +325,8 @@ export default function InvoicesPage() {
     if (isEdit) {
       setInvoices((prev) =>
         prev.map((i) =>
-          Number(i.id) === Number(invoice.id) ? { ...i, ...invoice } : i
-        )
+          Number(i.id) === Number(invoice.id) ? { ...i, ...invoice } : i,
+        ),
       );
     } else {
       // After creating a new invoice, refetch page 1
@@ -321,7 +350,7 @@ export default function InvoicesPage() {
               role="combobox"
               className={cn(
                 "w-full justify-between overflow-hidden",
-                !filters.customer_id && "text-muted-foreground"
+                !filters.customer_id && "text-muted-foreground",
               )}
             >
               <span className="truncate max-w-[90%]">
@@ -339,7 +368,10 @@ export default function InvoicesPage() {
             <Command>
               <CommandInput placeholder="Search customer..." />
 
-              <CommandList>
+              <CommandList
+                className="max-h-80 overflow-y-auto"
+                onScroll={handleCustomerScroll}
+              >
                 <CommandEmpty>No customers found.</CommandEmpty>
 
                 <CommandGroup>
@@ -364,7 +396,7 @@ export default function InvoicesPage() {
                           "h-4 w-4",
                           String(c.id) === filters.customer_id
                             ? "opacity-100"
-                            : "opacity-0"
+                            : "opacity-0",
                         )}
                       />
 
@@ -420,7 +452,9 @@ export default function InvoicesPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="invoice_date">Invoice Sent Date</SelectItem>
-            <SelectItem value="create_invoice_date">Invoice Created Date</SelectItem>
+            <SelectItem value="create_invoice_date">
+              Invoice Created Date
+            </SelectItem>
           </SelectContent>
         </Select>
 
