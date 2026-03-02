@@ -49,7 +49,7 @@ export default function CommonTable<T>({
     >
       {/* Table for medium+ screens */}
       <table className="hidden md:table min-w-full border-collapse text-sm">
-        <thead className="bg-muted/50">
+        <thead className="bg-secondary/90">
           <tr>
             {columns.map((col) => (
               <th key={String(col.key)} className="text-left p-3 font-medium align-top">

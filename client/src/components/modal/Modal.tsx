@@ -35,7 +35,6 @@ export function Modal({
   children,
 }: ModalProps) {
   const [open, setOpen] = React.useState(false);
-
   const closeModal = () => setOpen(false);
 
   const renderIcon = () => {
@@ -55,7 +54,6 @@ export function Modal({
     }
   };
 
-  // ✅ Dialog width control
   const sizeClass =
     size === "sm" ? "max-w-md" : size === "lg" ? "max-w-2xl" : "max-w-lg";
 
@@ -74,12 +72,18 @@ export function Modal({
         )}
       </DialogTrigger>
 
-      <DialogContent className={`${sizeClass} w-5/6 max-h-[90vh] p-0`}>
-        <div className="max-h-[90vh] overflow-y-auto p-6">
+      {/* ✅ Make content clip children and layout correctly */}
+      <DialogContent
+        className={`${sizeClass} w-5/6 p-0 max-h-[90vh] overflow-hidden flex flex-col`}
+      >
+        {/* ✅ Header (non-scroll) */}
+        <div className="p-6 pb-0">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
+        </div>
 
+        <div className="flex-1 overflow-y-auto p-6 pt-2">
           {typeof children === "function" ? children(closeModal) : children}
         </div>
       </DialogContent>

@@ -1,24 +1,10 @@
-import { Check, ChevronsUpDown } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AsyncSearchSelect } from "@/components/AsyncSearchSelect";
+import { useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "../../components/ui/button";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "../../components/ui/command";
 import { DialogFooter } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "../../components/ui/popover";
 import api from "../../lib/api";
-import { cn } from "../../lib/utils";
 import { Checkbox } from "../ui/checkbox";
 import {
   Select,
@@ -40,6 +26,15 @@ type Invoice = {
   amount: number;
   gst: boolean;
   currency: string;
+};
+
+type Customer = {
+  id: number;
+  name: string;
+  email: string[];
+  code: string;
+  currency: "AUD" | "USD";
+  gst: 0 | 1;
 };
 
 type Props = {
@@ -71,63 +66,6 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
   });
 
   const [saving, setSaving] = useState(false);
-  const [customers, setCustomers] = useState<
-    {
-      id: number;
-      name: string;
-      email: string[];
-      code: string;
-      currency: "AUD" | "USD";
-      gst: 0 | 1;
-    }[]
-  >([]);
-  const [customerOpen, setCustomerOpen] = useState(false);
-  const [customerPage, setCustomerPage] = useState(1);
-  const [hasMoreCustomers, setHasMoreCustomers] = useState(true);
-  const [loadingCustomers, setLoadingCustomers] = useState(false);
-
-  const fetchCustomers = async () => {
-    if (loadingCustomers || !hasMoreCustomers) return;
-
-    setLoadingCustomers(true);
-    try {
-      const { data } = await api.get("/api/customers", {
-        params: {
-          page: customerPage,
-          limit: 20,
-        },
-      });
-
-      const newCustomers = data.data || [];
-
-      setCustomers((prev) => {
-        const existingIds = new Set(prev.map((c) => c.id));
-        const unique = newCustomers.filter((c: any) => !existingIds.has(c.id));
-        return [...prev, ...unique];
-      });
-
-      setHasMoreCustomers(data.page < data.total_pages);
-      setCustomerPage((prev) => prev + 1);
-    } catch (err) {
-      toast.error("Failed to load customers");
-    } finally {
-      setLoadingCustomers(false);
-    }
-  };
-
-  useEffect(() => {
-    if (customerOpen && customers.length === 0) {
-      fetchCustomers();
-    }
-  }, [customerOpen]);
-
-  const handleCustomerScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-
-    if (scrollHeight - scrollTop <= clientHeight + 20) {
-      fetchCustomers();
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -221,72 +159,37 @@ export default function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
 
       <div className="space-y-2">
         <label className="text-sm font-medium">Customer</label>
-        <Popover open={customerOpen} onOpenChange={setCustomerOpen} modal>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              className={cn(
-                "w-full justify-between overflow-hidden",
-                !form.customer_id && "text-muted-foreground",
-              )}
-            >
-              <span className="truncate max-w-[90%]">
-                {form.customer_id
-                  ? customers.find((c) => c.id === Number(form.customer_id))
-                      ?.name || "Select customer"
-                  : "Select customer"}
-              </span>
+        <AsyncSearchSelect<Customer>
+          value={form.customer_id}
+          placeholder="Select customer"
+          getKey={(c) => String(c.id)}
+          displayValue={(c) => `${c.name} (Code - ${c.code})`}
+          fetchOptions={async (query, page) => {
+            const { data } = await api.get("/api/customers", {
+              params: {
+                page,
+                limit: 20,
+                q: query,
+              },
+            });
 
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-
-          <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
-            <Command className="max-h-64 overflow-y-auto">
-              <CommandInput placeholder="Search customer..." />
-              <CommandList
-                className="max-h-80 overflow-y-auto"
-                onScroll={handleCustomerScroll}
-              >
-                <CommandEmpty>No customers found.</CommandEmpty>
-                <CommandGroup>
-                  {customers.map((c) => (
-                    <CommandItem
-                      key={c.id}
-                      value={c.name}
-                      onSelect={() => {
-                        setForm((prev) => ({
-                          ...prev,
-                          customer_id: String(c.id),
-                          items: prev.items.map((item) => ({
-                            ...item,
-                            currency: c.currency,
-                            gst: Boolean(c.gst),
-                          })),
-                        }));
-                        setCustomerOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          String(c.id) === form.customer_id
-                            ? "opacity-100"
-                            : "opacity-0",
-                        )}
-                      />
-                      {c.name}{" "}
-                      <span className="text-muted-foreground ml-1 text-xs">
-                        (Code - {c.code})
-                      </span>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
+            return {
+              data: data.data || [],
+              hasMore: data.page < data.total_pages,
+            };
+          }}
+          onChange={(c) => {
+            setForm((prev) => ({
+              ...prev,
+              customer_id: String(c.id),
+              items: prev.items.map((item) => ({
+                ...item,
+                currency: c.currency,
+                gst: Boolean(c.gst),
+              })),
+            }));
+          }}
+        />
       </div>
 
       {form.items.map((item, index) => (

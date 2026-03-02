@@ -71,7 +71,15 @@ export async function createCustomer(req, res) {
     // Insert
     const [r] = await pool.query(
       "INSERT INTO customers (name, email, web_address, code, salesperson_id, currency, gst) VALUES (?, CAST(? AS JSON), ?, ?, ?, ?, ?)",
-      [name, JSON.stringify(email), web_address, code, salesperson_id || null, currency, gst]
+      [
+        name,
+        JSON.stringify(email),
+        web_address,
+        code,
+        salesperson_id || null,
+        currency,
+        gst,
+      ],
     );
 
     const [rows] = await pool.query("SELECT * FROM customers WHERE id=?", [
@@ -129,31 +137,35 @@ export async function listCustomers(req, res) {
 
       [rows] = await pool.query(
         `SELECT 
-            c.*, 
-            u.name AS salesperson_name,
-            u.short_form AS salesperson_short_form
-         FROM customers c
-         LEFT JOIN users u ON u.id = c.salesperson_id
-         WHERE 
-            c.name LIKE ? OR 
-            JSON_EXTRACT(c.email, '$[*]') LIKE ? OR 
-            c.web_address LIKE ? OR 
-            c.code LIKE ?
-         ORDER BY c.name ASC
-         LIMIT ? OFFSET ?`,
-        [like, like, like, like, limit, offset]
+        c.*, 
+        u.name AS salesperson_name,
+        u.short_form AS salesperson_short_form
+     FROM customers c
+     LEFT JOIN users u ON u.id = c.salesperson_id
+     WHERE 
+        c.name LIKE ?
+        OR c.web_address LIKE ?
+        OR c.code LIKE ?
+        OR u.name LIKE ?
+        OR u.short_form LIKE ?
+        OR JSON_SEARCH(c.email, 'one', ?, NULL, '$[*]') IS NOT NULL
+     ORDER BY c.name ASC
+     LIMIT ? OFFSET ?`,
+        [like, like, like, like, like, like, limit, offset],
       );
 
       [countRows] = await pool.query(
         `SELECT COUNT(*) as total
-         FROM customers c
-         LEFT JOIN users u ON u.id = c.salesperson_id
-         WHERE 
-            c.name LIKE ? OR 
-            JSON_EXTRACT(c.email, '$[*]') LIKE ? OR 
-            c.web_address LIKE ? OR 
-            c.code LIKE ?`,
-        [like, like, like, like]
+        FROM customers c
+        LEFT JOIN users u ON u.id = c.salesperson_id
+        WHERE 
+          c.name LIKE ?
+          OR c.web_address LIKE ?
+          OR c.code LIKE ?
+          OR u.name LIKE ?
+          OR u.short_form LIKE ?
+          OR JSON_SEARCH(c.email, 'one', ?, NULL, '$[*]') IS NOT NULL`,
+        [like, like, like, like, like, like],
       );
     } else {
       [rows] = await pool.query(
@@ -165,7 +177,7 @@ export async function listCustomers(req, res) {
          LEFT JOIN users u ON u.id = c.salesperson_id
          ORDER BY c.name ASC
          LIMIT ? OFFSET ?`,
-        [limit, offset]
+        [limit, offset],
       );
 
       [countRows] = await pool.query(`SELECT COUNT(*) as total FROM customers`);
@@ -205,7 +217,7 @@ export async function getCustomerById(req, res) {
        FROM customers c
        LEFT JOIN users u ON u.id = c.salesperson_id
        WHERE c.id = ?`,
-      [id]
+      [id],
     );
 
     if (rows.length === 0) {
@@ -253,7 +265,8 @@ export async function updateCustomer(req, res) {
         .status(404)
         .json({ success: false, message: "Customer not found" });
 
-    let { name, email, web_address, code, salesperson_id, currency, gst } = req.body || {};
+    let { name, email, web_address, code, salesperson_id, currency, gst } =
+      req.body || {};
     const updates = [];
     const params = [];
 
@@ -328,7 +341,7 @@ export async function updateCustomer(req, res) {
     params.push(id);
     await pool.query(
       `UPDATE customers SET ${updates.join(", ")} WHERE id=?`,
-      params
+      params,
     );
 
     // return updated with salesperson info
@@ -340,7 +353,7 @@ export async function updateCustomer(req, res) {
        FROM customers c
        LEFT JOIN users u ON u.id = c.salesperson_id
        WHERE c.id = ?`,
-      [id]
+      [id],
     );
 
     return res.json({ success: true, data: rows[0] });
