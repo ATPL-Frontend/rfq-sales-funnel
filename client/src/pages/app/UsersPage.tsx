@@ -7,7 +7,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { UserList } from "@/types/index.ts";
-import { CircleCheckBig, CircleOff, Eye, } from "lucide-react";
+import { CircleCheckBig, CircleOff, Eye } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
@@ -185,12 +185,7 @@ export default function UsersPage() {
             className="text-blue-400 hover:text-blue-600 size-4 cursor-pointer"
           />
 
-          <Modal
-            title={row.name}
-            icon="edit"
-            type="icon"
-            size="md"
-          >
+          <Modal title={row.name} icon="edit" type="icon" size="md">
             {(closeModal) => (
               <UserForm
                 key={row.id}
@@ -219,24 +214,19 @@ export default function UsersPage() {
 
   return (
     <>
-      <div className="flex justify-between items-center mb-4 gap-10">
+      <div className="flex justify-between items-center mb-4 gap-6">
         <h1 className="text-xl font-semibold">Users</h1>
 
-        <div className="flex w-full sm:w-auto items-center gap-2">
+        <div className="flex flex-1 justify-end sm:w-auto items-center sm:gap-2 gap-1">
           {/* SEARCH (left of filter button) */}
           <Input
-            className="sm:w-[320px] flex-1 h-8"
+            className="w-full sm:max-w-72 md:max-w-60 lg:max-w-80 h-8"
             placeholder="Search name, email or code..."
             value={filters.q}
             onChange={(e) => setFilters({ ...filters, q: e.target.value })}
           />
 
-          <Modal
-            type="button"
-            icon="filter"
-            label="Filters"
-            title="User Filters"
-          >
+          <Modal icon="filter" label="Filters" title="User Filters">
             {(closeModal) => (
               <UserFilter
                 filters={filters}
@@ -251,13 +241,7 @@ export default function UsersPage() {
             )}
           </Modal>
 
-          <Modal
-            type="button"
-            icon="userplus"
-            label="Add User"
-            title="Create User"
-            size="md"
-          >
+          <Modal icon="userplus" label="Add User" title="Create User">
             {(closeModal) => (
               <UserForm
                 key="create"

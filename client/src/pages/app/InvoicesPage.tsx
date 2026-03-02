@@ -1,31 +1,9 @@
+import InvoiceFilter from "@/components/filter/InvoiceFilter";
 import InvoiceForm from "@/components/modal/InvoiceModal";
+import { Modal } from "@/components/modal/Modal";
 import { Badge } from "@/components/ui/badge";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { cn } from "@/lib/utils";
-import {
   ArrowDownUp,
-  Check,
-  ChevronsUpDown,
   Edit,
   Eye,
   Trash2,
@@ -71,27 +49,16 @@ export default function InvoicesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const navigate = useNavigate();
-
-  const [customers, setCustomers] = useState<
-    { id: number; name: string; email: string; code: string }[]
-  >([]);
-
-  const [customerPage, setCustomerPage] = useState(1);
-  const [hasMoreCustomers, setHasMoreCustomers] = useState(true);
-  const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [sortField, setSortField] = useState<string>("invoice_date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [customerOpen, setCustomerOpen] = useState(false);
 
   const [filters, setFilters] = useState({
-    customer_id: "",
-    invoice_no: "",
+    currency: "",
     date_filter_type: "invoice_date",
     date_from: "",
     date_to: "",
     amount_from: "",
     amount_to: "",
-    currency: "",
   });
 
   const [appliedFilters, setAppliedFilters] = useState(filters);
@@ -105,8 +72,8 @@ export default function InvoicesPage() {
           params: {
             page: pageNum,
             limit: 20,
-            customer_id: appliedFilters.customer_id || undefined,
-            invoice_no: appliedFilters.invoice_no || undefined,
+            // customer_id: appliedFilters.customer_id || undefined,
+            // invoice_no: appliedFilters.invoice_no || undefined,
             ...(appliedFilters.date_filter_type === "invoice_date"
               ? {
                   date_from: appliedFilters.date_from || undefined,
@@ -136,52 +103,9 @@ export default function InvoicesPage() {
     [appliedFilters, sortField, sortOrder], // Only changes when these change
   );
 
-  const fetchCustomers = async () => {
-    if (loadingCustomers || !hasMoreCustomers) return;
-
-    setLoadingCustomers(true);
-    try {
-      const { data } = await api.get("/api/customers", {
-        params: {
-          page: customerPage,
-          limit: 20,
-        },
-      });
-
-      const newCustomers = data.data || [];
-
-      setCustomers((prev) => {
-        const existingIds = new Set(prev.map((c) => c.id));
-        const unique = newCustomers.filter((c: any) => !existingIds.has(c.id));
-        return [...prev, ...unique];
-      });
-
-      setHasMoreCustomers(data.page < data.total_pages);
-      setCustomerPage((prev) => prev + 1);
-    } catch {
-      toast.error("Failed to load customers");
-    } finally {
-      setLoadingCustomers(false);
-    }
-  };
-
-  useEffect(() => {
-    if (customerOpen && customers.length === 0) {
-      fetchCustomers();
-    }
-  }, [customerOpen]);
-
   useEffect(() => {
     fetchInvoices(page);
   }, [fetchInvoices, page]);
-
-  const handleCustomerScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-
-    if (scrollHeight - scrollTop <= clientHeight + 20) {
-      fetchCustomers();
-    }
-  };
 
   // ✅ Create New Invoice
   const handleCreate = () => {
@@ -337,192 +261,27 @@ export default function InvoicesPage() {
 
   return (
     <>
-      <div className="flex justify-between items-center mb-2">
+      <div className="flex justify-between items-center mb-4 gap-6">
         <h1 className="text-xl font-semibold">Invoices</h1>
-        <Button onClick={handleCreate}>Create Invoice</Button>
-      </div>
 
-      <div className="p-4 mb-4 border border-primary border-dashed rounded grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Popover open={customerOpen} onOpenChange={setCustomerOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              className={cn(
-                "w-full justify-between overflow-hidden",
-                !filters.customer_id && "text-muted-foreground",
-              )}
-            >
-              <span className="truncate max-w-[90%]">
-                {filters.customer_id
-                  ? customers.find((c) => c.id === Number(filters.customer_id))
-                      ?.name || "Select customer"
-                  : "Select customer"}
-              </span>
-
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-
-          <PopoverContent className="w-60 p-0 ml-6">
-            <Command>
-              <CommandInput placeholder="Search customer..." />
-
-              <CommandList
-                className="max-h-80 overflow-y-auto"
-                onScroll={handleCustomerScroll}
-              >
-                <CommandEmpty>No customers found.</CommandEmpty>
-
-                <CommandGroup>
-                  {customers.map((c) => (
-                    <CommandItem
-                      key={c.id}
-                      value={c.name}
-                      onSelect={() => {
-                        const clickedId = String(c.id);
-
-                        setFilters((prev) => ({
-                          ...prev,
-                          customer_id:
-                            prev.customer_id === clickedId ? "" : clickedId, // toggle here
-                        }));
-
-                        setCustomerOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "h-4 w-4",
-                          String(c.id) === filters.customer_id
-                            ? "opacity-100"
-                            : "opacity-0",
-                        )}
-                      />
-
-                      {c.name}
-                      <span className="text-muted-foreground ml-1 text-xs">
-                        (Code - {c.code})
-                      </span>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-
-        <Input
-          type="text"
-          placeholder="Invoice No"
-          value={filters.invoice_no}
-          onChange={(e) =>
-            setFilters({ ...filters, invoice_no: e.target.value })
-          }
-        />
-
-        <Select
-          value={filters.currency}
-          onValueChange={(value: string) =>
-            setFilters({ ...filters, currency: value })
-          }
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="$ Select currency" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="AUD">AUD</SelectItem>
-            <SelectItem value="USD">USD</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={filters.date_filter_type}
-          onValueChange={(value: "invoice_date" | "create_invoice_date") =>
-            setFilters((prev) => ({
-              ...prev,
-              date_filter_type: value,
-              date_from: "",
-              date_to: "", // reset dates when switching
-            }))
-          }
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select date type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="invoice_date">Invoice Sent Date</SelectItem>
-            <SelectItem value="create_invoice_date">
-              Invoice Created Date
-            </SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Input
-          type="date"
-          value={filters.date_from}
-          onChange={(e) =>
-            setFilters({ ...filters, date_from: e.target.value })
-          }
-        />
-
-        <Input
-          type="date"
-          value={filters.date_to}
-          onChange={(e) => setFilters({ ...filters, date_to: e.target.value })}
-        />
-
-        <Input
-          type="number"
-          placeholder="Amount From"
-          value={filters.amount_from}
-          onChange={(e) =>
-            setFilters({ ...filters, amount_from: e.target.value })
-          }
-        />
-
-        <Input
-          type="number"
-          placeholder="Amount To"
-          value={filters.amount_to}
-          onChange={(e) =>
-            setFilters({ ...filters, amount_to: e.target.value })
-          }
-        />
-
-        <div className="flex items-center gap-2 col-span-2 md:col-span-3 lg:col-span-6">
-          <Button
-            variant="secondary"
-            className="flex-1"
-            onClick={() => {
-              const empty = {
-                customer_id: "",
-                invoice_no: "",
-                date_filter_type: "invoice_date",
-                date_from: "",
-                date_to: "",
-                amount_from: "",
-                amount_to: "",
-                currency: "",
-              };
-
-              setFilters(empty);
-              setAppliedFilters(empty); // reset active filters used by API
-              setPage(1);
-            }}
+        <div className="flex gap-2 items-center">
+          <Modal
+            icon="filter"
+            label="Filters"
+            title="Invoice Filters"
           >
-            Clear Filters
-          </Button>
+            {(closeModal) => (
+              <InvoiceFilter
+                filters={filters}
+                setFilters={setFilters}
+                setAppliedFilters={setAppliedFilters}
+                setPage={setPage}
+                closeModal={closeModal}
+              />
+            )}
+          </Modal>
 
-          <Button
-            onClick={() => {
-              setAppliedFilters(filters); // Only now API will rerun because appliedFilters changes
-              setPage(1);
-            }}
-            className="flex-1"
-          >
-            Apply Filters
-          </Button>
+          <Button size="sm" onClick={handleCreate}>Create Invoice</Button>
         </div>
       </div>
 

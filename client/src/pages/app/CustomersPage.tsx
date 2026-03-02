@@ -1,19 +1,13 @@
+import { DeleteModal } from "@/components/modal/DeleteModal";
+import { Modal } from "@/components/modal/Modal";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import type { CustomerList } from "@/types/index.ts";
-import { Edit, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 import type { Column } from "../../components/CommonTable";
 import CommonTable from "../../components/CommonTable";
-import { Button } from "../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../../components/ui/dialog";
 import api from "../../lib/api";
 import CustomerForm from "./../../components/modal/CustomerModal";
 
@@ -23,21 +17,20 @@ export default function CustomersPage() {
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
-
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerList | null>(
-    null
-  );
+  const [filters, setFilters] = useState({ q: "" });
+  const [appliedFilters, setAppliedFilters] = useState(filters);
   const [totalCustomers, setTotalCustomers] = useState(0);
-  const [formOpen, setFormOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
 
   // ✅ Fetch customers with infinite scroll
   const fetchCustomers = useCallback(async () => {
+    console.log("Fetching customers with filters:", appliedFilters);
     if (loading || !hasMore || failed) return;
 
     setLoading(true);
     try {
-      const { data } = await api.get(`/api/customers?page=${page}&limit=20`);
+      const { data } = await api.get(
+        `/api/customers?page=${page}&limit=20&${new URLSearchParams(appliedFilters as any).toString()}`,
+      );
       const results: CustomerList[] = data.data || [];
 
       setCustomers((prev) => {
@@ -54,38 +47,34 @@ export default function CustomersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, loading, hasMore, failed]);
+  }, [page, loading, hasMore, failed, appliedFilters]);
 
   useEffect(() => {
     fetchCustomers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ Create
-  const handleCreate = () => {
-    setSelectedCustomer(null);
-    setFormOpen(true);
-  };
+  useEffect(() => {
+    const delayDebounce = setTimeout(() => {
+      setCustomers([]);
+      setFailed(false);
+      setHasMore(true);
+      setPage(1);
 
-  // ✅ Edit
-  const handleEdit = (customer: CustomerList) => {
-    setSelectedCustomer(customer);
-    setFormOpen(true);
-  };
+      setAppliedFilters((prev) => ({
+        ...prev,
+        q: filters.q,
+      }));
+    }, 500);
 
-  // ✅ Delete
-  const handleDelete = (customer: CustomerList) => {
-    setSelectedCustomer(customer);
-    setDeleteOpen(true);
-  };
+    return () => clearTimeout(delayDebounce);
+  }, [filters.q]);
 
-  const confirmDelete = async () => {
-    if (!selectedCustomer) return;
+  const confirmDelete = async (id: number | string) => {
     try {
-      await api.delete(`/api/customers/${selectedCustomer.id}`);
+      await api.delete(`/api/customers/${id}`);
       toast.success("Customer deleted successfully");
-      setCustomers((prev) => prev.filter((c) => c.id !== selectedCustomer.id));
-      setDeleteOpen(false);
+      setCustomers((prev) => prev.filter((c) => c.id !== id));
     } catch (err) {
       toast.error("Failed to delete customer");
     }
@@ -95,12 +84,11 @@ export default function CustomersPage() {
   const handleFormSuccess = (customer: CustomerList, isEdit: boolean) => {
     if (isEdit) {
       setCustomers((prev) =>
-        prev.map((c) => (c.id === customer.id ? customer : c))
+        prev.map((c) => (c.id === customer.id ? customer : c)),
       );
     } else {
       setCustomers((prev) => [customer, ...prev]);
     }
-    setFormOpen(false);
   };
 
   const columns: Column<CustomerList>[] = [
@@ -164,28 +152,61 @@ export default function CustomersPage() {
       label: "Actions",
       render: (row) => (
         <div className="flex gap-2">
-          <Button onClick={() => handleEdit(row)} size="icon">
-            <Edit className="w-4 h-4" />
-          </Button>
-          <Button
-            onClick={() => handleDelete(row)}
-            variant="destructive"
-            size="icon"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+          <Modal title="Edit Customer" icon="edit" type="icon">
+            {(closeModal) => (
+              <CustomerForm
+                key={row.id}
+                customer={row}
+                onSuccess={(savedCustomer, wasEdit) => {
+                  handleFormSuccess(savedCustomer, wasEdit);
+                  closeModal();
+                }}
+                onCancel={closeModal}
+              />
+            )}
+          </Modal>
+          <DeleteModal
+            onDeleteItem={confirmDelete}
+            actionLoading={loading}
+            id={row.id}
+            name={row.name}
+            type="icon"
+          />
         </div>
       ),
     },
   ];
 
   return (
-    <>
-      <div className="flex justify-between items-center mb-4">
+    <div className="flex flex-col h-[calc(100vh-80px)]">
+      <div className="flex justify-between items-center mb-4 gap-6">
         <h1 className="text-xl font-semibold">
           Customers <Badge variant="secondary">{totalCustomers}</Badge>
         </h1>
-        <Button onClick={handleCreate}>Create Customer</Button>
+
+        <div className="flex flex-1 justify-end sm:w-auto items-center sm:gap-2 gap-1">
+          {/* SEARCH (left of filter button) */}
+          <Input
+            className="w-full sm:max-w-72 md:max-w-60 lg:max-w-80 h-8"
+            placeholder="Search name, email or code..."
+            value={filters.q}
+            onChange={(e) => setFilters({ ...filters, q: e.target.value })}
+          />
+
+          <Modal icon="userplus" label="Add Customer" title="Create Customer">
+            {(closeModal) => (
+              <CustomerForm
+                key="create"
+                customer={null}
+                onSuccess={(savedCustomer, wasEdit) => {
+                  handleFormSuccess(savedCustomer, wasEdit);
+                  closeModal();
+                }}
+                onCancel={closeModal}
+              />
+            )}
+          </Modal>
+        </div>
       </div>
 
       <CommonTable
@@ -195,47 +216,6 @@ export default function CustomersPage() {
         hasMore={hasMore}
         onLoadMore={fetchCustomers}
       />
-
-      {/* ✅ Create/Edit Modal */}
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedCustomer ? "Edit Customer" : "Create Customer"}
-            </DialogTitle>
-          </DialogHeader>
-          <CustomerForm
-            customer={selectedCustomer}
-            onSuccess={handleFormSuccess}
-            onCancel={() => setFormOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* ✅ Delete Confirmation Modal */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Delete Customer</DialogTitle>
-          </DialogHeader>
-          <p className="text-muted-foreground">
-            Are you sure you want to delete{" "}
-            <span className="font-semibold">{selectedCustomer?.name}</span>?
-          </p>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setDeleteOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button onClick={confirmDelete} variant="destructive">
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+    </div>
   );
 }
