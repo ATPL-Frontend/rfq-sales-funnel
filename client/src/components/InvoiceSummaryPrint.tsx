@@ -10,8 +10,8 @@ import {
 import { dateHelper } from "@/lib/dateHelper";
 import type { InvoiceItem, salespersonSummary } from "@/types/index.ts";
 import { forwardRef } from "react";
-import InvoiceMonthlyChart from "./InvoiceMonthlyChart";
-import SalespersonChart from "./SalespersonInvoiceChart";
+// import InvoiceMonthlyChart from "./InvoiceMonthlyChart";
+// import SalespersonChart from "./SalespersonInvoiceChart";
 
 type CustomerSummary = {
   customer_name: string;
@@ -49,11 +49,11 @@ const InvoiceSummaryPrint = forwardRef<
     {
       summary,
       range,
-      chartdata,
-      salespersonData,
+      // chartdata,
+      // salespersonData,
       summaryData,
       salespersonSummaryData,
-      labels,
+      // labels,
     },
     ref
   ) => {
