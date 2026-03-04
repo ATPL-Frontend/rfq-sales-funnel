@@ -106,7 +106,7 @@ export default function InvoiceSummaryPage() {
   const [chartdata, setChartdata] = useState<any[]>([]);
   const [salespersonData, setSalespersonData] = useState<any[]>([]);
 
-  const [endMonthCursor, setEndMonthCursor] = useState(() => {
+  const [endMonthCursor] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1); // normalize to month start
   });
