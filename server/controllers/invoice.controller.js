@@ -92,7 +92,7 @@ export async function createInvoice(req, res) {
           amount,
           gst,
           currency,
-        ]
+        ],
       );
 
       createdIds.push(r.insertId);
@@ -113,7 +113,7 @@ export async function createInvoice(req, res) {
       WHERE i.id IN (?)
       ORDER BY i.id ASC
       `,
-      [createdIds]
+      [createdIds],
     );
 
     return res.status(201).json({
@@ -180,7 +180,7 @@ export async function listInvoices(req, res) {
 
     const limit = Math.min(
       Math.max(parseInt(req.query.limit || "50", 10), 1),
-      200
+      200,
     );
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
     const offset = (page - 1) * limit;
@@ -248,7 +248,7 @@ export async function listInvoices(req, res) {
        FROM invoices i
        JOIN customers c ON c.id = i.customer_id
        ${whereSql}`,
-      params
+      params,
     );
 
     res.json({
@@ -286,7 +286,7 @@ export async function getInvoiceById(req, res) {
         LEFT JOIN users u 
           ON u.id = c.salesperson_id
         WHERE i.id = ?`,
-      [id]
+      [id],
     );
 
     if (!rows.length) {
@@ -381,7 +381,7 @@ export async function updateInvoice(req, res) {
             .json({ success: false, message: "customer_id invalid" });
         const [[cust]] = await pool.query(
           "SELECT id FROM customers WHERE id=?",
-          [cid]
+          [cid],
         );
         if (!cust)
           return res
@@ -424,7 +424,7 @@ export async function updateInvoice(req, res) {
       `UPDATE invoices
        SET ${updates.join(", ")}, updated_at = NOW()
        WHERE id = ?`,
-      params
+      params,
     );
 
     return await getInvoiceById(req, res);
@@ -527,7 +527,7 @@ export async function getInvoiceSummary(req, res) {
       ${where}
       ORDER BY c.name ASC, i.${date_type} DESC
       `,
-      params
+      params,
     );
 
     if (!rows.length)
@@ -613,15 +613,15 @@ export async function getInvoiceSummary(req, res) {
       total_customers: customersArray.length,
       total_invoices: customersArray.reduce(
         (sum, c) => sum + c.no_of_invoices,
-        0
+        0,
       ),
       total_amount_aud: customersArray.reduce(
         (sum, c) => sum + c.total_amount_aud,
-        0
+        0,
       ),
       total_amount_usd: customersArray.reduce(
         (sum, c) => sum + c.total_amount_usd,
-        0
+        0,
       ),
     };
 
@@ -725,7 +725,7 @@ export async function getInvoiceMonthlySummary(req, res) {
     const [monthlyRows] = await pool.query(monthlySql, params);
     const [salespersonRows] = await pool.query(
       salespersonSql,
-      salespersonParams
+      salespersonParams,
     );
 
     // Process monthly data
@@ -836,16 +836,27 @@ export async function getCustomerInvoiceFrequency(req, res) {
       SELECT 
         c.id AS customer_id,
         c.name AS customer_name,
-        DATE_FORMAT(i.create_invoice_date, '%Y-%m') AS 'year_month',
+        c.salesperson_id,
+        u.name AS salesperson_name,
+        u.short_form AS salesperson_short_form,
+
+        DATE_FORMAT(i.create_invoice_date, '%Y-%m') AS \`year_month\`,
         DATE_FORMAT(i.create_invoice_date, '%b %Y') AS month_name,
-        COUNT(i.id) AS invoice_count
+
+        COUNT(i.id) AS invoice_count,
+        SUM(i.amount) AS invoice_amount_sum,
+        MAX(i.currency) AS currency
       FROM invoices i
       JOIN customers c ON c.id = i.customer_id
+      LEFT JOIN users u ON u.id = c.salesperson_id
       WHERE i.create_invoice_date BETWEEN ? AND ?
       ${salespersonFilter}
       GROUP BY 
         c.id,
         c.name,
+        c.salesperson_id,
+        u.name,
+        u.short_form,
         DATE_FORMAT(i.create_invoice_date, '%Y-%m'),
         DATE_FORMAT(i.create_invoice_date, '%b %Y')
       ORDER BY 
@@ -871,26 +882,47 @@ export async function getCustomerInvoiceFrequency(req, res) {
         grouped[row.customer_id] = {
           customer_id: row.customer_id,
           customer_name: row.customer_name,
+          salesperson_id: row.salesperson_id ?? null,
+          salesperson_name: row.salesperson_name ?? null,
+          salesperson_short_form: row.salesperson_short_form ?? null,
+          currency: row.currency ?? null, // assumed same within customer range
           total_invoices: 0,
+          total_amount: 0,
+
           monthly_data: [],
         };
       }
 
+      const invoiceCount = Number(row.invoice_count) || 0;
+      const monthSum = Number(row.invoice_amount_sum) || 0;
+
       grouped[row.customer_id].monthly_data.push({
         year_month: row.year_month,
         month: row.month_name,
-        invoice_count: Number(row.invoice_count),
+        invoice_count: invoiceCount,
+        amount_sum: monthSum,
+        currency: row.currency ?? null,
       });
 
-      grouped[row.customer_id].total_invoices += Number(
-        row.invoice_count
-      );
+      grouped[row.customer_id].total_invoices += invoiceCount;
+      grouped[row.customer_id].total_amount += monthSum;
+
+      // In case currency is null for first row but exists later
+      if (!grouped[row.customer_id].currency && row.currency) {
+        grouped[row.customer_id].currency = row.currency;
+      }
     }
+
+    const data = Object.values(grouped).sort((a, b) =>
+      (a.customer_name || "").localeCompare(b.customer_name || "", undefined, {
+        sensitivity: "base", // case-insensitive
+      }),
+    );
 
     return res.json({
       success: true,
       range: { from: startDate, to: endDate },
-      data: Object.values(grouped),
+      data,
     });
   } catch (err) {
     console.error("💥 getCustomerInvoiceFrequency error:", err);

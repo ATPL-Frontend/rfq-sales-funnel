@@ -1,6 +1,4 @@
-import InvoiceMonthlyChart from "@/components/InvoiceMonthlyChart";
 import InvoiceSummaryPrint from "@/components/InvoiceSummaryPrint";
-import SalespersonChart from "@/components/SalespersonInvoiceChart";
 import SearchSelectPopover from "@/components/SearchSelectPopover";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,7 +23,7 @@ import api from "@/lib/api";
 import { dateHelper } from "@/lib/dateHelper";
 import type { InvoiceItem, salespersonSummary } from "@/types/index.ts";
 import { endOfMonth, format, startOfMonth } from "date-fns";
-import { ChevronLeft, ChevronRight, Printer } from "lucide-react";
+import { Printer } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useReactToPrint } from "react-to-print";
@@ -134,12 +132,6 @@ export default function InvoiceSummaryPage() {
       }
     })();
   }, [window.range.from, window.range.to]);
-
-  const shiftWindow = (deltaMonths: number) => {
-    setEndMonthCursor(
-      (prev) => new Date(prev.getFullYear(), prev.getMonth() + deltaMonths, 1),
-    );
-  };
 
   // Set defaults on first load
   useEffect(() => {
@@ -334,57 +326,6 @@ export default function InvoiceSummaryPage() {
               Print <Printer className="ml-2 h-4 w-4" />
             </Button>
           </div>
-        </div>
-      </div>
-
-      <div className="space-y-6">
-        {/* Invoice Section */}
-        <div>
-          <h1 className="text-2xl font-bold mb-2">Invoice Overview</h1>
-
-          <div className="flex items-center gap-2 select-none mb-2 mx-auto w-max">
-            <Button
-              variant="outline"
-              onClick={() => shiftWindow(-1)}
-              aria-label="Previous 3-month range"
-            >
-              <ChevronLeft />
-            </Button>
-
-            <div className="px-3 py-1 rounded font-medium">
-              {window.label}
-            </div>
-
-            <Button
-              variant="outline"
-              onClick={() => shiftWindow(1)}
-              aria-label="Next 3-month range"
-            >
-              <ChevronRight />
-            </Button>
-          </div>
-          <InvoiceMonthlyChart data={chartdata} />
-        </div>
-
-        {/* Salesperson Section */}
-        <div>
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold">Salesperson Performance</h2>
-            <p className="text-gray-600">
-              Performance metrics by salesperson
-            </p>
-          </div>
-
-          {salespersonData.length > 0 ? (
-            <SalespersonChart data={salespersonData} monthsToShow={3} />
-          ) : (
-            <div className="text-center py-12 text-gray-500 border rounded-lg">
-              <p className="text-lg mb-2">No salesperson data available</p>
-              <p className="text-sm">
-                Data will appear when salespeople create invoices
-              </p>
-            </div>
-          )}
         </div>
       </div>
 
