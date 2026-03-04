@@ -10,8 +10,8 @@ import {
 import { dateHelper } from "@/lib/dateHelper";
 import type { InvoiceItem, salespersonSummary } from "@/types/index.ts";
 import { forwardRef } from "react";
-// import InvoiceMonthlyChart from "./InvoiceMonthlyChart";
-// import SalespersonChart from "./SalespersonInvoiceChart";
+import InvoiceMonthlyChart from "./InvoiceMonthlyChart";
+import SalespersonChart from "./SalespersonInvoiceChart";
 
 type CustomerSummary = {
   customer_name: string;
@@ -49,17 +49,17 @@ const InvoiceSummaryPrint = forwardRef<
     {
       summary,
       range,
-      // chartdata,
-      // salespersonData,
+      chartdata,
+      salespersonData,
       summaryData,
       salespersonSummaryData,
-      // labels,
+      labels,
     },
     ref
   ) => {
     return (
       <div ref={ref} className="p-4 bg-white">
-        {/* <h1 className="text-2xl font-bold text-center mb-6">
+        <h1 className="text-2xl font-bold text-center mb-6">
           Invoice Summary Report
         </h1>
 
@@ -82,7 +82,7 @@ const InvoiceSummaryPrint = forwardRef<
               </p>
             </div>
           )}
-        </div> */}
+        </div>
 
         <div className="print:break-before-page print:page-break-before-always">
           <div className="mb-4 text-center">
