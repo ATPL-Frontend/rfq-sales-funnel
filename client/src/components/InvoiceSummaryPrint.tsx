@@ -59,12 +59,11 @@ const InvoiceSummaryPrint = forwardRef<
   ) => {
     return (
       <div ref={ref} className="p-4 bg-white">
-        <h1 className="text-2xl font-bold text-center mb-6">
+        {/* <h1 className="text-2xl font-bold text-center mb-6">
           Invoice Summary Report
         </h1>
 
         <div className="space-y-8">
-          {/* Invoice Section */}
           <div>
             <h1 className="text-2xl font-bold mb-2">Invoice Overview</h1>
             <p className="text-gray-600 mb-6">
@@ -83,7 +82,7 @@ const InvoiceSummaryPrint = forwardRef<
               </p>
             </div>
           )}
-        </div>
+        </div> */}
 
         <div className="print:break-before-page print:page-break-before-always">
           <div className="mb-4 text-center">
