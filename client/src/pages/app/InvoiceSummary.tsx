@@ -224,6 +224,7 @@ export default function InvoiceSummaryPage() {
     <div className="space-y-6">
       <div className="print:block absolute -left-[99999px] top-0 w-[1000px] print:static print:w-auto">
         <InvoiceSummaryPrint
+          mode="summary"
           summary={summary}
           chartdata={chartdata}
           salespersonData={salespersonData}

@@ -34,12 +34,7 @@ export default function InvoiceSummaryFilter({
   defaultTo,
   closeModal,
 }: Props) {
-  const [dateTypeOpen, setDateTypeOpen] = useState(false);
   const [salesOpen, setSalesOpen] = useState(false);
-
-  const dateTypeLabel = useMemo(() => {
-    return filters.date_type === "invoice_date" ? "Sent Date" : "Created Date";
-  }, [filters.date_type]);
 
   const selectedSalesPerson = useMemo(() => {
     if (!filters.salesperson_id) return "";

@@ -4,8 +4,8 @@ import MonthYearPicker from "@/components/filter/MonthYearPicker";
 import InvoiceMonthlyChart from "@/components/InvoiceMonthlyChart";
 import SalespersonChart from "@/components/SalespersonInvoiceChart";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Printer } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import api from "../../lib/api";
 
@@ -22,7 +22,8 @@ import {
 import { dateHelper } from "@/lib/dateHelper";
 import type { salespersonSummary } from "@/types/index.ts";
 import { endOfMonth, format, startOfMonth } from "date-fns";
-// import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "react-to-print";
+import InvoiceSummaryPrint from "@/components/InvoiceSummaryPrint";
 
 interface MonthlyData {
   year_month: string;
@@ -102,6 +103,7 @@ function monthLabel(d: Date) {
 }
 
 const InvoiceFrequency = () => {
+  const printRef = useRef(null);
   const [rawData, setRawData] = useState<CustomerApiData[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -141,6 +143,17 @@ const InvoiceFrequency = () => {
     () => build3MonthWindow(endMonthCursor),
     [endMonthCursor],
   );
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    pageStyle: `
+      @page { size: A4; margin: 10mm; }
+      @media print { 
+        .no-print { display: none !important; }
+        .page-break-inside-avoid { page-break-inside: avoid; }
+      }
+    `,
+  });
 
   const fetchData = async () => {
     if (!fromMonth || !toMonth) {
@@ -290,7 +303,7 @@ const InvoiceFrequency = () => {
           <div className="font-medium">
             {count}
             <span
-              className={`ml-2 text-xs ${currency === "USD" ? "text-violet-600" : "text-primary"}`}
+              className={`ml-2 text-xs ${currency === "USD" ? "text-rose-600" : "text-emerald-600"}`}
             >
               ({Number(amount).toFixed(2)} {currency})
             </span>
@@ -365,6 +378,21 @@ const InvoiceFrequency = () => {
 
   return (
     <div className="space-y-4">
+      <div className="print:block absolute -left-[99999px] top-0 w-[1000px] print:static print:w-auto">
+        <InvoiceSummaryPrint
+          mode="frequency"
+  columns={columns}
+  tableData={tableData}
+  chartdata={chartdata}
+  salespersonData={salespersonData}
+  range={range}
+  labels={window.label}
+  summaryData={summaryData}
+  salespersonSummaryData={salespersonSummaryData}
+  ref={printRef}
+        />
+      </div>
+
       <div className="flex justify-between">
         <h1 className="text-2xl font-semibold text-gray-800">
           Invoice Summary
@@ -386,10 +414,10 @@ const InvoiceFrequency = () => {
             )}
           </Modal>
 
-          {/* <Button size="sm" variant="secondary" onClick={handlePrint}>
+          <Button size="sm" variant="secondary" onClick={handlePrint}>
             <Printer className="h-4 w-4" />{" "}
             <span className="sm:block hidden">Print</span>
-          </Button> */}
+          </Button>
         </div>
       </div>
 
