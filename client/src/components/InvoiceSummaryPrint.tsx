@@ -1,3 +1,4 @@
+import type { Column } from "@/components/CommonTable";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -31,176 +32,204 @@ type Summary = {
   total_amount_usd: number;
 };
 
-interface InvoiceSummaryPrintProps {
-  summary: CustomerSummary[];
+interface FrequencyRow {
+  customer_id: number;
+  customer_name: string;
+  salesperson_short_form?: string | null;
+  currency?: string;
+
+  // dynamic keys like "2026-01_count", "2026-01_amount", ...
+  [key: string]: any;
+}
+
+type CommonProps = {
   range: { from: string; to: string } | null;
   summaryData: Summary | null;
   salespersonSummaryData: salespersonSummary[];
   chartdata: any[];
   salespersonData: any[];
   labels: string;
-}
+};
 
-const InvoiceSummaryPrint = forwardRef<
-  HTMLDivElement,
-  InvoiceSummaryPrintProps
->(
-  (
-    {
-      summary,
-      range,
-      chartdata,
-      salespersonData,
-      summaryData,
-      salespersonSummaryData,
-      labels,
-    },
-    ref
-  ) => {
-    return (
-      <div ref={ref} className="p-4 bg-white">
-        <h1 className="text-2xl font-bold text-center mb-6">
-          Invoice Summary Report
-        </h1>
+type Props =
+  | (CommonProps & {
+      mode: "summary";
+      summary: CustomerSummary[];
+    })
+  | (CommonProps & {
+      mode: "frequency";
+      columns: Column<FrequencyRow>[];
+      tableData: FrequencyRow[];
+    });
 
-        <div className="space-y-8">
-          <div>
-            <h1 className="text-2xl font-bold mb-2">Invoice Overview</h1>
-            <p className="text-gray-600 mb-6">
-              Monthly performance metrics for invoices sent - <span className="font-medium">{labels}</span>
-            </p>
-            <InvoiceMonthlyChart data={chartdata} />
-          </div>
+// const money = (n?: number | null) => Number(n || 0).toFixed(2);
 
-          {salespersonData.length > 0 ? (
-            <SalespersonChart data={salespersonData} monthsToShow={3} />
-          ) : (
-            <div className="text-center py-12 text-gray-500 border rounded-lg">
-              <p className="text-lg mb-2">No salesperson data available</p>
-              <p className="text-sm">
-                Data will appear when salespeople create invoices
-              </p>
-            </div>
-          )}
+// interface InvoiceSummaryPrintProps {
+//   summary: CustomerSummary[];
+//   range: { from: string; to: string } | null;
+//   summaryData: Summary | null;
+//   salespersonSummaryData: salespersonSummary[];
+//   chartdata: any[];
+//   salespersonData: any[];
+//   labels: string;
+// }
+
+const InvoiceSummaryPrint = forwardRef<HTMLDivElement, Props>((props, ref) => {
+  const {
+    range,
+    chartdata,
+    salespersonData,
+    summaryData,
+    salespersonSummaryData,
+    labels,
+  } = props;
+
+  return (
+    <div ref={ref} className="p-4 bg-white">
+      <h1 className="text-2xl font-bold text-center mb-6">
+        Invoice Summary Report
+      </h1>
+
+      <div className="print:page-break-before-always">
+        <div className="mb-4 text-center">
+          <h2 className="text-lg font-semibold">
+            Invoices sent from {dateHelper(range?.from ?? "")} to{" "}
+            {dateHelper(range?.to ?? "")}
+          </h2>
         </div>
 
-        <div className="print:break-before-page print:page-break-before-always">
-          <div className="mb-4 text-center">
-            <h2 className="text-lg font-semibold">
-              Invoices sent from {dateHelper(range?.from ?? "")} to{" "}
-              {dateHelper(range?.to ?? "")}
-            </h2>
-          </div>
+        {/* Overall Summary Table */}
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-3">Overall Summary</h3>
+          <Table className="w-full border-collapse border border-gray-300">
+            <TableHeader className="bg-gray-100">
+              <TableRow>
+                <TableHead className="border border-gray-300 p-2 text-center font-medium">
+                  Total Invoices
+                </TableHead>
+                <TableHead className="border border-gray-300 p-2 text-center font-medium">
+                  Total Customers
+                </TableHead>
+                <TableHead className="border border-gray-300 p-2 text-center font-medium">
+                  Total Amount (AUD)
+                </TableHead>
+                <TableHead className="border border-gray-300 p-2 text-center font-medium">
+                  Total Amount (USD)
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow>
+                <TableCell className="border border-gray-300 p-2 text-center">
+                  {summaryData?.total_invoices || 0}
+                </TableCell>
+                <TableCell className="border border-gray-300 p-2 text-center">
+                  {summaryData?.total_customers || 0}
+                </TableCell>
+                <TableCell className="border border-gray-300 p-2 text-center font-medium">
+                  $ {summaryData?.total_amount_aud.toFixed(2) || 0}
+                </TableCell>
+                <TableCell className="border border-gray-300 p-2 text-center font-medium">
+                  $ {summaryData?.total_amount_usd.toFixed(2) || 0}
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
 
-          {/* Overall Summary Table */}
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-3">Overall Summary</h3>
-            <Table className="w-full border-collapse border border-gray-300">
-              <TableHeader className="bg-gray-100">
-                <TableRow>
-                  <TableHead className="border border-gray-300 p-2 text-center font-medium">
-                    Total Invoices
-                  </TableHead>
-                  <TableHead className="border border-gray-300 p-2 text-center font-medium">
-                    Total Customers
-                  </TableHead>
-                  <TableHead className="border border-gray-300 p-2 text-center font-medium">
-                    Total Amount (AUD)
-                  </TableHead>
-                  <TableHead className="border border-gray-300 p-2 text-center font-medium">
-                    Total Amount (USD)
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell className="border border-gray-300 p-2 text-center">
-                    {summaryData?.total_invoices || 0}
-                  </TableCell>
-                  <TableCell className="border border-gray-300 p-2 text-center">
-                    {summaryData?.total_customers || 0}
-                  </TableCell>
-                  <TableCell className="border border-gray-300 p-2 text-center font-medium">
-                    $ {summaryData?.total_amount_aud.toFixed(2) || 0}
-                  </TableCell>
-                  <TableCell className="border border-gray-300 p-2 text-center font-medium">
-                    $ {summaryData?.total_amount_usd.toFixed(2) || 0}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Salesperson Summary Table */}
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-3">Salesperson Summary</h3>
-            <Table className="w-full border-collapse border border-gray-300">
-              <TableHeader className="bg-gray-100">
-                <TableRow>
-                  <TableHead className="border border-gray-300 p-2 font-medium">
-                    Sales Person
-                  </TableHead>
-                  <TableHead className="border border-gray-300 p-2 text-center font-medium">
-                    Total Customers
-                  </TableHead>
-                  <TableHead className="border border-gray-300 p-2 text-center font-medium">
-                    Total Invoices
-                  </TableHead>
-                  <TableHead className="border border-gray-300 p-2 text-center font-medium">
-                    Total Amount (AUD)
-                  </TableHead>
-                  <TableHead className="border border-gray-300 p-2 text-center font-medium">
-                    Total Amount (USD)
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {salespersonSummaryData.length > 0 ? (
-                  salespersonSummaryData.map((sp) => (
-                    <TableRow key={sp.salesperson_id}>
-                      <TableCell className="border border-gray-300 p-2">
-                        {sp.salesperson_name || ""}
-                      </TableCell>
-                      <TableCell className="border border-gray-300 p-2 text-center">
-                        {sp.total_customers || 0}
-                      </TableCell>
-                      <TableCell className="border border-gray-300 p-2 text-center">
-                        {sp.total_invoices || 0}
-                      </TableCell>
-                      <TableCell className="border border-gray-300 p-2 text-center font-medium">
-                        $ {sp.total_aud.toFixed(2) || 0}
-                      </TableCell>
-                      <TableCell className="border border-gray-300 p-2 text-center font-medium">
-                        $ {sp.total_usd.toFixed(2) || 0}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell
-                      className="border border-gray-300 p-2 text-center"
-                      colSpan={5}
-                    >
-                      No salesperson found for the selected filters.
+        {/* Salesperson Summary Table */}
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-3">Salesperson Summary</h3>
+          <Table className="w-full border-collapse border border-gray-300">
+            <TableHeader className="bg-gray-100">
+              <TableRow>
+                <TableHead className="border border-gray-300 p-2 font-medium">
+                  Sales Person
+                </TableHead>
+                <TableHead className="border border-gray-300 p-2 text-center font-medium">
+                  Total Customers
+                </TableHead>
+                <TableHead className="border border-gray-300 p-2 text-center font-medium">
+                  Total Invoices
+                </TableHead>
+                <TableHead className="border border-gray-300 p-2 text-center font-medium">
+                  Total Amount (AUD)
+                </TableHead>
+                <TableHead className="border border-gray-300 p-2 text-center font-medium">
+                  Total Amount (USD)
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {salespersonSummaryData.length > 0 ? (
+                salespersonSummaryData.map((sp) => (
+                  <TableRow key={sp.salesperson_id}>
+                    <TableCell className="border border-gray-300 p-2">
+                      {sp.salesperson_name || ""}
+                    </TableCell>
+                    <TableCell className="border border-gray-300 p-2 text-center">
+                      {sp.total_customers || 0}
+                    </TableCell>
+                    <TableCell className="border border-gray-300 p-2 text-center">
+                      {sp.total_invoices || 0}
+                    </TableCell>
+                    <TableCell className="border border-gray-300 p-2 text-center font-medium">
+                      $ {sp.total_aud.toFixed(2) || 0}
+                    </TableCell>
+                    <TableCell className="border border-gray-300 p-2 text-center font-medium">
+                      $ {sp.total_usd.toFixed(2) || 0}
                     </TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    className="border border-gray-300 p-2 text-center"
+                    colSpan={5}
+                  >
+                    No salesperson found for the selected filters.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-2xl font-bold mb-2">Invoice Overview</h1>
+          <p className="text-gray-600 mb-6">
+            Monthly performance metrics for invoices sent -{" "}
+            <span className="font-medium">{labels}</span>
+          </p>
+          <InvoiceMonthlyChart data={chartdata} />
         </div>
 
-        {/* Customer Summary */}
-        {summary.length === 0 ? (
+        {salespersonData.length > 0 ? (
+          <SalespersonChart data={salespersonData} monthsToShow={3} />
+        ) : (
+          <div className="text-center py-12 text-gray-500 border rounded-lg">
+            <p className="text-lg mb-2">No salesperson data available</p>
+            <p className="text-sm">
+              Data will appear when salespeople create invoices
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* ✅ DIFFERENT SECTION */}
+      {props.mode === "summary" ? (
+        // ---------- SUMMARY DETAILS ----------
+        props.summary.length === 0 ? (
           <p className="text-center text-gray-500 py-4">
             No invoices found for the selected filters.
           </p>
         ) : (
           <div>
             <h3 className="text-lg font-semibold my-3">Customer Details</h3>
-            {summary.map((cust, i) => (
+            {props.summary.map((cust, i) => (
               <div key={i} className="mb-6 page-break-inside-avoid">
-                {/* Customer Header - Compact */}
                 <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded">
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div className="col-span-2">
@@ -233,26 +262,25 @@ const InvoiceSummaryPrint = forwardRef<
                   </div>
                 </div>
 
-                {/* Invoices Table - Compact */}
                 <Table className="w-full border-collapse border border-gray-300 text-sm">
                   <TableHeader className="bg-gray-100">
                     <TableRow>
-                      <TableHead className="border border-gray-300 p-1 text-xs font-medium text-center">
+                      <TableHead className="border border-gray-300 p-1 text-xs text-center">
                         S/N
                       </TableHead>
-                      <TableHead className="border border-gray-300 p-1 text-xs font-medium text-center">
+                      <TableHead className="border border-gray-300 p-1 text-xs text-center">
                         Date
                       </TableHead>
-                      <TableHead className="border border-gray-300 p-1 text-xs font-medium text-center">
+                      <TableHead className="border border-gray-300 p-1 text-xs text-center">
                         Invoice No
                       </TableHead>
-                      <TableHead className="border border-gray-300 p-1 text-xs font-medium text-center">
+                      <TableHead className="border border-gray-300 p-1 text-xs text-center">
                         Amount
                       </TableHead>
-                      <TableHead className="border border-gray-300 p-1 text-xs font-medium text-center">
+                      <TableHead className="border border-gray-300 p-1 text-xs text-center">
                         Currency
                       </TableHead>
-                      <TableHead className="border border-gray-300 p-1 text-xs font-medium text-center">
+                      <TableHead className="border border-gray-300 p-1 text-xs text-center">
                         GST
                       </TableHead>
                     </TableRow>
@@ -290,11 +318,48 @@ const InvoiceSummaryPrint = forwardRef<
               </div>
             ))}
           </div>
-        )}
-      </div>
-    );
-  }
-);
+        )
+      ) : (
+        // ---------- FREQUENCY TABLE ----------
+        <div className="print:break-before-page print:page-break-before-always">
+          <h3 className="text-lg font-semibold my-3">Invoice Frequency</h3>
+
+          <Table className="w-full border-collapse border border-gray-300 text-sm">
+            <TableHeader className="bg-gray-100">
+              <TableRow>
+                {props.columns.map((c) => (
+                  <TableHead
+                    key={String(c.key)}
+                    className="border border-gray-300 p-2"
+                  >
+                    {c.label}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              {props.tableData.map((row, rIdx) => (
+                <TableRow key={rIdx}>
+                  {props.columns.map((c, cIdx) => (
+                    <TableCell
+                      key={cIdx}
+                      className="border border-gray-300 p-2"
+                    >
+                      {c.render
+                        ? c.render(row, rIdx)
+                        : String((row as any)[c.key] ?? "")}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+});
 
 InvoiceSummaryPrint.displayName = "InvoiceSummaryPrint";
 
