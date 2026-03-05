@@ -1,18 +1,11 @@
-import InvoiceSummaryPrint from "@/components/InvoiceSummaryPrint";
-import SalespersonChart from "@/components/SalespersonInvoiceChart";
+import InvoiceSummaryFilter from "@/components/filter/InvoiceSummaryFilter";
 import InvoiceMonthlyChart from "@/components/InvoiceMonthlyChart";
-import SearchSelectPopover from "@/components/SearchSelectPopover";
+import InvoiceSummaryPrint from "@/components/InvoiceSummaryPrint";
+import { Modal } from "@/components/modal/Modal";
+import SalespersonChart from "@/components/SalespersonInvoiceChart";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -58,6 +51,7 @@ type CustomerSummary = {
   total_amount_usd: number;
   invoices: InvoiceItem[];
 };
+
 type Summary = {
   total_invoices: number;
   total_customers: number;
@@ -95,7 +89,13 @@ export default function InvoiceSummaryPage() {
     date_to: "",
     salesperson_id: "",
   });
-  const [loading, setLoading] = useState(false);
+  const [appliedFilters, setAppliedFilters] = useState<SummaryFilters>({
+    date_type: "invoice_date",
+    date_from: "",
+    date_to: "",
+    salesperson_id: "",
+  });
+  // const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<CustomerSummary[]>([]);
   const [range, setRange] = useState<{ from: string; to: string } | null>(null);
   const [summaryData, setSummaryData] = useState<Summary | null>(null);
@@ -121,7 +121,7 @@ export default function InvoiceSummaryPage() {
   useEffect(() => {
     (async () => {
       try {
-        setLoading(true);
+        // setLoading(true);
         const res = await api.get(
           `/api/invoices/monthly-summary?from=${window.range.from}&to=${window.range.to}`,
         );
@@ -130,7 +130,7 @@ export default function InvoiceSummaryPage() {
       } catch (error) {
         console.error("Error fetching invoice data:", error);
       } finally {
-        setLoading(false);
+        // setLoading(false);
       }
     })();
   }, [window.range.from, window.range.to]);
@@ -143,20 +143,23 @@ export default function InvoiceSummaryPage() {
 
   // Set defaults on first load
   useEffect(() => {
-    setFilters({
+    const initial: SummaryFilters = {
       date_type: "invoice_date",
       date_from: defaultFrom,
       date_to: defaultTo,
       salesperson_id: "",
-    });
-  }, []);
+    };
+    setFilters(initial);
+    setAppliedFilters(initial);
+  }, [defaultFrom, defaultTo]);
 
   // Refetch whenever filters are valid
   useEffect(() => {
-    if (filters.date_from && filters.date_to) {
-      fetchSummary();
+    if (appliedFilters.date_from && appliedFilters.date_to) {
+      fetchSummary(appliedFilters);
     }
-  }, [filters]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedFilters]);
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -169,17 +172,15 @@ export default function InvoiceSummaryPage() {
     `,
   });
 
-  async function fetchSummary() {
+  async function fetchSummary(f: SummaryFilters) {
     try {
-      setLoading(true);
+      // setLoading(true);
       const params = new URLSearchParams();
 
-      params.append("date_type", filters.date_type);
-
-      if (filters.date_from) params.append("from", filters.date_from);
-      if (filters.date_to) params.append("to", filters.date_to);
-      if (filters.salesperson_id)
-        params.append("salesperson_id", filters.salesperson_id);
+      params.append("date_type", f.date_type);
+      if (f.date_from) params.append("from", f.date_from);
+      if (f.date_to) params.append("to", f.date_to);
+      if (f.salesperson_id) params.append("salesperson_id", f.salesperson_id);
 
       const { data } = await api.get(
         `/api/invoices/summary?${params.toString()}`,
@@ -194,7 +195,7 @@ export default function InvoiceSummaryPage() {
         err?.response?.data?.message || "Failed to load invoice summary",
       );
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
   }
 
@@ -234,157 +235,31 @@ export default function InvoiceSummaryPage() {
         />
       </div>
 
-      <h1 className="text-2xl font-semibold text-gray-800">Invoice Summary</h1>
+      <div className="flex justify-between">
+        <h1 className="text-2xl font-semibold text-gray-800">
+          Invoice Summary
+        </h1>
 
-      {/* 🔍 Filters */}
-      <div className="p-4 mb-4 border border-primary border-dashed rounded grid grid-cols-2 md:grid-cols-4 gap-4 no-print">
-        <div>
-          <label className="block text-sm text-gray-600 mb-1">Date Type</label>
-          <Select
-            value={filters.date_type}
-            onValueChange={(value: "invoice_date" | "create_invoice_date") =>
-              setFilters((prev) => ({
-                ...prev,
-                date_type: value,
-                date_from: "",
-                date_to: "",
-              }))
-            }
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select date type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="invoice_date">Sent Date</SelectItem>
-              <SelectItem value="create_invoice_date">Created Date</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {/* 🔍 Filters */}
+        <div className="flex gap-2">
+          <Modal icon="filter" label="Filters" title="Invoice Filters">
+            {(closeModal: () => void) => (
+              <InvoiceSummaryFilter
+                filters={filters}
+                setFilters={setFilters}
+                setAppliedFilters={setAppliedFilters}
+                salespersons={salespersons}
+                defaultFrom={defaultFrom}
+                defaultTo={defaultTo}
+                closeModal={closeModal}
+              />
+            )}
+          </Modal>
 
-        {/* From Date */}
-        <div>
-          <label className="block text-sm text-gray-600 mb-1">From Date</label>
-          <Input
-            type="date"
-            value={filters.date_from}
-            onChange={(e) =>
-              setFilters({ ...filters, date_from: e.target.value })
-            }
-          />
-        </div>
-
-        {/* To Date */}
-        <div>
-          <label className="block text-sm text-gray-600 mb-1">To Date</label>
-          <Input
-            type="date"
-            value={filters.date_to}
-            onChange={(e) =>
-              setFilters({ ...filters, date_to: e.target.value })
-            }
-            className="w-full"
-          />
-        </div>
-
-        {/* Sales Person */}
-        <div>
-          <SearchSelectPopover
-            label="Sales Person"
-            options={salespersons}
-            value={filters.salesperson_id}
-            onChange={(val) =>
-              setFilters({ ...filters, salesperson_id: val.toString() })
-            }
-            placeholder="Select salesperson"
-          />
-        </div>
-
-        {/* Buttons Row */}
-        <div className="col-span-2 md:col-span-4">
-          <div className="grid grid-cols-3 sm:gap-4 gap-2">
-            <Button
-              onClick={fetchSummary}
-              disabled={loading}
-              className="w-full"
-            >
-              {loading ? "Loading..." : "Apply Filter"}
-            </Button>
-
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => {
-                setFilters({
-                  date_type: "invoice_date",
-                  date_from: defaultFrom,
-                  date_to: defaultTo,
-                  salesperson_id: "",
-                });
-                fetchSummary();
-              }}
-            >
-              Reset
-            </Button>
-
-            <Button
-              variant="secondary"
-              onClick={handlePrint}
-              className="w-full"
-            >
-              Print <Printer className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-6">
-        {/* Invoice Section */}
-        <div>
-          <h1 className="text-2xl font-bold mb-2">Invoice Overview</h1>
-
-          <div className="flex items-center gap-2 select-none mb-2 mx-auto w-max">
-            <Button
-              variant="outline"
-              onClick={() => shiftWindow(-1)}
-              aria-label="Previous 3-month range"
-            >
-              <ChevronLeft />
-            </Button>
-
-            <div className="px-3 py-1 rounded font-medium">
-              {window.label}
-            </div>
-
-            <Button
-              variant="outline"
-              onClick={() => shiftWindow(1)}
-              aria-label="Next 3-month range"
-            >
-              <ChevronRight />
-            </Button>
-          </div>
-          <InvoiceMonthlyChart data={chartdata} />
-        </div>
-
-        {/* Salesperson Section */}
-        <div>
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold">Salesperson Performance</h2>
-            <p className="text-gray-600">
-              Performance metrics by salesperson
-            </p>
-          </div>
-
-          {salespersonData.length > 0 ? (
-            <SalespersonChart data={salespersonData} monthsToShow={3} />
-          ) : (
-            <div className="text-center py-12 text-gray-500 border rounded-lg">
-              <p className="text-lg mb-2">No salesperson data available</p>
-              <p className="text-sm">
-                Data will appear when salespeople create invoices
-              </p>
-            </div>
-          )}
+          <Button size="sm" variant="secondary" onClick={handlePrint}>
+            <Printer className="h-4 w-4" />{" "}
+            <span className="sm:block hidden">Print</span>
+          </Button>
         </div>
       </div>
 
@@ -486,6 +361,53 @@ export default function InvoiceSummaryPage() {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="space-y-6">
+        {/* Invoice Section */}
+        <div>
+          <h1 className="text-2xl font-bold mb-2">Invoice Overview</h1>
+
+          <div className="flex items-center gap-2 select-none mb-2 mx-auto w-max">
+            <Button
+              variant="outline"
+              onClick={() => shiftWindow(-1)}
+              aria-label="Previous 3-month range"
+            >
+              <ChevronLeft />
+            </Button>
+
+            <div className="px-3 py-1 rounded font-medium">{window.label}</div>
+
+            <Button
+              variant="outline"
+              onClick={() => shiftWindow(1)}
+              aria-label="Next 3-month range"
+            >
+              <ChevronRight />
+            </Button>
+          </div>
+          <InvoiceMonthlyChart data={chartdata} />
+        </div>
+
+        {/* Salesperson Section */}
+        <div>
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold">Salesperson Performance</h2>
+            <p className="text-gray-600">Performance metrics by salesperson</p>
+          </div>
+
+          {salespersonData.length > 0 ? (
+            <SalespersonChart data={salespersonData} monthsToShow={3} />
+          ) : (
+            <div className="text-center py-12 text-gray-500 border rounded-lg">
+              <p className="text-lg mb-2">No salesperson data available</p>
+              <p className="text-sm">
+                Data will appear when salespeople create invoices
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 📊 Summary Tables per Customer */}

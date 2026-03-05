@@ -1,13 +1,28 @@
 import type { Column } from "@/components/CommonTable";
 import CommonTable from "@/components/CommonTable";
 import MonthYearPicker from "@/components/filter/MonthYearPicker";
+import InvoiceMonthlyChart from "@/components/InvoiceMonthlyChart";
+import SalespersonChart from "@/components/SalespersonInvoiceChart";
 import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import api from "../../lib/api";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import InvoiceMonthlyChart from "@/components/InvoiceMonthlyChart";
-import SalespersonChart from "@/components/SalespersonInvoiceChart";
+
+import InvoiceSummaryFilter from "@/components/filter/InvoiceSummaryFilter";
+import { Modal } from "@/components/modal/Modal";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { dateHelper } from "@/lib/dateHelper";
+import type { salespersonSummary } from "@/types/index.ts";
+import { endOfMonth, format, startOfMonth } from "date-fns";
+// import { useReactToPrint } from "react-to-print";
 
 interface MonthlyData {
   year_month: string;
@@ -39,7 +54,25 @@ interface FrequencyRow {
   [key: string]: any;
 }
 
+type Summary = {
+  total_invoices: number;
+  total_customers: number;
+  total_amount_aud: number;
+  total_amount_usd: number;
+};
+
+type SummaryFilters = {
+  date_type: "invoice_date" | "create_invoice_date";
+  date_from: string;
+  date_to: string;
+  salesperson_id: string;
+};
+
 type DateRange = { from: string; to: string };
+
+const now = new Date();
+const defaultFrom = format(startOfMonth(now), "yyyy-MM-dd");
+const defaultTo = format(endOfMonth(now), "yyyy-MM-dd");
 
 function formatYMD(d: Date) {
   const y = d.getFullYear();
@@ -83,10 +116,31 @@ const InvoiceFrequency = () => {
     return new Date(now.getFullYear(), now.getMonth(), 1); // normalize to month start
   });
 
+  const [filters, setFilters] = useState<SummaryFilters>({
+    date_type: "invoice_date", // default = Sent Date
+    date_from: "",
+    date_to: "",
+    salesperson_id: "",
+  });
+  const [appliedFilters, setAppliedFilters] = useState<SummaryFilters>({
+    date_type: "invoice_date",
+    date_from: "",
+    date_to: "",
+    salesperson_id: "",
+  });
+  const [range, setRange] = useState<{ from: string; to: string } | null>(null);
+  const [summaryData, setSummaryData] = useState<Summary | null>(null);
+  const [salespersonSummaryData, setSalespersonSummaryData] = useState<
+    salespersonSummary[]
+  >([]);
+  const [salespersons, setSalespersons] = useState<
+    { id: number; name: string }[]
+  >([]);
+
   const window = useMemo(
-      () => build3MonthWindow(endMonthCursor),
-      [endMonthCursor],
-    );
+    () => build3MonthWindow(endMonthCursor),
+    [endMonthCursor],
+  );
 
   const fetchData = async () => {
     if (!fromMonth || !toMonth) {
@@ -124,6 +178,29 @@ const InvoiceFrequency = () => {
       setLoading(false);
     }
   };
+
+  const shiftWindow = (deltaMonths: number) => {
+    setEndMonthCursor(
+      (prev) => new Date(prev.getFullYear(), prev.getMonth() + deltaMonths, 1),
+    );
+  };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        const res = await api.get(
+          `/api/invoices/monthly-summary?from=${window.range.from}&to=${window.range.to}`,
+        );
+        setChartdata(res.data.data || []);
+        setSalespersonData(res.data.salesperson_summary || []);
+      } catch (error) {
+        console.error("Error fetching invoice data:", error);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [window.range.from, window.range.to]);
 
   useEffect(() => {
     fetchData();
@@ -212,7 +289,9 @@ const InvoiceFrequency = () => {
         return (
           <div className="font-medium">
             {count}
-            <span className={`ml-2 text-xs ${currency === "USD" ? "text-violet-600" : "text-primary"}`}>
+            <span
+              className={`ml-2 text-xs ${currency === "USD" ? "text-violet-600" : "text-primary"}`}
+            >
               ({Number(amount).toFixed(2)} {currency})
             </span>
           </div>
@@ -223,15 +302,198 @@ const InvoiceFrequency = () => {
     return [baseColumn, ...monthColumns];
   }, [months]);
 
-  const shiftWindow = (deltaMonths: number) => {
-    setEndMonthCursor(
-      (prev) => new Date(prev.getFullYear(), prev.getMonth() + deltaMonths, 1),
-    );
+  useEffect(() => {
+    const initial: SummaryFilters = {
+      date_type: "invoice_date",
+      date_from: defaultFrom,
+      date_to: defaultTo,
+      salesperson_id: "",
+    };
+
+    setFilters(initial);
+    setAppliedFilters(initial); // ✅ important
+  }, []);
+
+  // Refetch whenever filters are valid
+  useEffect(() => {
+    if (appliedFilters.date_from && appliedFilters.date_to) {
+      fetchSummary(appliedFilters);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedFilters]);
+
+  async function fetchSummary(f: SummaryFilters) {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+
+      params.append("date_type", f.date_type);
+      if (f.date_from) params.append("from", f.date_from);
+      if (f.date_to) params.append("to", f.date_to);
+      if (f.salesperson_id) params.append("salesperson_id", f.salesperson_id);
+
+      const { data } = await api.get(
+        `/api/invoices/summary?${params.toString()}`,
+      );
+
+      setRange(data.range || null);
+      setSummaryData(data.summary || null);
+      setSalespersonSummaryData(data.salespersonSummary || []);
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message || "Failed to load invoice summary",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const fetchSalesPersons = async () => {
+    if (salespersons.length > 0) return;
+    try {
+      const { data } = await api.get("/api/users?limit=200&role=sales-person");
+      const allUsers = data.data || [];
+      setSalespersons(allUsers);
+    } catch (err) {
+      toast.error("Failed to load salespersons");
+    }
   };
+
+  useEffect(() => {
+    fetchSalesPersons();
+  }, []);
 
   return (
     <div className="space-y-4">
-      <div className="space-y-6">
+      <div className="flex justify-between">
+        <h1 className="text-2xl font-semibold text-gray-800">
+          Invoice Summary
+        </h1>
+
+        {/* 🔍 Filters */}
+        <div className="flex gap-2">
+          <Modal icon="filter" label="Filters" title="Invoice Filters">
+            {(closeModal: () => void) => (
+              <InvoiceSummaryFilter
+                filters={filters}
+                setFilters={setFilters}
+                setAppliedFilters={setAppliedFilters}
+                salespersons={salespersons}
+                defaultFrom={defaultFrom}
+                defaultTo={defaultTo}
+                closeModal={closeModal}
+              />
+            )}
+          </Modal>
+
+          {/* <Button size="sm" variant="secondary" onClick={handlePrint}>
+            <Printer className="h-4 w-4" />{" "}
+            <span className="sm:block hidden">Print</span>
+          </Button> */}
+        </div>
+      </div>
+
+      <div>
+        <h2 className="sm:text-xl font-semibold text-gray-700">
+          Invoices sent from {dateHelper(range?.from ?? "")} to{" "}
+          {dateHelper(range?.to ?? "")}
+        </h2>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <Table className="min-w-full">
+          <TableHeader className="bg-primary">
+            <TableRow className="hover:bg-primary">
+              <TableHead className="py-3 px-4 text-xs text-center font-medium text-white uppercase tracking-wider">
+                Total Invoices
+              </TableHead>
+              <TableHead className="py-3 px-4 text-xs text-center font-medium text-white uppercase tracking-wider">
+                Total Customers
+              </TableHead>
+              <TableHead className="py-3 px-4 text-xs text-center font-medium text-white uppercase tracking-wider">
+                Total Amount (AUD)
+              </TableHead>
+              <TableHead className="py-3 px-4 text-xs text-center font-medium text-white uppercase tracking-wider">
+                Total Amount (USD)
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody className="bg-secondary">
+            <TableRow className="text-center">
+              <TableCell className="py-3 px-4 text-sm text-gray-700">
+                {summaryData?.total_invoices || 0}
+              </TableCell>
+              <TableCell className="py-3 px-4 text-sm text-gray-700">
+                {summaryData?.total_customers || 0}
+              </TableCell>
+              <TableCell className="py-3 px-4 text-sm font-medium text-gray-900">
+                $ {summaryData?.total_amount_aud.toFixed(2) || 0}
+              </TableCell>
+              <TableCell className="py-3 px-4 text-sm font-medium text-gray-900">
+                $ {summaryData?.total_amount_usd.toFixed(2) || 0}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <Table className="min-w-full">
+          <TableHeader className="bg-primary">
+            <TableRow className="hover:bg-primary">
+              <TableHead className="py-3 px-4 text-xs font-medium text-white uppercase tracking-wider">
+                Sales Person
+              </TableHead>
+              <TableHead className="py-3 px-4 text-xs font-medium text-white uppercase tracking-wider">
+                Total Customers
+              </TableHead>
+              <TableHead className="py-3 px-4 text-xs font-medium text-white uppercase tracking-wider">
+                Total Invoices
+              </TableHead>
+              <TableHead className="py-3 px-4 text-xs font-medium text-white uppercase tracking-wider">
+                Total Amount (AUD)
+              </TableHead>
+              <TableHead className="py-3 px-4 text-xs font-medium text-white uppercase tracking-wider">
+                Total Amount (USD)
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody className="bg-secondary">
+            {salespersonSummaryData.length > 0 ? (
+              salespersonSummaryData.map((sp) => (
+                <TableRow key={sp.salesperson_id}>
+                  <TableCell className="py-3 px-4 text-sm text-gray-700">
+                    {sp.salesperson_name || ""}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-sm text-gray-700">
+                    {sp.total_customers || 0}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-sm text-gray-700">
+                    {sp.total_invoices || 0}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-sm font-medium text-gray-900">
+                    $ {sp.total_aud.toFixed(2) || 0}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-sm font-medium text-gray-900">
+                    $ {sp.total_usd.toFixed(2) || 0}
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  className="py-3 px-4 text-sm text-gray-700 text-center"
+                  colSpan={5}
+                >
+                  No salesperson found for the selected filters.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="space-y-6 mt-8">
         {/* Invoice Section */}
         <div>
           <h1 className="text-2xl font-bold mb-2">Invoice Overview</h1>
@@ -245,9 +507,7 @@ const InvoiceFrequency = () => {
               <ChevronLeft />
             </Button>
 
-            <div className="px-3 py-1 rounded font-medium">
-              {window.label}
-            </div>
+            <div className="px-3 py-1 rounded font-medium">{window.label}</div>
 
             <Button
               variant="outline"
@@ -264,9 +524,7 @@ const InvoiceFrequency = () => {
         <div>
           <div className="mb-6">
             <h2 className="text-2xl font-bold">Salesperson Performance</h2>
-            <p className="text-gray-600">
-              Performance metrics by salesperson
-            </p>
+            <p className="text-gray-600">Performance metrics by salesperson</p>
           </div>
 
           {salespersonData.length > 0 ? (

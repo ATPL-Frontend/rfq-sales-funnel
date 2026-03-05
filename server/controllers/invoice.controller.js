@@ -608,6 +608,12 @@ export async function getInvoiceSummary(req, res) {
 
     const customersArray = Object.values(customerGrouped);
 
+    customersArray.sort((a, b) =>
+      (a.customer_name || "").localeCompare(b.customer_name || "", undefined, {
+        sensitivity: "base",
+      }),
+    );
+
     // MAIN SUMMARY
     const summary = {
       total_customers: customersArray.length,
