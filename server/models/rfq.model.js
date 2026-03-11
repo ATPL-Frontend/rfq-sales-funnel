@@ -30,18 +30,8 @@ export const createRFQTable = async () => {
       'Box Build',
       'Engineering Work'
     ) NOT NULL,
-    progress ENUM(
-      'Waiting for Drawing',
-      'Waiting for Customer\\'s BOM',
-      'Waiting for vendor quotation',
-      'Waiting for Salesperson',
-      'Waiting for Drawing Revision',
-      'Salesperson will cover rest',
-      'Partially Submitted',
-      'Sent to Salesperson (100%)',
-      'Sent to Customer (Done)'
-    ) NOT NULL DEFAULT 'Waiting for Drawing',
-    end_date DATE NOT NULL,
+    progress VARCHAR(20) NOT NULL DEFAULT '0',
+    end_date DATE NULL,
     rfq_location VARCHAR(255),
     remarks TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -76,5 +66,24 @@ export const createRFQPreparedPeopleTable = async () => {
     KEY idx_rpp_user (user_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `;
+  await pool.query(sql);
+};
+
+export const createRFQContentsTable = async () => {
+  const sql = `
+  CREATE TABLE IF NOT EXISTS rfq_contents (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    rfq_id INT NOT NULL,
+    content VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_rfq_contents_rfq
+      FOREIGN KEY (rfq_id) REFERENCES rfq(id)
+      ON UPDATE CASCADE ON DELETE CASCADE,
+    KEY idx_rfq_contents_rfq_id (rfq_id),
+    KEY idx_rfq_contents_content (content),
+    KEY idx_rfq_contents_content_rfq (content, rfq_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `;
+
   await pool.query(sql);
 };

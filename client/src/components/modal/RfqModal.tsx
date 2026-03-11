@@ -1,5 +1,6 @@
+import { AsyncSearchSelect } from "@/components/AsyncSearchSelect";
 import api from "@/lib/api";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { Button } from "../ui/button";
@@ -12,10 +13,19 @@ import {
   SelectValue,
 } from "../ui/select";
 
-import type { CustomerList } from "@/types";
 import type { Rfq, SalesPerson } from "@/types/index.ts";
 import SearchSelectPopover from "../SearchSelectPopover";
 import { DialogFooter } from "../ui/dialog";
+
+type Customer = {
+  id: number;
+  name: string;
+  email: string[];
+  code: string;
+  currency: "AUD" | "USD";
+  gst: 0 | 1;
+  salesperson_id?: string | number;
+};
 
 type Props = {
   rfq: Rfq | null;
@@ -25,17 +35,19 @@ type Props = {
   onCancel: () => void;
 };
 
-const PROGRESS_OPTIONS = [
-  "Waiting for Drawing",
-  "Waiting for Customer's BOM",
-  "Waiting for vendor quotation",
-  "Waiting for Salesperson",
-  "Waiting for Drawing Revision",
-  "Salesperson will cover rest",
-  "Partially Submitted",
-  "Sent to Salesperson (100%)",
-  "Sent to Customer (Done)",
-];
+const remarkOptions = [
+    "Waiting for Drawing",
+    "Waiting for Customer's BOM",
+    "Waiting for vendor quotation",
+    "Waiting for Salesperson",
+    "Waiting for Drawing Revision",
+    "Salesperson will cover rest",
+    "Partially Submitted",
+    "Sent to Salesperson (100%)",
+    "Sent to Customer (Done)",
+  ];
+
+const PROGRESS_OPTIONS = ["0", "25", "50", "75", "100", "Done"];
 
 const WORK_TYPE_OPTIONS = [
   "Buy & Sale",
@@ -52,63 +64,93 @@ export default function RfqForm({
   onCancel,
 }: Props) {
   const [saving, setSaving] = useState(false);
-  const [customers, setCustomers] = useState<CustomerList[]>([]);
 
   const storedUser = JSON.parse(localStorage.getItem("auth_user") || "{}");
   const loggedInUserId = storedUser?.id ? String(storedUser.id) : "";
 
-  // -------------------------
-  // FORM STATE (clean)
-  // -------------------------
+  const initialContents =
+    Array.isArray((rfq as any)?.contents) && (rfq as any).contents.length
+      ? (rfq as any).contents.join(", ")
+      : "";
+
   const [form, setForm] = useState({
     receive_date: rfq?.receive_date || "",
     start_date: rfq?.start_date || "",
     end_date: rfq?.end_date || "",
     customer_id: rfq?.customer_id ? String(rfq.customer_id) : "",
     salesperson_id: rfq?.salesperson_id ? String(rfq.salesperson_id) : "",
-    quantity: rfq?.quantity || "",
-    price: rfq?.price || "",
+    quantity: rfq?.quantity ?? "",
+    price: rfq?.price ?? "",
     currency: rfq?.currency || "AUD",
-    work_type: rfq?.work_type || "",
+    work_type: rfq?.work_type || "Buy & Sale",
     prepared_by: rfq?.prepared_by
-    ? rfq.prepared_by.map((id) => String(id))
-    : loggedInUserId
-    ? [loggedInUserId]
-    : [],
-    progress: rfq?.progress || "",
+      ? rfq.prepared_by.map((id) => String(id))
+      : loggedInUserId
+        ? [loggedInUserId]
+        : [],
+    progress: rfq?.progress || "0",
     rfq_location: rfq?.rfq_location || "",
     remarks: rfq?.remarks || "",
+    contentsText: initialContents,
   });
 
-  // -------------------------
-  // LOAD CUSTOMERS
-  // -------------------------
-  const fetchCustomers = async () => {
-    try {
-      const { data } = await api.get("/api/customers?limit=200");
-      setCustomers(data.data || []);
-    } catch (err) {
-      toast.error("Failed to load customers");
-    }
-  };
+  const isDone = form.progress === "Done";
 
-  useEffect(() => {
-    fetchCustomers();
-  }, []);
+  const normalizedContents = useMemo(
+    () => [
+      ...new Set(
+        form.contentsText
+          .split(",")
+          .map((x: string) => x.trim().toUpperCase())
+          .filter(Boolean),
+      ),
+    ],
+    [form.contentsText],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isDone) {
+      if (form.price === "" || form.price == null) {
+        toast.error('Price is required when progress is "Done"');
+        return;
+      }
+
+      if (!form.end_date) {
+        toast.error('End date is required when progress is "Done"');
+        return;
+      }
+    }
+
+    const payload = {
+      receive_date: form.receive_date,
+      start_date: form.start_date,
+      end_date: form.end_date || null,
+      customer_id: form.customer_id ? Number(form.customer_id) : null,
+      salesperson_id: form.salesperson_id ? Number(form.salesperson_id) : null,
+      quantity: form.quantity === "" ? null : Number(form.quantity),
+      price: form.price === "" ? null : String(form.price),
+      currency: form.currency,
+      work_type: form.work_type,
+      prepared_by: form.prepared_by.map((id) => Number(id)),
+      progress: form.progress,
+      rfq_location: form.rfq_location || null,
+      remarks: form.remarks || null,
+      contents: normalizedContents,
+    };
+
     setSaving(true);
 
     try {
       let response;
 
       if (rfq) {
-        response = await api.put(`/api/rfqs/${rfq.id}`, form);
+        response = await api.put(`/api/rfqs/${rfq.id}`, payload);
         toast.success("RFQ updated successfully");
         onSuccess(response.data.data || response.data, true);
       } else {
-        response = await api.post("/api/rfqs", form);
+        response = await api.post("/api/rfqs", payload);
         toast.success("RFQ created successfully");
         onSuccess(response.data.data || response.data, false);
       }
@@ -120,9 +162,8 @@ export default function RfqForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-2">
+    <form onSubmit={handleSubmit} className="space-y-3">
       <div className="space-y-1 flex gap-2">
-        {/* Receive Date */}
         <div className="space-y-1 flex-1">
           <label className="text-sm font-medium">Receive Date</label>
           <Input
@@ -135,7 +176,6 @@ export default function RfqForm({
           />
         </div>
 
-        {/* Start Date */}
         <div className="space-y-1 flex-1">
           <label className="text-sm font-medium">Start Date</label>
           <Input
@@ -144,31 +184,44 @@ export default function RfqForm({
             onChange={(e) =>
               setForm((prev) => ({ ...prev, start_date: e.target.value }))
             }
+            required
           />
         </div>
       </div>
 
-      {/* CUSTOMER */}
-      <SearchSelectPopover
-        label="Customer"
-        options={customers}
-        value={form.customer_id}
-        onChange={(val) => {
-          const selectedCustomer = customers.find(
-            (c) => String(c.id) === String(val)
-          );
-          setForm((prev) => ({
-            ...prev,
-            customer_id: String(val),
-            salesperson_id: selectedCustomer?.salesperson_id
-              ? String(selectedCustomer.salesperson_id)
-              : "",
-          }));
-        }}
-        placeholder="Select customer"
-      />
+      <div>
+        <label className="text-sm font-medium">Customer</label>
+        <AsyncSearchSelect<Customer>
+          value={form.customer_id}
+          placeholder="Select customer"
+          getKey={(c) => String(c.id)}
+          displayValue={(c) => `${c.name} (Code - ${c.code})`}
+          fetchOptions={async (query, page) => {
+            const { data } = await api.get("/api/customers", {
+              params: {
+                page,
+                limit: 20,
+                q: query,
+              },
+            });
 
-      {/* Salesperson */}
+            return {
+              data: data.data || [],
+              hasMore: data.page < data.total_pages,
+            };
+          }}
+          onChange={(c) =>
+            setForm((prev) => ({
+              ...prev,
+              customer_id: String(c.id),
+              salesperson_id: c.salesperson_id
+                ? String(c.salesperson_id)
+                : prev.salesperson_id,
+            }))
+          }
+        />
+      </div>
+
       <SearchSelectPopover
         label="Salesperson"
         options={(salesPerson || []).map((sp) => ({
@@ -184,44 +237,53 @@ export default function RfqForm({
       />
 
       <div className="space-y-1 flex gap-2">
-        {/* Quantity */}
         <div className="space-y-1 flex-1">
           <label className="text-sm font-medium">Quantity</label>
           <Input
             type="number"
             value={form.quantity}
             onChange={(e) =>
-              setForm((prev) => ({ ...prev, quantity: Number(e.target.value) }))
+              setForm((prev) => ({
+                ...prev,
+                quantity: e.target.value === "" ? "" : Number(e.target.value),
+              }))
             }
           />
         </div>
 
-        {/* End Date */}
         <div className="space-y-1 flex-1">
-          <label className="text-sm font-medium">End Date</label>
+          <label className="text-sm font-medium">
+            End Date {isDone ? "*" : ""}
+          </label>
           <Input
             type="date"
             value={form.end_date}
             onChange={(e) =>
               setForm((prev) => ({ ...prev, end_date: e.target.value }))
             }
+            required={isDone}
           />
         </div>
       </div>
+
       <div className="space-y-1 flex gap-2">
-        {/* Price */}
         <div className="space-y-1 flex-1">
-          <label className="text-sm font-medium">Price</label>
+          <label className="text-sm font-medium">
+            Price {isDone ? "*" : ""}
+          </label>
           <Input
             type="number"
             value={form.price}
             onChange={(e) =>
-              setForm((prev) => ({ ...prev, price: Number(e.target.value) }))
+              setForm((prev) => ({
+                ...prev,
+                price: e.target.value === "" ? "" : e.target.value,
+              }))
             }
+            required={isDone}
           />
         </div>
 
-        {/* Currency */}
         <div className="space-y-1 flex-1">
           <label className="text-sm font-medium">Currency</label>
           <Select
@@ -262,7 +324,6 @@ export default function RfqForm({
         </Select>
       </div>
 
-      {/* Prepared By */}
       <SearchSelectPopover
         label="Prepared By"
         options={userList || []}
@@ -270,14 +331,13 @@ export default function RfqForm({
         onChange={(val) =>
           setForm((prev) => ({
             ...prev,
-            prepared_by: val as string[], // keep as array
+            prepared_by: Array.isArray(val) ? (val as string[]) : [String(val)],
           }))
         }
-        multiple={false}
+        multiple={true}
         placeholder="Select prepared by"
       />
 
-      {/* Progress */}
       <div className="space-y-1">
         <label className="text-sm font-medium">Progress</label>
         <Select
@@ -292,14 +352,28 @@ export default function RfqForm({
           <SelectContent>
             {PROGRESS_OPTIONS.map((option) => (
               <SelectItem key={option} value={option}>
-                {option}
+                {option === "Done" ? "Done" : `${option}%`}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      {/* RFQ Location */}
+      <div className="space-y-1">
+        <label className="text-sm font-medium">DCA / Content Numbers</label>
+        <Input
+          type="text"
+          placeholder="DCA123, DCA345, DCA900"
+          value={form.contentsText}
+          onChange={(e) =>
+            setForm((prev) => ({ ...prev, contentsText: e.target.value }))
+          }
+        />
+        <p className="text-xs text-muted-foreground">
+          Separate multiple DCA numbers with commas.
+        </p>
+      </div>
+
       <div className="space-y-1">
         <label className="text-sm font-medium">RFQ Location</label>
         <Input
@@ -311,7 +385,6 @@ export default function RfqForm({
         />
       </div>
 
-      {/* Remarks */}
       <div className="space-y-1">
         <label className="text-sm font-medium">Remarks</label>
         <Input

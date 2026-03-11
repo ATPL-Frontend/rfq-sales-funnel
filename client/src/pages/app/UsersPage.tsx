@@ -174,7 +174,6 @@ export default function UsersPage() {
         </div>
       ),
     },
-
     {
       key: "actions",
       label: "Actions",

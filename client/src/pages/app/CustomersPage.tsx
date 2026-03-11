@@ -141,9 +141,9 @@ export default function CustomersPage() {
       label: "GST",
       render: (row) =>
         row.gst ? (
-          <Badge variant="default">Included</Badge>
+          <Badge variant="secondary">Included</Badge>
         ) : (
-          <Badge variant="secondary">Excluded</Badge>
+          <Badge variant="excluded">Excluded</Badge>
         ),
     },
     { key: "salesperson_name", label: "Salesperson" },
