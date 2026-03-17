@@ -1,12 +1,12 @@
 import SearchSelectPopover from "@/components/SearchSelectPopover";
 import type { CustomerList, SalesPerson } from "@/types/index.ts";
-import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "../../components/ui/button";
 import { DialogFooter } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
 import api from "../../lib/api";
+import TagsInput from "../TagsInput";
 import { Checkbox } from "../ui/checkbox";
 import {
   Select,
@@ -15,62 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-
-function EmailTagsInput({
-  value,
-  onChange,
-}: {
-  value: string[];
-  onChange: (v: string[]) => void;
-}) {
-  const [input, setInput] = useState("");
-
-  const addEmail = () => {
-    const email = input.trim();
-    if (email && !value.includes(email)) {
-      onChange([...value, email]);
-      setInput("");
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "," || e.key === " " || e.key === "Enter") {
-      e.preventDefault();
-      addEmail();
-    }
-  };
-
-  const removeEmail = (email: string) => {
-    onChange(value.filter((e) => e !== email));
-  };
-
-  return (
-    <div className="flex flex-wrap items-center gap-2 gap-y-1 border rounded-md px-2 py-1 focus-within:ring-2 focus-within:ring-primary">
-      {value.map((email, i) => (
-        <span
-          key={i}
-          className="flex items-center bg-primary/10 text-primary px-2 py-1 rounded-full text-sm"
-        >
-          {email}
-          <button
-            type="button"
-            className="ml-1 text-red-400 hover:text-red-500 cursor-pointer"
-            onClick={() => removeEmail(email)}
-          >
-            <X size={14} />
-          </button>
-        </span>
-      ))}
-      <Input
-        className="flex-1 border-none outline-none focus-visible:ring-0 bg-transparent p-1"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Type email and press comma or space"
-      />
-    </div>
-  );
-}
 
 type Props = {
   customer: CustomerList | null; // null = create mode
@@ -145,9 +89,9 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Props) {
 
       <div className="space-y-2">
         <label className="text-sm font-medium">Email</label>
-        <EmailTagsInput
+        <TagsInput
           value={form.email}
-          onChange={(emails) => setForm({ ...form, email: emails })}
+          onChange={(emails: any) => setForm({ ...form, email: emails })}
         />
       </div>
 

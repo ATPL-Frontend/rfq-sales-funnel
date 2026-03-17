@@ -31,7 +31,7 @@ export function DeleteModal({
   const handleDelete = async () => {
     try {
       // wait for parent thunk
-      onDeleteItem(id);
+      await onDeleteItem(id);
       setOpen(false); // close only on success
     } catch (err) {
       // modal stays open if error occurs

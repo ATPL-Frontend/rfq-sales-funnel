@@ -1,5 +1,3 @@
-import { Check, ChevronsUpDown } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -15,8 +13,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
-type FetchFunction<T> = (query: string, page: number) => Promise<{
+type FetchFunction<T> = (
+  query: string,
+  page: number,
+) => Promise<{
   data: T[];
   hasMore: boolean;
 }>;
@@ -28,6 +31,7 @@ type Props<T> = {
   displayValue: (item: T) => string;
   getKey: (item: T) => string;
   fetchOptions: FetchFunction<T>;
+  initialOption?: T | null;
 };
 
 export function AsyncSearchSelect<T>({
@@ -37,6 +41,7 @@ export function AsyncSearchSelect<T>({
   displayValue,
   getKey,
   fetchOptions,
+  initialOption = null,
 }: Props<T>) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<T[]>([]);
@@ -45,66 +50,84 @@ export function AsyncSearchSelect<T>({
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (!initialOption) return;
+
+    setItems((prev) => {
+      const exists = prev.some(
+        (item) => getKey(item) === getKey(initialOption),
+      );
+      return exists ? prev : [initialOption, ...prev];
+    });
+  }, [initialOption, getKey]);
+
   const loadData = useCallback(
-    async (reset = false) => {
-      if (loading || (!hasMore && !reset)) return;
+    async (pageToLoad: number, reset = false) => {
+      if (loading) return;
+      if (!reset && !hasMore) return;
 
       setLoading(true);
       try {
-        const currentPage = reset ? 1 : page;
+        const res = await fetchOptions(query, pageToLoad);
 
-        const res = await fetchOptions(query, currentPage);
+        setItems((prev) => {
+          const base = reset ? (initialOption ? [initialOption] : []) : prev;
 
-        setItems((prev) =>
-          reset ? res.data : [...prev, ...res.data]
-        );
+          const nextItems = [...base, ...res.data];
+
+          return nextItems.filter(
+            (item, index, arr) =>
+              arr.findIndex((x) => getKey(x) === getKey(item)) === index,
+          );
+        });
 
         setHasMore(res.hasMore);
-        setPage((prev) => (reset ? 2 : prev + 1));
+        setPage(pageToLoad + 1);
       } finally {
         setLoading(false);
       }
     },
-    [query, page, hasMore, loading, fetchOptions]
+    [fetchOptions, getKey, hasMore, initialOption, loading, query],
   );
 
-  // 🔥 Debounce search
   useEffect(() => {
-  const delay = setTimeout(() => {
-    setPage(1);
-    setHasMore(true);
-    setItems([]);
-    loadData(true);
-  }, 400);
+    const delay = setTimeout(() => {
+      setHasMore(true);
+      loadData(1, true);
+    }, 400);
 
-  return () => clearTimeout(delay);
-}, [query]);
+    return () => clearTimeout(delay);
+  }, [query]); // only query
 
-  // Load when opened first time
   useEffect(() => {
     if (open && items.length === 0) {
-      loadData(true);
+      loadData(1, true);
     }
-  }, [open]);
+  }, [open]); // only open
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    if (scrollHeight - scrollTop <= clientHeight + 20) {
-      loadData();
+    if (scrollHeight - scrollTop <= clientHeight + 20 && !loading && hasMore) {
+      loadData(page, false);
     }
   };
 
-  const selectedItem = items.find((i) => getKey(i) === value);
+  const selectedItem =
+    items.find((i) => getKey(i) === value) ||
+    (initialOption && getKey(initialOption) === value
+      ? initialOption
+      : undefined);
 
   return (
     <Popover open={open} onOpenChange={setOpen} modal>
       <PopoverTrigger asChild>
         <Button
+          type="button"
           variant="outline"
           role="combobox"
           className={cn(
             "w-full justify-between overflow-hidden",
-            !value && "text-muted-foreground"
+            !value && "text-muted-foreground",
           )}
         >
           <span className="truncate max-w-[90%]">
@@ -118,14 +141,18 @@ export function AsyncSearchSelect<T>({
         <Command shouldFilter={false}>
           <CommandInput
             placeholder="Search..."
-            onValueChange={(val) => setQuery(val)}
+            value={query}
+            onValueChange={setQuery}
           />
 
           <CommandList
             className="max-h-80 overflow-y-auto"
             onScroll={handleScroll}
           >
-            <CommandEmpty>No results found.</CommandEmpty>
+            <CommandEmpty>
+              {loading ? "Loading..." : "No results found."}
+            </CommandEmpty>
+
             <CommandGroup>
               {items.map((item) => (
                 <CommandItem
@@ -139,14 +166,18 @@ export function AsyncSearchSelect<T>({
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      getKey(item) === value
-                        ? "opacity-100"
-                        : "opacity-0"
+                      getKey(item) === value ? "opacity-100" : "opacity-0",
                     )}
                   />
                   {displayValue(item)}
                 </CommandItem>
               ))}
+
+              {loading && (
+                <div className="px-3 py-2 text-sm text-muted-foreground">
+                  Loading...
+                </div>
+              )}
             </CommandGroup>
           </CommandList>
         </Command>

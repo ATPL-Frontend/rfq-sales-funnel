@@ -2,28 +2,16 @@ import InvoiceFilter from "@/components/filter/InvoiceFilter";
 import InvoiceForm from "@/components/modal/InvoiceModal";
 import { Modal } from "@/components/modal/Modal";
 import { Badge } from "@/components/ui/badge";
-import {
-  ArrowDownUp,
-  Edit,
-  Eye,
-  Trash2,
-} from "lucide-react";
+import { ArrowDownUp, Eye } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import type { Column } from "../../components/CommonTable";
 import CommonTable from "../../components/CommonTable";
 import Pagination from "../../components/Pagination";
-import { Button } from "../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../../components/ui/dialog";
 import api from "../../lib/api";
 import { dateHelper, OFFER_EXPIRED_DATE_FORMAT } from "../../lib/dateHelper";
+import { DeleteModal } from "@/components/modal/DeleteModal";
 
 type Invoice = {
   id: number;
@@ -31,6 +19,7 @@ type Invoice = {
   create_invoice_date: string;
   customer_name: string;
   invoice_no: string;
+  customer_id: number;
   customer_email: string;
   customer_code: string;
   amount: number;
@@ -40,15 +29,11 @@ type Invoice = {
 };
 
 export default function InvoicesPage() {
+  const navigate = useNavigate();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
-
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const navigate = useNavigate();
   const [sortField, setSortField] = useState<string>("invoice_date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
@@ -107,35 +92,14 @@ export default function InvoicesPage() {
     fetchInvoices(page);
   }, [fetchInvoices, page]);
 
-  // ✅ Create New Invoice
-  const handleCreate = () => {
-    setSelectedInvoice(null);
-    setFormOpen(true);
-  };
-
-  // ✅ Edit Invoice
-  const handleEdit = (invoice: Invoice) => {
-    setSelectedInvoice(invoice);
-    setFormOpen(true);
-  };
-
-  // ✅ Delete Invoice
-  const handleDelete = (invoice: Invoice) => {
-    setSelectedInvoice(invoice);
-    setDeleteOpen(true);
-  };
-
-  const confirmDelete = async () => {
-    if (!selectedInvoice) return;
+  const confirmDelete = async (id: string | number) => {
     try {
-      await api.delete(`/api/invoices/${selectedInvoice.id}`);
+      await api.delete(`/api/invoices/${id}`);
       toast.success("Invoice deleted successfully");
-      // Refresh current page
       fetchInvoices(page);
-      setDeleteOpen(false);
-      setSelectedInvoice(null);
     } catch (err) {
       toast.error("Failed to delete invoice");
+      throw err;
     }
   };
 
@@ -221,24 +185,33 @@ export default function InvoicesPage() {
       key: "actions",
       label: "Actions",
       render: (row) => (
-        <div className="flex gap-2">
-          <Button
+        <div className="flex gap-3 items-center">
+          <Eye
             onClick={() => navigate(`/app/invoices/${row.id}`)}
-            variant="secondary"
-            size="sm"
-          >
-            <Eye className="w-4 h-4" />
-          </Button>
-          <Button onClick={() => handleEdit(row)} variant="default" size="sm">
-            <Edit className="w-4 h-4" />
-          </Button>
-          <Button
-            onClick={() => handleDelete(row)}
-            variant="destructive"
-            size="sm"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+            className="text-blue-400 hover:text-blue-600 size-4 cursor-pointer"
+          />
+
+          <Modal title="Edit Invoice" icon="edit" type="icon" size="md">
+            {(closeModal) => (
+              <InvoiceForm
+                key={row.id}
+                invoice={row}
+                onSuccess={(savedInvoice, isEdit) => {
+                  handleFormSuccess(savedInvoice, isEdit);
+                  closeModal();
+                }}
+                onCancel={closeModal}
+              />
+            )}
+          </Modal>
+
+          <DeleteModal
+            onDeleteItem={confirmDelete}
+            actionLoading={loading}
+            id={row.id}
+            name={row.invoice_no || `Invoice #${row.id}`}
+            type="icon"
+          />
         </div>
       ),
     },
@@ -253,10 +226,9 @@ export default function InvoicesPage() {
         ),
       );
     } else {
-      // After creating a new invoice, refetch page 1
       fetchInvoices(1);
+      setPage(1);
     }
-    setFormOpen(false);
   };
 
   return (
@@ -265,11 +237,7 @@ export default function InvoicesPage() {
         <h1 className="text-xl font-semibold">Invoices</h1>
 
         <div className="flex gap-2 items-center">
-          <Modal
-            icon="filter"
-            label="Filters"
-            title="Invoice Filters"
-          >
+          <Modal icon="filter" label="Filters" title="Invoice Filters">
             {(closeModal) => (
               <InvoiceFilter
                 filters={filters}
@@ -281,7 +249,24 @@ export default function InvoicesPage() {
             )}
           </Modal>
 
-          <Button size="sm" onClick={handleCreate}>Create Invoice</Button>
+          <Modal
+            icon="add"
+            label="Create Invoice"
+            title="Create Invoice"
+            size="md"
+          >
+            {(closeModal) => (
+              <InvoiceForm
+                key="create"
+                invoice={null}
+                onSuccess={(savedInvoice, isEdit) => {
+                  handleFormSuccess(savedInvoice, isEdit);
+                  closeModal();
+                }}
+                onCancel={closeModal}
+              />
+            )}
+          </Modal>
         </div>
       </div>
 
@@ -293,47 +278,6 @@ export default function InvoicesPage() {
         totalPages={totalPages}
         onPageChange={(newPage) => setPage(newPage)}
       />
-
-      {/* ✅ Create/Edit Form */}
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedInvoice ? "Edit Invoice" : "Create Invoice"}
-            </DialogTitle>
-          </DialogHeader>
-          <InvoiceForm
-            invoice={selectedInvoice}
-            onSuccess={handleFormSuccess}
-            onCancel={() => setFormOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* ✅ Delete Confirmation */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Delete Invoice</DialogTitle>
-          </DialogHeader>
-          <p className="text-muted-foreground">
-            Are you sure you want to delete invoice #
-            <span className="font-semibold">{selectedInvoice?.id}</span>?
-          </p>
-          <DialogFooter>
-            <Button variant="secondary" onClick={() => setDeleteOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={confirmDelete}
-              variant="destructive"
-              disabled={loading}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

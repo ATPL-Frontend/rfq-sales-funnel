@@ -340,7 +340,7 @@ const InvoiceSummaryPrint = forwardRef<HTMLDivElement, Props>((props, ref) => {
 
             <TableBody>
               {props.tableData.map((row, rIdx) => (
-                <TableRow key={rIdx}>
+                <TableRow key={rIdx} className="text-xs">
                   {props.columns.map((c, cIdx) => (
                     <TableCell
                       key={cIdx}

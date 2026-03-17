@@ -10,6 +10,7 @@ import toast from "react-hot-toast";
 import api from "../../lib/api";
 
 import InvoiceSummaryFilter from "@/components/filter/InvoiceSummaryFilter";
+import InvoiceSummaryPrint from "@/components/InvoiceSummaryPrint";
 import { Modal } from "@/components/modal/Modal";
 import {
   Table,
@@ -23,7 +24,6 @@ import { dateHelper } from "@/lib/dateHelper";
 import type { salespersonSummary } from "@/types/index.ts";
 import { endOfMonth, format, startOfMonth } from "date-fns";
 import { useReactToPrint } from "react-to-print";
-import InvoiceSummaryPrint from "@/components/InvoiceSummaryPrint";
 
 interface MonthlyData {
   year_month: string;
@@ -381,15 +381,15 @@ const InvoiceFrequency = () => {
       <div className="print:block absolute -left-[99999px] top-0 w-[1000px] print:static print:w-auto">
         <InvoiceSummaryPrint
           mode="frequency"
-  columns={columns}
-  tableData={tableData}
-  chartdata={chartdata}
-  salespersonData={salespersonData}
-  range={range}
-  labels={window.label}
-  summaryData={summaryData}
-  salespersonSummaryData={salespersonSummaryData}
-  ref={printRef}
+          columns={columns}
+          tableData={tableData}
+          chartdata={chartdata}
+          salespersonData={salespersonData}
+          range={range}
+          labels={window.label}
+          summaryData={summaryData}
+          salespersonSummaryData={salespersonSummaryData}
+          ref={printRef}
         />
       </div>
 
