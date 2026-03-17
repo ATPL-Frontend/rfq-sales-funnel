@@ -1,10 +1,14 @@
 import RfqFilter from "@/components/filter/RfqFilter";
+import { LocationCell } from "@/components/LocationCell";
 import { DeleteModal } from "@/components/modal/DeleteModal";
 import { Modal } from "@/components/modal/Modal";
 import RfqForm from "@/components/modal/RfqModal";
 import Pagination from "@/components/Pagination";
+import { Progress } from "@/components/Progress";
+import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
 import type { Rfq, SalesPerson, Users } from "@/types/index.ts";
+import { CircleCheckBig } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import type { Column } from "../../components/CommonTable";
@@ -17,9 +21,6 @@ export default function RfqPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  // ====================
-  // FILTERS
-  // ====================
   const [filters, setFilters] = useState({
     customer_id: "",
     receive_date: "",
@@ -31,14 +32,10 @@ export default function RfqPage() {
   });
   const [appliedFilters, setAppliedFilters] = useState(filters);
 
-  // const [customers, setCustomers] = useState<Customers[]>([]);
   const [userList, setUserList] = useState<Users[]>([]);
   const [salesPerson, setSalesPerson] = useState<SalesPerson[] | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // ====================
-  // FETCH RFQs
-  // ====================
   const fetchRfqs = useCallback(
     async (pageNum = 1) => {
       setLoading(true);
@@ -60,15 +57,15 @@ export default function RfqPage() {
         setRfqs(
           (data.data || []).map((rfq: any) => ({
             ...rfq,
-            // prepared_by: rfq.prepared_by.map((u: any) => u.id), // convert objects → ids
             prepared_by: Array.isArray(rfq.prepared_by)
               ? rfq.prepared_by.map((u: any) => u.id)
               : [],
           })),
         );
+
         setPage(data.page || pageNum);
         setTotalPages(data.total_pages || 1);
-      } catch (err) {
+      } catch {
         toast.error("Failed to load RFQs");
       } finally {
         setLoading(false);
@@ -77,30 +74,17 @@ export default function RfqPage() {
     [appliedFilters],
   );
 
-  // const fetchCustomers = async () => {
-  //   if (customers.length > 0) return;
-  //   try {
-  //     const { data } = await api.get("/api/customers?limit=200");
-  //     setCustomers(data.data || []);
-  //   } catch (err) {
-  //     toast.error("Failed to load customers");
-  //   }
-  // };
-
   const fetchUsers = async () => {
     if (userList.length > 0) return;
     try {
       const { data } = await api.get("/api/users?limit=200");
       const allUsers = data.data || [];
 
-      // Filter only system users
       const systemUsers = allUsers.filter(
         (u: any) => u.user_type === "system_user",
       );
-
       setUserList(systemUsers);
 
-      // filter only sales-persons
       const salesPersons = allUsers
         .filter(
           (u: any) =>
@@ -112,15 +96,13 @@ export default function RfqPage() {
           short_form: u.short_form,
         }));
 
-      // set state for salesperson dropdown/list
       setSalesPerson(salesPersons);
-    } catch (err) {
+    } catch {
       toast.error("Failed to load sales persons or users list");
     }
   };
 
   useEffect(() => {
-    // fetchCustomers();
     fetchUsers();
   }, []);
 
@@ -128,9 +110,6 @@ export default function RfqPage() {
     fetchRfqs(page);
   }, [fetchRfqs, page]);
 
-  // ====================
-  // ACTIONS
-  // ====================
   const confirmDelete = async (id: string | number) => {
     setDeleteLoading(true);
     try {
@@ -148,7 +127,6 @@ export default function RfqPage() {
   const handleFormSuccess = (rfq: any, isEdit: boolean) => {
     const normalized: Rfq = {
       ...rfq,
-      // prepared_by: rfq.prepared_by.map((p: any) => p.id),
       prepared_by: Array.isArray(rfq.prepared_by)
         ? rfq.prepared_by.map((p: any) => p.id)
         : [],
@@ -164,9 +142,6 @@ export default function RfqPage() {
     }
   };
 
-  // ====================
-  // COLUMNS
-  // ====================
   const columns: Column<Rfq>[] = [
     { key: "id", label: "ID" },
     {
@@ -182,20 +157,16 @@ export default function RfqPage() {
     {
       key: "end_date",
       label: "End Date",
-      render: (row) => dateHelper(row.end_date, OFFER_EXPIRED_DATE_FORMAT),
+      render: (row) =>
+        row.end_date
+          ? dateHelper(row.end_date, OFFER_EXPIRED_DATE_FORMAT)
+          : "-",
     },
     {
       key: "customer_name",
       label: "Customer",
       render: (row: any) => row.customer_name || row.customer_id,
     },
-    // {
-    //   key: "customer_id",
-    //   label: "Customer",
-    //   render: (row) =>
-    //     customers.find((c) => c.id === row.customer_id)?.name ||
-    //     row.customer_id,
-    // },
     { key: "quantity", label: "Qty" },
     { key: "price", label: "Price" },
     { key: "currency", label: "Currency" },
@@ -211,16 +182,56 @@ export default function RfqPage() {
         return names.join(", ");
       },
     },
-    { key: "progress", label: "Progress" },
-    { key: "rfq_location", label: "Location" },
+    {
+      key: "progress",
+      label: "Progress",
+      render: (row) => {
+        const value = String(row.progress ?? "").trim();
+        const isDone = value === "Done";
+        const percent = Number(value);
+        const isPercent =
+          value !== "" &&
+          !Number.isNaN(percent) &&
+          percent >= 0 &&
+          percent <= 100;
+
+        if (isDone) {
+          return (
+            <Badge variant="secondary" className="px-2 w-20 gap-2">
+              <CircleCheckBig />
+              Done
+            </Badge>
+          );
+        }
+
+        if (isPercent) {
+          return <Progress percent={percent} />;
+        }
+
+        return <span>{value || "-"}</span>;
+      },
+    },
+    {
+      key: "rfq_location",
+      label: "Location",
+      render: (row) => <LocationCell value={row.rfq_location} />,
+    },
     { key: "remarks", label: "Remarks" },
     {
       key: "contents",
       label: "DCA / Content",
       render: (row: any) =>
-        Array.isArray(row.contents) && row.contents.length
-          ? row.contents.join(", ")
-          : "-",
+        Array.isArray(row.contents) && row.contents.length ? (
+          <div className="flex flex-wrap gap-1">
+            {row.contents.map((item: string) => (
+              <Badge key={item} className="" variant="secondary">
+                {item}
+              </Badge>
+            ))}
+          </div>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        ),
     },
     {
       key: "actions",
@@ -255,22 +266,12 @@ export default function RfqPage() {
     },
   ];
 
-  // ====================
-  // RENDER
-  // ====================
   return (
     <section className="space-y-4">
       <div className="flex justify-between items-center gap-6">
         <h1 className="text-xl font-semibold">RFQ</h1>
-        <div className="flex flex-1 justify-end sm:w-auto items-center sm:gap-2 gap-1">
-          {/* SEARCH (left of filter button) */}
-          {/* <Input
-            className="w-full sm:max-w-72 md:max-w-60 lg:max-w-80 h-8"
-            placeholder="Search name, email or code..."
-            value={filters.q}
-            onChange={(e) => setFilters({ ...filters, q: e.target.value })}
-          /> */}
 
+        <div className="flex flex-1 justify-end sm:w-auto items-center sm:gap-2 gap-1">
           <Modal icon="filter" label="Filters" title="RFQ Filters" size="lg">
             {(closeModal) => (
               <RfqFilter
@@ -279,7 +280,6 @@ export default function RfqPage() {
                 setAppliedFilters={setAppliedFilters}
                 setPage={setPage}
                 closeModal={closeModal}
-                // customers={customers}
               />
             )}
           </Modal>
@@ -303,7 +303,6 @@ export default function RfqPage() {
       </div>
 
       <CommonTable columns={columns} data={rfqs} loading={loading} />
-
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
     </section>
   );

@@ -1,9 +1,11 @@
 import { AsyncSearchSelect } from "@/components/AsyncSearchSelect";
+import TagsInput from "@/components/TagsInput";
 import api from "@/lib/api";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import { Button } from "../ui/button";
+import { Checkbox } from "../ui/checkbox";
 import { Input } from "../ui/input";
 import {
   Select,
@@ -16,6 +18,7 @@ import {
 import type { Rfq, SalesPerson } from "@/types/index.ts";
 import SearchSelectPopover from "../SearchSelectPopover";
 import { DialogFooter } from "../ui/dialog";
+import { Popover, PopoverAnchor, PopoverContent } from "../ui/popover";
 
 type Customer = {
   id: number;
@@ -36,18 +39,16 @@ type Props = {
 };
 
 const remarkOptions = [
-    "Waiting for Drawing",
-    "Waiting for Customer's BOM",
-    "Waiting for vendor quotation",
-    "Waiting for Salesperson",
-    "Waiting for Drawing Revision",
-    "Salesperson will cover rest",
-    "Partially Submitted",
-    "Sent to Salesperson (100%)",
-    "Sent to Customer (Done)",
-  ];
-
-const PROGRESS_OPTIONS = ["0", "25", "50", "75", "100", "Done"];
+  "Waiting for Drawing",
+  "Waiting for Customer's BOM",
+  "Waiting for vendor quotation",
+  "Waiting for Salesperson",
+  "Waiting for Drawing Revision",
+  "Salesperson will cover rest",
+  "Partially Submitted",
+  "Sent to Salesperson (100%)",
+  "Sent to Customer (Done)",
+];
 
 const WORK_TYPE_OPTIONS = [
   "Buy & Sale",
@@ -64,14 +65,12 @@ export default function RfqForm({
   onCancel,
 }: Props) {
   const [saving, setSaving] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    null,
+  );
 
   const storedUser = JSON.parse(localStorage.getItem("auth_user") || "{}");
   const loggedInUserId = storedUser?.id ? String(storedUser.id) : "";
-
-  const initialContents =
-    Array.isArray((rfq as any)?.contents) && (rfq as any).contents.length
-      ? (rfq as any).contents.join(", ")
-      : "";
 
   const [form, setForm] = useState({
     receive_date: rfq?.receive_date || "",
@@ -88,25 +87,69 @@ export default function RfqForm({
       : loggedInUserId
         ? [loggedInUserId]
         : [],
-    progress: rfq?.progress || "0",
+    progress:
+      rfq?.progress === "Done"
+        ? "Done"
+        : rfq?.progress
+          ? String(rfq.progress)
+          : "",
     rfq_location: rfq?.rfq_location || "",
     remarks: rfq?.remarks || "",
-    contentsText: initialContents,
+    contents: Array.isArray((rfq as any)?.contents)
+      ? (rfq as any).contents
+      : [],
   });
+
+  const [remarksFocused, setRemarksFocused] = useState(false);
+  const [remarksWidth, setRemarksWidth] = useState(0);
+  const remarksAnchorRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!remarksAnchorRef.current) return;
+
+    const updateWidth = () => {
+      setRemarksWidth(remarksAnchorRef.current?.offsetWidth || 0);
+    };
+
+    updateWidth();
+
+    const resizeObserver = new ResizeObserver(updateWidth);
+    resizeObserver.observe(remarksAnchorRef.current);
+
+    window.addEventListener("resize", updateWidth);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateWidth);
+    };
+  }, []);
 
   const isDone = form.progress === "Done";
 
-  const normalizedContents = useMemo(
-    () => [
-      ...new Set(
-        form.contentsText
-          .split(",")
-          .map((x: string) => x.trim().toUpperCase())
-          .filter(Boolean),
-      ),
-    ],
-    [form.contentsText],
-  );
+  useEffect(() => {
+    const loadSelectedCustomer = async () => {
+      if (!rfq?.customer_id) return;
+
+      try {
+        const { data } = await api.get(`/api/customers/${rfq.customer_id}`);
+        setSelectedCustomer(data.data || data);
+      } catch {
+        // ignore
+      }
+    };
+
+    loadSelectedCustomer();
+  }, [rfq?.customer_id]);
+
+  const filteredRemarkOptions = useMemo(() => {
+    const text = form.remarks.trim().toLowerCase();
+
+    if (!text) return remarkOptions;
+
+    return remarkOptions.filter((option) =>
+      option.toLowerCase().includes(text),
+    );
+  }, [form.remarks]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,7 +180,7 @@ export default function RfqForm({
       progress: form.progress,
       rfq_location: form.rfq_location || null,
       remarks: form.remarks || null,
-      contents: normalizedContents,
+      contents: form.contents,
     };
 
     setSaving(true);
@@ -189,10 +232,11 @@ export default function RfqForm({
         </div>
       </div>
 
-      <div>
+      <div className="space-y-1">
         <label className="text-sm font-medium">Customer</label>
         <AsyncSearchSelect<Customer>
           value={form.customer_id}
+          initialOption={selectedCustomer}
           placeholder="Select customer"
           getKey={(c) => String(c.id)}
           displayValue={(c) => `${c.name} (Code - ${c.code})`}
@@ -210,15 +254,16 @@ export default function RfqForm({
               hasMore: data.page < data.total_pages,
             };
           }}
-          onChange={(c) =>
+          onChange={(c) => {
+            setSelectedCustomer(c);
             setForm((prev) => ({
               ...prev,
               customer_id: String(c.id),
               salesperson_id: c.salesperson_id
                 ? String(c.salesperson_id)
                 : prev.salesperson_id,
-            }))
-          }
+            }));
+          }}
         />
       </div>
 
@@ -242,6 +287,7 @@ export default function RfqForm({
           <Input
             type="number"
             value={form.quantity}
+            placeholder="Ex: 100"
             onChange={(e) =>
               setForm((prev) => ({
                 ...prev,
@@ -274,6 +320,7 @@ export default function RfqForm({
           <Input
             type="number"
             value={form.price}
+            placeholder="$100.00"
             onChange={(e) =>
               setForm((prev) => ({
                 ...prev,
@@ -338,39 +385,59 @@ export default function RfqForm({
         placeholder="Select prepared by"
       />
 
-      <div className="space-y-1">
+      <div className="space-y-2">
         <label className="text-sm font-medium">Progress</label>
-        <Select
-          value={form.progress}
-          onValueChange={(value) =>
-            setForm((prev) => ({ ...prev, progress: value }))
-          }
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select progress" />
-          </SelectTrigger>
-          <SelectContent>
-            {PROGRESS_OPTIONS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option === "Done" ? "Done" : `${option}%`}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+
+        <div className="flex items-center gap-3">
+          <Input
+            type="number"
+            min={0}
+            max={100}
+            placeholder="0 - 100"
+            value={isDone ? "" : form.progress}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                progress:
+                  e.target.value === "" ? "" : String(Number(e.target.value)),
+              }))
+            }
+            disabled={isDone}
+          />
+
+          <div className="flex items-center gap-2 whitespace-nowrap">
+            <Checkbox
+              id="progress_done"
+              checked={isDone}
+              onCheckedChange={(checked) =>
+                setForm((prev) => ({
+                  ...prev,
+                  progress: checked ? "Done" : "",
+                }))
+              }
+            />
+            <label htmlFor="progress_done" className="text-sm font-medium">
+              Done
+            </label>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-1">
-        <label className="text-sm font-medium">DCA / Content Numbers</label>
-        <Input
-          type="text"
-          placeholder="DCA123, DCA345, DCA900"
-          value={form.contentsText}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, contentsText: e.target.value }))
+        <label className="text-sm font-medium">DCA Numbers</label>
+        <TagsInput
+          value={form.contents}
+          onChange={(contents) =>
+            setForm((prev) => ({
+              ...prev,
+              contents: contents.map((x) => x.trim().toUpperCase()),
+            }))
           }
+          placeholder="Paste or type DCA123, DCA345"
+          normalize={(v) => v.trim().toUpperCase()}
         />
         <p className="text-xs text-muted-foreground">
-          Separate multiple DCA numbers with commas.
+          Paste values separated by comma, space, or new line.
         </p>
       </div>
 
@@ -379,6 +446,7 @@ export default function RfqForm({
         <Input
           type="text"
           value={form.rfq_location}
+          placeholder="Enter RFQ Location"
           onChange={(e) =>
             setForm((prev) => ({ ...prev, rfq_location: e.target.value }))
           }
@@ -387,13 +455,56 @@ export default function RfqForm({
 
       <div className="space-y-1">
         <label className="text-sm font-medium">Remarks</label>
-        <Input
-          type="text"
-          value={form.remarks}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, remarks: e.target.value }))
-          }
-        />
+
+        <Popover open={remarksFocused} modal={false}>
+          <PopoverAnchor asChild>
+            <div ref={remarksAnchorRef}>
+              <Input
+                type="text"
+                value={form.remarks}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, remarks: e.target.value }))
+                }
+                onFocus={() => setRemarksFocused(true)}
+                onBlur={() => {
+                  setTimeout(() => setRemarksFocused(false), 150);
+                }}
+                placeholder="Write remark or select suggestion"
+              />
+            </div>
+          </PopoverAnchor>
+
+          {filteredRemarkOptions.length > 0 && (
+            <PopoverContent
+              align="start"
+              side="bottom"
+              sideOffset={6}
+              style={{ width: remarksWidth || undefined }}
+              className="p-1 max-h-48 overflow-y-auto"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              <div className="space-y-1">
+                {filteredRemarkOptions.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className="w-full rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setForm((prev) => ({
+                        ...prev,
+                        remarks: option,
+                      }));
+                      setRemarksFocused(false);
+                    }}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </PopoverContent>
+          )}
+        </Popover>
       </div>
 
       <DialogFooter>
