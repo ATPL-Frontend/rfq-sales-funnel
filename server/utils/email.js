@@ -3,7 +3,7 @@ import nodemailer from "nodemailer";
 
 export const sendMail = async (to, subject, html) => {
   const transporter = nodemailer.createTransport({
-    host: rmail.colocity.host,
+    host: "rmail.colocity.host",
     port: Number(587),
     secure: false,
     auth: {
