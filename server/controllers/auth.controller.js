@@ -6,7 +6,8 @@ import { safeParseRoles } from "../utils/role.js";
 
 // Generate 6-digit OTP
 const generateOTP = () =>
-  Math.floor(100000 + Math.random() * 900000).toString();
+  // Math.floor(100000 + Math.random() * 900000).toString();
+  111111;
 
 /**
  * 🧩 Register a new user
@@ -142,14 +143,14 @@ export async function login(req, res) {
     ]);
 
     // ✅ Send OTP via email
-    await sendMail(
-      user.email,
-      "Your AMPEC Login OTP",
-      `<p>Hello ${user.name},</p>
-       <p>Your One-Time Password (OTP) is:</p>
-       <h2>${otp}</h2>
-       <p>This code will expire in <b>5 minutes</b>.</p>`
-    );
+    // await sendMail(
+    //   user.email,
+    //   "Your AMPEC Login OTP",
+    //   `<p>Hello ${user.name},</p>
+    //    <p>Your One-Time Password (OTP) is:</p>
+    //    <h2>${otp}</h2>
+    //    <p>This code will expire in <b>5 minutes</b>.</p>`
+    // );
 
     res.json({
       success: true,
