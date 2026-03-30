@@ -3,11 +3,11 @@ import jwt from "jsonwebtoken";
 import { pool } from "../lib/dbconnect-mysql.js";
 import { sendMail } from "../utils/email.js"; // <-- must be configured to send email (SMTP)
 import { safeParseRoles } from "../utils/role.js";
+import { sendMailResend } from "../utils/resend.js";
 
 // Generate 6-digit OTP
 const generateOTP = () =>
-  // Math.floor(100000 + Math.random() * 900000).toString();
-  111111;
+  Math.floor(100000 + Math.random() * 900000).toString();
 
 /**
  * 🧩 Register a new user
@@ -151,6 +151,16 @@ export async function login(req, res) {
     //    <h2>${otp}</h2>
     //    <p>This code will expire in <b>5 minutes</b>.</p>`
     // );
+
+    // ✅ Send OTP via SMS
+    await sendMailResend(
+      user.email,
+      "Your RFQ Login OTP",
+      `<p>Hello ${user.name},</p>
+       <p>Your One-Time Password (OTP) is:</p>
+       <h2>${otp}</h2>
+       <p>This code will expire in <b>5 minutes</b>.</p>`
+    )
 
     res.json({
       success: true,
