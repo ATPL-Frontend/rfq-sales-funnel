@@ -456,7 +456,7 @@ export default function RfqForm({
       <div className="space-y-1">
         <label className="text-sm font-medium">Remarks</label>
 
-        <Popover open={remarksFocused} modal={false}>
+        <Popover open={remarksFocused} modal>
           <PopoverAnchor asChild>
             <div ref={remarksAnchorRef}>
               <Input
