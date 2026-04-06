@@ -17,30 +17,39 @@ import toast from "react-hot-toast";
 import type { Column } from "../../components/CommonTable";
 import CommonTable from "../../components/CommonTable";
 
+type RfqFilterValues = {
+  customer_id: string;
+  receive_date: string;
+  start_date: string;
+  end_date: string;
+  progress_type: "" | "done" | "percentage";
+  currency: string;
+  content: string;
+  prepared_by_id: string;
+  salesperson_id: string;
+};
+
+const initialFilters: RfqFilterValues = {
+  customer_id: "",
+  receive_date: "",
+  start_date: "",
+  end_date: "",
+  progress_type: "",
+  currency: "",
+  content: "",
+  prepared_by_id: "",
+  salesperson_id: "",
+};
+
 export default function RfqPage() {
   const [rfqs, setRfqs] = useState<Rfq[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  const [filters, setFilters] = useState({
-    customer_id: "",
-    receive_date: "",
-    start_date: "",
-    end_date: "",
-    progress: "",
-    currency: "",
-    content: "",
-  });
-  const [appliedFilters, setAppliedFilters] = useState({
-    customer_id: "",
-    receive_date: "",
-    start_date: "",
-    end_date: "",
-    progress: "",
-    currency: "",
-    content: "",
-  });
+  const [filters, setFilters] = useState<RfqFilterValues>(initialFilters);
+  const [appliedFilters, setAppliedFilters] =
+    useState<RfqFilterValues>(initialFilters);
 
   const [apiSearch, setApiSearch] = useState("");
   const [debouncedApiSearch, setDebouncedApiSearch] = useState("");
@@ -72,20 +81,23 @@ export default function RfqPage() {
             receive_date: appliedFilters.receive_date || undefined,
             start_date: appliedFilters.start_date || undefined,
             end_date: appliedFilters.end_date || undefined,
-            progress: appliedFilters.progress || undefined,
+            progress_type: appliedFilters.progress_type || undefined,
             currency: appliedFilters.currency || undefined,
             content: appliedFilters.content || undefined,
+            prepared_by_id: appliedFilters.prepared_by_id || undefined,
+            salesperson_id: appliedFilters.salesperson_id || undefined,
           },
         });
 
-        setRfqs(
-          (data.data || []).map((rfq: any) => ({
-            ...rfq,
-            prepared_by: Array.isArray(rfq.prepared_by)
-              ? rfq.prepared_by.map((u: any) => Number(u.id))
-              : [],
-          })),
-        );
+        // setRfqs(
+        //   (data.data || []).map((rfq: any) => ({
+        //     ...rfq,
+        //     prepared_by: Array.isArray(rfq.prepared_by)
+        //       ? rfq.prepared_by.map((u: any) => Number(u.id))
+        //       : [],
+        //   })),
+        // );
+        setRfqs(data.data || []);
 
         setTotalPages(data.total_pages || 1);
       } catch {
@@ -150,11 +162,15 @@ export default function RfqPage() {
   };
 
   const handleFormSuccess = (rfq: any, isEdit: boolean) => {
+    // const normalized: Rfq = {
+    //   ...rfq,
+    //   prepared_by: Array.isArray(rfq.prepared_by)
+    //     ? rfq.prepared_by.map((p: any) => Number(p.id))
+    //     : [],
+    // };
+
     const normalized: Rfq = {
       ...rfq,
-      prepared_by: Array.isArray(rfq.prepared_by)
-        ? rfq.prepared_by.map((p: any) => Number(p.id))
-        : [],
     };
 
     if (isEdit) {
@@ -202,13 +218,24 @@ export default function RfqPage() {
       key: "prepared_by",
       label: "Prepared By",
       align: "center",
-      render: (row) => {
-        const names = userList
-          .filter((u) => row.prepared_by?.includes(u.id))
-          .map((u) => u.short_form || u.name);
+      render: (row: any) => {
+        const names = Array.isArray(row.prepared_by)
+          ? row.prepared_by.map((u: any) => u.short_form || u.name)
+          : [];
 
         return names.length ? names.join(", ") : "-";
       },
+    },
+    {
+      key: "salesperson",
+      label: "Salesperson",
+      align: "center",
+      render: (row: any) => (
+        <TruncateTextCell
+          value={row.salesperson?.short_form || row.salesperson?.name}
+          className="w-28"
+        />
+      ),
     },
     {
       key: "progress",
@@ -256,10 +283,7 @@ export default function RfqPage() {
       key: "remarks",
       label: "Remarks",
       render: (row: any) => (
-        <TruncateTextCell
-          value={row.remarks}
-          className="w-30"
-        />
+        <TruncateTextCell value={row.remarks} className="w-30" />
       ),
     },
     {

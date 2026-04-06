@@ -82,8 +82,10 @@ export default function RfqForm({
     price: rfq?.price ?? "",
     currency: rfq?.currency || "AUD",
     work_type: rfq?.work_type || "Buy & Sale",
-    prepared_by: rfq?.prepared_by
-      ? rfq.prepared_by.map((id) => String(id))
+    prepared_by: Array.isArray(rfq?.prepared_by)
+      ? rfq.prepared_by.map((item: any) =>
+          typeof item === "object" ? String(item.id) : String(item),
+        )
       : loggedInUserId
         ? [loggedInUserId]
         : [],
