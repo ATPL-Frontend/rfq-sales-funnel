@@ -15,7 +15,7 @@ export function DcaPreview({ contents = [] }: DcaPreviewProps) {
 
   return (
     <TooltipProvider>
-      <div className="flex items-center gap-1 flex-wrap">
+      <div className="flex items-center gap-1">
         {visibleItems.map((item, index) => (
           <span
             key={`${item}-${index}`}
@@ -30,7 +30,7 @@ export function DcaPreview({ contents = [] }: DcaPreviewProps) {
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="inline-flex h-6 min-w-6 items-center justify-center rounded-md  px-2 text-xs bg-secondary text-primary font-medium"
+                className="inline-flex py-0.5 min-w-6 items-center justify-center rounded-md  px-2 text-xs bg-secondary text-primary font-medium"
               >
                 +{remainingCount}
               </button>

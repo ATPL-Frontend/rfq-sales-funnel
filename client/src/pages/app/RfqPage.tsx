@@ -1,12 +1,12 @@
 import { DcaPreview } from "@/components/DcaPreview";
 import RfqFilter from "@/components/filter/RfqFilter";
-import { LocationCell } from "@/components/LocationCell";
 import { DeleteModal } from "@/components/modal/DeleteModal";
 import { Modal } from "@/components/modal/Modal";
 import RfqForm from "@/components/modal/RfqModal";
 import Pagination from "@/components/Pagination";
 import { Progress } from "@/components/Progress";
 import SearchBar from "@/components/SearchBar";
+import { TruncateTextCell } from "@/components/TruncateTextCell";
 import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
 import { formatDateDDMMYYYY } from "@/lib/dateHelper";
@@ -187,15 +187,21 @@ export default function RfqPage() {
     {
       key: "customer_name",
       label: "Customer",
-      render: (row: any) => row.customer_name || row.customer_id,
+      render: (row: any) => (
+        <TruncateTextCell
+          value={row.customer_name || row.customer_id}
+          className="w-30"
+        />
+      ),
     },
-    { key: "quantity", label: "Qty" },
-    { key: "price", label: "Price" },
+    { key: "quantity", label: "Qty", align: "right" },
+    { key: "price", label: "Price", align: "right" },
     { key: "currency", label: "Currency" },
     { key: "work_type", label: "Work Type" },
     {
       key: "prepared_by",
       label: "Prepared By",
+      align: "center",
       render: (row) => {
         const names = userList
           .filter((u) => row.prepared_by?.includes(u.id))
@@ -207,6 +213,7 @@ export default function RfqPage() {
     {
       key: "progress",
       label: "Progress",
+      align: "center",
       render: (row) => {
         const value = String(row.progress ?? "").trim();
         const isDone = value === "Done";
@@ -236,9 +243,25 @@ export default function RfqPage() {
     {
       key: "rfq_location",
       label: "Location",
-      render: (row) => <LocationCell value={row.rfq_location} />,
+      render: (row) => (
+        <TruncateTextCell
+          value={row.rfq_location}
+          copyable
+          copySuccessMessage="Location copied"
+          className="min-w-25 max-w-30 justify-between"
+        />
+      ),
     },
-    { key: "remarks", label: "Remarks" },
+    {
+      key: "remarks",
+      label: "Remarks",
+      render: (row: any) => (
+        <TruncateTextCell
+          value={row.remarks}
+          className="w-30"
+        />
+      ),
+    },
     {
       key: "contents",
       label: "DCA / Content",
@@ -286,38 +309,38 @@ export default function RfqPage() {
           <SearchBar
             searchTerm={apiSearch}
             onSearchChange={setApiSearch}
-            searchPlaceholder="Search customer, DCA..."
+            searchPlaceholder="Search Customer, DCA..."
           />
-            <Modal icon="filter" label="Filters" title="RFQ Filters" size="lg">
-              {(closeModal) => (
-                <RfqFilter
-                  filters={filters}
-                  setFilters={setFilters}
-                  setAppliedFilters={(value) => {
-                    setAppliedFilters(value);
-                    setPage(1);
-                  }}
-                  setPage={setPage}
-                  closeModal={closeModal}
-                />
-              )}
-            </Modal>
+          <Modal icon="filter" label="Filters" title="RFQ Filters" size="lg">
+            {(closeModal) => (
+              <RfqFilter
+                filters={filters}
+                setFilters={setFilters}
+                setAppliedFilters={(value) => {
+                  setAppliedFilters(value);
+                  setPage(1);
+                }}
+                setPage={setPage}
+                closeModal={closeModal}
+              />
+            )}
+          </Modal>
 
-            <Modal icon="add" label="Create RFQ" title="Create RFQ" size="md">
-              {(closeModal) => (
-                <RfqForm
-                  key="create-rfq"
-                  rfq={null}
-                  salesPerson={salesPerson}
-                  userList={userList}
-                  onSuccess={(savedRfq, isEdit) => {
-                    handleFormSuccess(savedRfq, isEdit);
-                    closeModal();
-                  }}
-                  onCancel={closeModal}
-                />
-              )}
-            </Modal>
+          <Modal icon="add" label="Create RFQ" title="Create RFQ" size="md">
+            {(closeModal) => (
+              <RfqForm
+                key="create-rfq"
+                rfq={null}
+                salesPerson={salesPerson}
+                userList={userList}
+                onSuccess={(savedRfq, isEdit) => {
+                  handleFormSuccess(savedRfq, isEdit);
+                  closeModal();
+                }}
+                onCancel={closeModal}
+              />
+            )}
+          </Modal>
           {/* </SearchBar> */}
         </div>
       </div>

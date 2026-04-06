@@ -1,9 +1,12 @@
 import * as React from "react";
 
+type ColumnAlign = "left" | "center" | "right";
+
 export interface Column<T> {
   key: keyof T | string;
   label: string | React.ReactNode;
   render?: (row: T, index: number) => React.ReactNode;
+  align?: ColumnAlign;
 }
 
 interface CommonTableProps<T> {
@@ -14,6 +17,17 @@ interface CommonTableProps<T> {
   onLoadMore?: () => void;
   className?: string;
 }
+
+const getAlignClass = (align: ColumnAlign = "left") => {
+  switch (align) {
+    case "center":
+      return "text-center";
+    case "right":
+      return "text-right";
+    default:
+      return "text-left";
+  }
+};
 
 export default function CommonTable<T>({
   columns,
@@ -32,7 +46,7 @@ export default function CommonTable<T>({
       (entries) => {
         if (entries[0].isIntersecting) onLoadMore();
       },
-      { rootMargin: "100px" }
+      { rootMargin: "100px" },
     );
 
     const current = loaderRef.current;
@@ -52,7 +66,10 @@ export default function CommonTable<T>({
         <thead className="bg-secondary/90">
           <tr>
             {columns.map((col) => (
-              <th key={String(col.key)} className="text-left p-3 font-medium align-top">
+              <th
+                key={String(col.key)}
+                className={`p-3 font-medium align-top ${getAlignClass(col.align)}`}
+              >
                 {col.label}
               </th>
             ))}
@@ -67,7 +84,10 @@ export default function CommonTable<T>({
               }`}
             >
               {columns.map((col) => (
-                <td key={String(col.key)} className="p-2 align-middle">
+                <td
+                  key={String(col.key)}
+                  className={`p-2 align-middle ${getAlignClass(col.align)}`}
+                >
                   {col.render ? col.render(row, idx) : (row as any)[col.key]}
                 </td>
               ))}
@@ -99,7 +119,11 @@ export default function CommonTable<T>({
                 <span className="font-medium text-muted-foreground">
                   {col.label}
                 </span>
-                <span className="text-right wrap-break-word">
+                <span
+                  className={`wrap-break-word ${getAlignClass(col.align)} ${
+                    col.align === "right" ? "ml-auto" : ""
+                  }`}
+                >
                   {col.render ? col.render(row, idx) : (row as any)[col.key]}
                 </span>
               </div>
