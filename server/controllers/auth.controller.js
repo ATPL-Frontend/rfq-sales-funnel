@@ -1,7 +1,8 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { pool } from "../lib/dbconnect-mysql.js";
-import { sendMailResend } from "../utils/resend.js";
+import { sendMail } from "../utils/email.js";
+// import { sendMailResend } from "../utils/resend.js";
 import { safeParseRoles } from "../utils/role.js";
 
 // Generate 6-digit OTP
@@ -161,24 +162,24 @@ export async function login(req, res) {
     ]);
 
     // ✅ Send OTP via email
-    // await sendMail(
-    //   user.email,
-    //   "Your AMPEC Login OTP",
-    //   `<p>Hello ${user.name},</p>
-    //    <p>Your One-Time Password (OTP) is:</p>
-    //    <h2>${otp}</h2>
-    //    <p>This code will expire in <b>5 minutes</b>.</p>`
-    // );
-
-    // ✅ Send OTP via SMS
-    await sendMailResend(
+    await sendMail(
       user.email,
       "Your RFQ Login OTP",
       `<p>Hello ${user.name},</p>
        <p>Your One-Time Password (OTP) is:</p>
        <h2>${otp}</h2>
-       <p>This code will expire in <b>5 minutes</b>.</p>`,
+       <p>This code will expire in <b>5 minutes</b>.</p>`
     );
+
+    // ✅ Send OTP via SMS
+    // await sendMailResend(
+    //   user.email,
+    //   "Your RFQ Login OTP",
+    //   `<p>Hello ${user.name},</p>
+    //    <p>Your One-Time Password (OTP) is:</p>
+    //    <h2>${otp}</h2>
+    //    <p>This code will expire in <b>5 minutes</b>.</p>`,
+    // );
 
     res.json({
       success: true,
