@@ -1,6 +1,8 @@
 import { AsyncSearchSelect } from "@/components/AsyncSearchSelect";
+import SearchSelectPopover from "@/components/SearchSelectPopover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -9,6 +11,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import api from "@/lib/api";
+import type { SalesPerson } from "@/types/index.ts";
+import { useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
 
 type Customer = {
   id: number;
@@ -24,9 +29,11 @@ type RfqFilterValues = {
   receive_date: string;
   start_date: string;
   end_date: string;
-  progress: string;
+  progress_type: "" | "done" | "percentage";
   currency: string;
   content: string;
+  prepared_by_id: string;
+  salesperson_id: string;
 };
 
 type Props = {
@@ -49,10 +56,39 @@ export default function RfqFilter({
     receive_date: "",
     start_date: "",
     end_date: "",
-    progress: "",
+    progress_type: "",
     currency: "",
     content: "",
+    prepared_by_id: "",
+    salesperson_id: "",
   };
+
+  const [salespersons, setSalespersons] = useState<SalesPerson[]>([]);
+  const [preparedByUsers, setPreparedByUsers] = useState<SalesPerson[]>([]);
+
+  const fetchUsers = async () => {
+    try {
+      const { data } = await api.get("/api/users?limit=200");
+      const allUsers = data.data || [];
+
+      const systemUsers = allUsers.filter(
+        (u: any) => u.user_type === "system_user",
+      );
+
+      const salesUsers = allUsers.filter(
+        (u: any) => Array.isArray(u.roles) && u.roles.includes("sales-person"),
+      );
+
+      setPreparedByUsers(systemUsers);
+      setSalespersons(salesUsers);
+    } catch {
+      toast.error("Failed to load users");
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -121,6 +157,32 @@ export default function RfqFilter({
         />
       </div>
 
+      <SearchSelectPopover
+        label="Prepared By"
+        options={preparedByUsers}
+        value={filters.prepared_by_id}
+        onChange={(val) =>
+          setFilters((prev) => ({
+            ...prev,
+            prepared_by_id: String(val || ""),
+          }))
+        }
+        placeholder="Select prepared by"
+      />
+
+      <SearchSelectPopover
+        label="Salesperson"
+        options={salespersons}
+        value={filters.salesperson_id}
+        onChange={(val) =>
+          setFilters((prev) => ({
+            ...prev,
+            salesperson_id: String(val || ""),
+          }))
+        }
+        placeholder="Select salesperson"
+      />
+
       <div>
         <label className="block text-sm text-gray-600 mb-1">Currency</label>
         <Select
@@ -137,6 +199,37 @@ export default function RfqFilter({
             <SelectItem value="USD">USD</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      <div>
+        <label className="block text-sm text-gray-600 mb-2">
+          Progress Type
+        </label>
+
+        <RadioGroup
+          value={filters.progress_type}
+          onValueChange={(value) =>
+            setFilters((prev) => ({
+              ...prev,
+              progress_type: value as "" | "done" | "percentage",
+            }))
+          }
+          className="flex gap-4"
+        >
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="done" id="progress-done" />
+            <label htmlFor="progress-done" className="text-sm">
+              Done
+            </label>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="percentage" id="progress-percentage" />
+            <label htmlFor="progress-percentage" className="text-sm">
+              Percentage
+            </label>
+          </div>
+        </RadioGroup>
       </div>
 
       <div className="md:col-span-2">

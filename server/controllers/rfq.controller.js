@@ -81,7 +81,12 @@ async function getRFQFullById(id) {
     SELECT
       r.*,
       c.name AS customer_name,
+
+      u1.id AS salesperson_user_id,
       u1.name AS salesperson_name,
+      u1.email AS salesperson_email,
+      u1.short_form AS salesperson_short_form,
+
       JSON_ARRAYAGG(
         CASE
           WHEN u.id IS NULL THEN NULL
@@ -108,7 +113,13 @@ async function getRFQFullById(id) {
     LEFT JOIN rfq_prepared_people rpp ON rpp.rfq_id = r.id
     LEFT JOIN users u ON u.id = rpp.user_id
     WHERE r.id = ?
-    GROUP BY r.id
+    GROUP BY
+      r.id,
+      c.name,
+      u1.id,
+      u1.name,
+      u1.email,
+      u1.short_form
     `,
     [id],
   );
@@ -124,6 +135,15 @@ async function getRFQFullById(id) {
   row.contents = Array.isArray(row.contents)
     ? row.contents.filter(Boolean)
     : JSON.parse(row.contents || "[]").filter(Boolean);
+
+  row.salesperson = row.salesperson_user_id
+    ? {
+        id: row.salesperson_user_id,
+        name: row.salesperson_name,
+        email: row.salesperson_email,
+        short_form: row.salesperson_short_form,
+      }
+    : null;
 
   return row;
 }
@@ -303,12 +323,21 @@ export async function listRFQs(req, res) {
     const customer_id = req.query.customer_id
       ? Number(req.query.customer_id)
       : null;
-    const progress = (req.query.progress || "").trim();
     const receive_date = (req.query.receive_date || "").trim();
     const start_date = (req.query.start_date || "").trim();
     const end_date = (req.query.end_date || "").trim();
     const currency = (req.query.currency || "").trim();
     const content = (req.query.content || "").trim().toUpperCase();
+
+    const prepared_by_id = req.query.prepared_by_id
+      ? Number(req.query.prepared_by_id)
+      : null;
+
+    const salesperson_id = req.query.salesperson_id
+      ? Number(req.query.salesperson_id)
+      : null;
+
+    const progress_type = (req.query.progress_type || "").trim();
 
     const limit = Math.min(
       Math.max(parseInt(req.query.limit || "50", 10), 1),
@@ -325,28 +354,48 @@ export async function listRFQs(req, res) {
       where.push(`
         (
           c.name LIKE ?
-          OR r.progress LIKE ?
           OR r.rfq_location LIKE ?
           OR r.remarks LIKE ?
+          OR sp.name LIKE ?
+          OR sp.email LIKE ?
+          OR sp.short_form LIKE ?
           OR EXISTS (
             SELECT 1
             FROM rfq_contents rc2
             WHERE rc2.rfq_id = r.id
               AND rc2.content LIKE ?
           )
+          OR EXISTS (
+            SELECT 1
+            FROM rfq_prepared_people rpp2
+            JOIN users u2 ON u2.id = rpp2.user_id
+            WHERE rpp2.rfq_id = r.id
+              AND (
+                u2.name LIKE ?
+                OR u2.email LIKE ?
+                OR u2.short_form LIKE ?
+              )
+          )
         )
       `);
-      params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+
+      params.push(
+        `%${q}%`,
+        `%${q}%`,
+        `%${q}%`,
+        `%${q}%`,
+        `%${q}%`,
+        `%${q}%`,
+        `%${q}%`,
+        `%${q}%`,
+        `%${q}%`,
+        `%${q}%`,
+      );
     }
 
     if (customer_id) {
       where.push("r.customer_id = ?");
       params.push(customer_id);
-    }
-
-    if (progress) {
-      where.push("r.progress = ?");
-      params.push(progress);
     }
 
     if (receive_date) {
@@ -376,12 +425,43 @@ export async function listRFQs(req, res) {
       params.push(content);
     }
 
+    if (prepared_by_id) {
+      where.push(`
+        EXISTS (
+          SELECT 1
+          FROM rfq_prepared_people rpp3
+          WHERE rpp3.rfq_id = r.id
+            AND rpp3.user_id = ?
+        )
+      `);
+      params.push(prepared_by_id);
+    }
+
+    if (salesperson_id) {
+      where.push("r.salesperson_id = ?");
+      params.push(salesperson_id);
+    }
+
+    if (progress_type === "done") {
+      where.push("r.progress = ?");
+      params.push("Done");
+    } else if (progress_type === "percentage") {
+      where.push("r.progress <> ?");
+      params.push("Done");
+    }
+
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
     const sql = `
       SELECT
         r.*,
         c.name AS customer_name,
+
+        sp.id AS salesperson_user_id,
+        sp.name AS salesperson_name,
+        sp.email AS salesperson_email,
+        sp.short_form AS salesperson_short_form,
+
         JSON_ARRAYAGG(
           CASE
             WHEN u.id IS NULL THEN NULL
@@ -393,6 +473,7 @@ export async function listRFQs(req, res) {
             )
           END
         ) AS prepared_by,
+
         (
           SELECT JSON_ARRAYAGG(x.content)
           FROM (
@@ -402,14 +483,27 @@ export async function listRFQs(req, res) {
             ORDER BY rc.content
           ) x
         ) AS contents,
-        EXISTS(SELECT 1 FROM sales_funnel s WHERE s.rfq_id = r.id) AS has_sales_funnel
+
+        EXISTS (
+          SELECT 1
+          FROM sales_funnel s
+          WHERE s.rfq_id = r.id
+        ) AS has_sales_funnel
+
       FROM rfq r
       JOIN customers c ON c.id = r.customer_id
       ${joinContents}
+      LEFT JOIN users sp ON sp.id = r.salesperson_id
       LEFT JOIN rfq_prepared_people rpp ON rpp.rfq_id = r.id
       LEFT JOIN users u ON u.id = rpp.user_id
       ${whereSql}
-      GROUP BY r.id
+      GROUP BY
+        r.id,
+        c.name,
+        sp.id,
+        sp.name,
+        sp.email,
+        sp.short_form
       ORDER BY r.id DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
@@ -421,12 +515,22 @@ export async function listRFQs(req, res) {
       FROM rfq r
       JOIN customers c ON c.id = r.customer_id
       ${joinContents}
+      LEFT JOIN users sp ON sp.id = r.salesperson_id
       ${whereSql}
     `;
+
     const [[{ total }]] = await pool.query(countSql, params);
 
     const results = rows.map((r) => ({
       ...r,
+      salesperson: r.salesperson_user_id
+        ? {
+            id: r.salesperson_user_id,
+            name: r.salesperson_name,
+            email: r.salesperson_email,
+            short_form: r.salesperson_short_form,
+          }
+        : null,
       prepared_by: Array.isArray(r.prepared_by)
         ? r.prepared_by.filter(Boolean)
         : JSON.parse(r.prepared_by || "[]").filter(Boolean),
@@ -436,7 +540,7 @@ export async function listRFQs(req, res) {
       has_sales_funnel: !!r.has_sales_funnel,
     }));
 
-    res.json({
+    return res.json({
       success: true,
       data: results,
       page,
@@ -445,73 +549,12 @@ export async function listRFQs(req, res) {
       total_pages: Math.ceil(total / limit),
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 }
-
-/** READ ONE */
-// export async function getRFQById(req, res) {
-//   try {
-//     const ok = hasPermission(req, ["readAny", "readOwn"], "rfq");
-
-//     if (!ok) {
-//       return res.status(403).json({
-//         success: false,
-//         message: "Forbidden: insufficient permissions",
-//       });
-//     }
-
-//     const id = Number(req.params.id);
-
-//     const latestSF = `
-//       SELECT sf.*
-//       FROM sales_funnel sf
-//       JOIN (
-//         SELECT rfq_id, MAX(last_updated) AS lu
-//         FROM sales_funnel
-//         GROUP BY rfq_id
-//       ) x ON x.rfq_id = sf.rfq_id AND x.lu = sf.last_updated
-//     `;
-
-//     const [rows] = await pool.query(
-//       `SELECT
-//          r.*,
-//          c.name AS customer_name,
-//          u1.name AS salesperson_name,
-//          JSON_ARRAYAGG(
-//            CASE WHEN u.id IS NULL THEN NULL
-//                 ELSE JSON_OBJECT('id', u.id, 'name', u.name, 'email', u.email, 'short_form', u.short_form)
-//            END
-//          ) AS prepared_by,
-//          EXISTS(SELECT 1 FROM sales_funnel s WHERE s.rfq_id = r.id) AS has_sales_funnel,
-//          lsf.id AS latest_sales_funnel_id,
-//          lsf.status AS latest_sales_funnel_status,
-//          lsf.last_updated AS latest_sales_funnel_last_updated
-//        FROM rfq r
-//        JOIN customers c ON c.id = r.customer_id
-//        JOIN users u1 ON u1.id = r.salesperson_id
-//        LEFT JOIN (${latestSF}) lsf ON lsf.rfq_id = r.id
-//        LEFT JOIN rfq_prepared_people rpp ON rpp.rfq_id = r.id
-//        LEFT JOIN users u ON u.id = rpp.user_id
-//        WHERE r.id = ?
-//        GROUP BY r.id`,
-//       [id],
-//     );
-
-//     if (!rows.length)
-//       return res.status(404).json({ success: false, message: "RFQ not found" });
-
-//     const row = rows[0];
-//     row.prepared_by = Array.isArray(row.prepared_by)
-//       ? row.prepared_by
-//       : JSON.parse(row.prepared_by || "[]").filter(Boolean);
-//     row.has_sales_funnel = !!row.has_sales_funnel;
-
-//     res.json({ success: true, data: row });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: err.message });
-//   }
-// }
 
 export async function getRFQById(req, res) {
   try {
