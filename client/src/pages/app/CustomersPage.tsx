@@ -118,7 +118,7 @@ export default function CustomersPage() {
             row.email.map((e, i) => (
               <span
                 key={i}
-                className="bg-secondary/50 text-gray-800 px-2 py-0.5 rounded text-sm"
+                className="bg-secondary/50 text-gray-800 dark:text-gray-300 px-2 py-0.5 rounded text-sm"
               >
                 {e}
               </span>

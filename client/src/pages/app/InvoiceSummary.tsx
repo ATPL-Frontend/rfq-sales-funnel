@@ -237,7 +237,7 @@ export default function InvoiceSummaryPage() {
       </div>
 
       <div className="flex justify-between">
-        <h1 className="text-2xl font-semibold text-gray-800">
+        <h1 className="text-2xl font-semibold text-gray-800 dark:text-gray-200">
           Invoice Summary
         </h1>
 
@@ -265,7 +265,7 @@ export default function InvoiceSummaryPage() {
       </div>
 
       <div>
-        <h2 className="sm:text-xl font-semibold text-gray-700">
+        <h2 className="sm:text-xl font-semibold text-gray-700 dark:text-gray-200">
           Invoices sent from {dateHelper(range?.from ?? "")} to{" "}
           {dateHelper(range?.to ?? "")}
         </h2>
@@ -291,16 +291,16 @@ export default function InvoiceSummaryPage() {
           </TableHeader>
           <TableBody className="bg-secondary">
             <TableRow className="text-center">
-              <TableCell className="py-3 px-4 text-sm text-gray-700">
+              <TableCell className="py-3 px-4 text-sm text-gray-700 dark:text-gray-200">
                 {summaryData?.total_invoices || 0}
               </TableCell>
-              <TableCell className="py-3 px-4 text-sm text-gray-700">
+              <TableCell className="py-3 px-4 text-sm text-gray-700 dark:text-gray-200">
                 {summaryData?.total_customers || 0}
               </TableCell>
-              <TableCell className="py-3 px-4 text-sm font-medium text-gray-900">
+              <TableCell className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-gray-200">
                 $ {summaryData?.total_amount_aud.toFixed(2) || 0}
               </TableCell>
-              <TableCell className="py-3 px-4 text-sm font-medium text-gray-900">
+              <TableCell className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-gray-200">
                 $ {summaryData?.total_amount_usd.toFixed(2) || 0}
               </TableCell>
             </TableRow>
@@ -333,19 +333,19 @@ export default function InvoiceSummaryPage() {
             {salespersonSummaryData.length > 0 ? (
               salespersonSummaryData.map((sp) => (
                 <TableRow key={sp.salesperson_id}>
-                  <TableCell className="py-3 px-4 text-sm text-gray-700">
+                  <TableCell className="py-3 px-4 text-sm text-gray-700 dark:text-gray-200">
                     {sp.salesperson_name || ""}
                   </TableCell>
-                  <TableCell className="py-3 px-4 text-sm text-gray-700">
+                  <TableCell className="py-3 px-4 text-sm text-gray-700 dark:text-gray-200">
                     {sp.total_customers || 0}
                   </TableCell>
-                  <TableCell className="py-3 px-4 text-sm text-gray-700">
+                  <TableCell className="py-3 px-4 text-sm text-gray-700 dark:text-gray-200">
                     {sp.total_invoices || 0}
                   </TableCell>
-                  <TableCell className="py-3 px-4 text-sm font-medium text-gray-900">
+                  <TableCell className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-gray-200">
                     $ {sp.total_aud.toFixed(2) || 0}
                   </TableCell>
-                  <TableCell className="py-3 px-4 text-sm font-medium text-gray-900">
+                  <TableCell className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-gray-200">
                     $ {sp.total_usd.toFixed(2) || 0}
                   </TableCell>
                 </TableRow>
@@ -353,7 +353,7 @@ export default function InvoiceSummaryPage() {
             ) : (
               <TableRow>
                 <TableCell
-                  className="py-3 px-4 text-sm text-gray-700 text-center"
+                  className="py-3 px-4 text-sm text-gray-700 dark:text-gray-200 text-center"
                   colSpan={5}
                 >
                   No salesperson found for the selected filters.

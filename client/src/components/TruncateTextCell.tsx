@@ -54,7 +54,7 @@ export function TruncateTextCell({
         <Tooltip>
           <TooltipTrigger asChild>
             <span
-              className={`truncate text-sm text-slate-700 cursor-default ${showCopy ? "flex-1" : "w-full"} ${textClassName}`}
+              className={`truncate text-sm text-slate-700 dark:text-slate-300 cursor-default ${showCopy ? "flex-1" : "w-full"} ${textClassName}`}
             >
               {text}
             </span>
@@ -72,7 +72,7 @@ export function TruncateTextCell({
         <button
           type="button"
           onClick={handleCopy}
-          className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+          className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 transition-colors"
         >
           {copied ? (
             <Check className="size-4 text-primary" />
