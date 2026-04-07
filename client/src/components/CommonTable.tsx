@@ -80,7 +80,7 @@ export default function CommonTable<T>({
             <tr
               key={idx}
               className={`border-t hover:bg-muted/30 align-top ${
-                idx % 2 === 0 ? "bg-gray-100" : "bg-muted/20"
+                idx % 2 === 0 ? "bg-gray-100 dark:bg-muted/10" : "bg-muted/40"
               }`}
             >
               {columns.map((col) => (

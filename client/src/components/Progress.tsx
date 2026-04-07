@@ -6,7 +6,7 @@ export function Progress({ percent }: ProgressProps) {
   const safePercent = Math.max(0, Math.min(100, percent));
 
   return (
-    <div className="flex items-center gap-3 min-w-20">
+    <div className="flex items-center justify-center gap-3 min-w-20">
       <div className="relative h-6 w-20 rounded bg-primary/40 overflow-hidden">
         {/* battery fill */}
         <div

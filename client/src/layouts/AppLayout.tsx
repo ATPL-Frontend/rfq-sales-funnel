@@ -1,13 +1,49 @@
-import { Outlet } from "react-router-dom";
-import AppSidebar from "../components/AppSidebar";
+import { useTheme } from "@/components/theme-provider";
+import { Button } from "@/components/ui/button";
 import {
-  SidebarProvider,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   SidebarInset,
+  SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { LogOut } from "lucide-react";
-import { useAuth } from "../lib/auth";
+import { LogOut, Moon, Sun } from "lucide-react";
 import toast from "react-hot-toast";
+import { Outlet } from "react-router-dom";
+import AppSidebar from "../components/AppSidebar";
+import { useAuth } from "../lib/auth";
+
+const ModeToggle = () => {
+  const { setTheme } = useTheme();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="icon" className="relative">
+          <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:rotate-90 dark:scale-0" />
+          <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          <span className="sr-only">Toggle theme</span>
+        </Button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => setTheme("light")}>
+          Light
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("dark")}>
+          Dark
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("system")}>
+          System
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
 
 const AppLayout = () => {
   const { logout } = useAuth();
@@ -19,16 +55,20 @@ const AppLayout = () => {
 
   return (
     <SidebarProvider>
-      <AppSidebar/>
+      <AppSidebar />
 
       <SidebarInset className="flex flex-col w-full overflow-hidden">
         <header className="flex justify-between h-[45px] shrink-0 items-center gap-2 border-b px-4 shadow">
           <SidebarTrigger />
 
-          <LogOut
-            className="size-8 p-2 bg-gray-100 rounded cursor-pointer"
-            onClick={handleLogout}
-          />
+          <div className="flex items-center gap-2">
+            <ModeToggle />
+
+            <LogOut
+              className="size-8 p-2 bg-background hover:bg-accent rounded cursor-pointer transition-colors border"
+              onClick={handleLogout}
+            />
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-4">
