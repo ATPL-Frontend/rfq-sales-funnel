@@ -21,7 +21,7 @@ type ModalProps = {
   label?: string;
   title?: string;
   icon?: "filter" | "add" | "edit" | "userplus" | React.ReactNode;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl";
   children: React.ReactNode | ((close: () => void) => React.ReactNode);
 };
 
@@ -55,7 +55,7 @@ export function Modal({
   };
 
   const sizeClass =
-    size === "sm" ? "max-w-md" : size === "lg" ? "max-w-2xl" : "max-w-lg";
+    size === "sm" ? "max-w-md" : size === "lg" ? "max-w-lg" : size === "xl" ? "max-w-xl" : size === "2xl" ? "max-w-2xl" : "max-w-md";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -74,7 +74,8 @@ export function Modal({
 
       {/* ✅ Make content clip children and layout correctly */}
       <DialogContent
-        className={`${sizeClass} w-5/6 p-0 max-h-[90vh] overflow-hidden flex flex-col`}
+        // className={`sm:${sizeClass} w-5/6 p-0 max-h-[90vh] overflow-hidden flex flex-col`}
+        className={`sm:${sizeClass} w-5/6 p-0 max-h-[90vh] overflow-hidden flex flex-col`}
       >
         {/* ✅ Header (non-scroll) */}
         <div className="p-6 pb-0">

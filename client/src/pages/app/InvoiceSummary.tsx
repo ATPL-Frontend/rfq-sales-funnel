@@ -243,7 +243,7 @@ export default function InvoiceSummaryPage() {
 
         {/* 🔍 Filters */}
         <div className="flex gap-2">
-          <Modal icon="filter" label="Filters" title="Invoice Filters">
+          <Modal icon="filter" label="Filters" title="Invoice Filters" size="xl">
             {(closeModal: () => void) => (
               <InvoiceSummaryFilter
                 filters={filters}

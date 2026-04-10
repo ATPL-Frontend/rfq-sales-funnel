@@ -335,7 +335,7 @@ export default function RfqPage() {
             onSearchChange={setApiSearch}
             searchPlaceholder="Search Customer, DCA..."
           />
-          <Modal icon="filter" label="Filters" title="RFQ Filters" size="lg">
+          <Modal icon="filter" label="Filters" title="RFQ Filters" size="xl">
             {(closeModal) => (
               <RfqFilter
                 filters={filters}
@@ -350,7 +350,7 @@ export default function RfqPage() {
             )}
           </Modal>
 
-          <Modal icon="add" label="Create RFQ" title="Create RFQ" size="md">
+          <Modal icon="add" label="Create RFQ" title="Create RFQ" size="2xl">
             {(closeModal) => (
               <RfqForm
                 key="create-rfq"

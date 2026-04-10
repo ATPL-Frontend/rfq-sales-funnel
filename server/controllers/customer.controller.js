@@ -11,7 +11,7 @@ import { hasPermission } from "../utils/role.js";
 /** CREATE */
 export async function createCustomer(req, res) {
   try {
-    const ok = hasPermission(req, ["readAny", "readOwn"], "customer");
+    const ok = hasPermission(req, "createAny", "customer");
 
     if (!ok) {
       return res.status(403).json({
@@ -92,11 +92,11 @@ export async function createCustomer(req, res) {
     if (err.code === "ER_DUP_ENTRY") {
       const msg = (err.sqlMessage || "").toLowerCase();
 
-      if (msg.includes("uniq_customer_name")) {
+      if (msg.includes("uniq_customer_code_name")) {
         return res.status(409).json({
           success: false,
-          field: "name",
-          message: "Customer name already exists",
+          field: "code",
+          message: "Customer with this code and name already exists",
         });
       }
 
@@ -109,7 +109,10 @@ export async function createCustomer(req, res) {
       }
     }
 
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(409).json({
+      success: false,
+      message: "Duplicate entry",
+    });
   }
 }
 
@@ -359,12 +362,21 @@ export async function updateCustomer(req, res) {
     return res.json({ success: true, data: rows[0] });
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
+      const msg = (err.sqlMessage || "").toLowerCase();
+
+      if (msg.includes("uniq_customer_code_name")) {
+        return res.status(409).json({
+          success: false,
+          field: "code",
+          message: "Customer with this code and name already exists",
+        });
+      }
+
       return res.status(409).json({
         success: false,
         message: "Duplicate entry",
       });
     }
-    return res.status(500).json({ success: false, message: err.message });
   }
 }
 

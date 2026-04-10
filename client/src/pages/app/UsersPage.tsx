@@ -184,7 +184,7 @@ export default function UsersPage() {
             className="text-blue-400 hover:text-blue-600 size-4 cursor-pointer"
           />
 
-          <Modal title={row.name} icon="edit" type="icon" size="md">
+          <Modal title={row.name} icon="edit" type="icon" size="xl">
             {(closeModal) => (
               <UserForm
                 key={row.id}
@@ -225,7 +225,7 @@ export default function UsersPage() {
             onChange={(e) => setFilters({ ...filters, q: e.target.value })}
           />
 
-          <Modal icon="filter" label="Filters" title="User Filters">
+          <Modal icon="filter" label="Filters" title="User Filters" size="xl">
             {(closeModal) => (
               <UserFilter
                 filters={filters}
@@ -240,7 +240,7 @@ export default function UsersPage() {
             )}
           </Modal>
 
-          <Modal icon="userplus" label="Add User" title="Create User">
+          <Modal icon="userplus" label="Add User" title="Create User" size="xl">
             {(closeModal) => (
               <UserForm
                 key="create"

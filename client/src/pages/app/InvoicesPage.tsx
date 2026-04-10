@@ -1,4 +1,5 @@
 import InvoiceFilter from "@/components/filter/InvoiceFilter";
+import { DeleteModal } from "@/components/modal/DeleteModal";
 import InvoiceForm from "@/components/modal/InvoiceModal";
 import { Modal } from "@/components/modal/Modal";
 import { Badge } from "@/components/ui/badge";
@@ -8,10 +9,8 @@ import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import type { Column } from "../../components/CommonTable";
 import CommonTable from "../../components/CommonTable";
-import Pagination from "../../components/Pagination";
 import api from "../../lib/api";
 import { dateHelper, OFFER_EXPIRED_DATE_FORMAT } from "../../lib/dateHelper";
-import { DeleteModal } from "@/components/modal/DeleteModal";
 
 type Invoice = {
   id: number;
@@ -30,10 +29,13 @@ type Invoice = {
 
 export default function InvoicesPage() {
   const navigate = useNavigate();
+
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+
   const [sortField, setSortField] = useState<string>("invoice_date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
@@ -48,78 +50,102 @@ export default function InvoicesPage() {
 
   const [appliedFilters, setAppliedFilters] = useState(filters);
 
-  // ✅ Fetch invoices with pagination
-  const fetchInvoices = useCallback(
-    async (pageNum = 1) => {
-      setLoading(true);
-      try {
-        const { data } = await api.get("/api/invoices", {
-          params: {
-            page: pageNum,
-            limit: 20,
-            // customer_id: appliedFilters.customer_id || undefined,
-            // invoice_no: appliedFilters.invoice_no || undefined,
-            ...(appliedFilters.date_filter_type === "invoice_date"
-              ? {
-                  date_from: appliedFilters.date_from || undefined,
-                  date_to: appliedFilters.date_to || undefined,
-                }
-              : {
-                  create_date_from: appliedFilters.date_from || undefined,
-                  create_date_to: appliedFilters.date_to || undefined,
-                }),
-            amount_from: appliedFilters.amount_from || undefined,
-            amount_to: appliedFilters.amount_to || undefined,
-            currency: appliedFilters.currency || undefined,
-            sort_field: sortField,
-            sort_order: sortOrder,
-          },
-        });
+  const fetchInvoices = useCallback(async () => {
+    if (loading || !hasMore || failed) return;
 
-        setInvoices(data.data || []);
-        setPage(data.page || pageNum);
-        setTotalPages(data.total_pages || 1);
-      } catch {
-        toast.error("Failed to load invoices");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [appliedFilters, sortField, sortOrder], // Only changes when these change
-  );
+    setLoading(true);
+    try {
+      const { data } = await api.get("/api/invoices", {
+        params: {
+          page,
+          limit: 20,
+          ...(appliedFilters.date_filter_type === "invoice_date"
+            ? {
+                date_from: appliedFilters.date_from || undefined,
+                date_to: appliedFilters.date_to || undefined,
+              }
+            : {
+                create_date_from: appliedFilters.date_from || undefined,
+                create_date_to: appliedFilters.date_to || undefined,
+              }),
+          amount_from: appliedFilters.amount_from || undefined,
+          amount_to: appliedFilters.amount_to || undefined,
+          currency: appliedFilters.currency || undefined,
+          sort_field: sortField,
+          sort_order: sortOrder,
+        },
+      });
+
+      const results: Invoice[] = data.data || [];
+
+      setInvoices((prev) => {
+        const existingIds = new Set(prev.map((item) => item.id));
+        const unique = results.filter((item) => !existingIds.has(item.id));
+        return [...prev, ...unique];
+      });
+
+      setPage((prev) => prev + 1);
+      setHasMore(data.page < data.total_pages);
+    } catch (err) {
+      toast.error("Failed to load invoices");
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, loading, hasMore, failed, appliedFilters, sortField, sortOrder]);
 
   useEffect(() => {
-    fetchInvoices(page);
-  }, [fetchInvoices, page]);
+    fetchInvoices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const confirmDelete = async (id: string | number) => {
     try {
       await api.delete(`/api/invoices/${id}`);
       toast.success("Invoice deleted successfully");
-      fetchInvoices(page);
+      setInvoices((prev) => prev.filter((item) => item.id !== id));
     } catch (err) {
       toast.error("Failed to delete invoice");
-      throw err;
     }
   };
 
   const handleSort = (field: string) => {
-    setSortField(field);
-    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-    setPage(1); // Reset to first page when sorting
+    setInvoices([]);
+    setFailed(false);
+    setHasMore(true);
+    setPage(1);
+
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortOrder("desc");
+    }
+  };
+
+  const handleFormSuccess = (invoice: Invoice, isEdit: boolean) => {
+    if (isEdit) {
+      setInvoices((prev) =>
+        prev.map((i) =>
+          Number(i.id) === Number(invoice.id) ? { ...i, ...invoice } : i,
+        ),
+      );
+    } else {
+      setInvoices((prev) => [invoice, ...prev]);
+    }
   };
 
   const columns: Column<Invoice>[] = [
     {
       key: "sn",
       label: "S/N",
-      render: (_row, index) => (page - 1) * 20 + (index + 1),
+      render: (_row, index) => index + 1,
     },
     {
       key: "invoice_date",
       label: (
         <span className="flex items-center gap-2">
-          Sent Date{" "}
+          Sent Date
           <ArrowDownUp
             size={16}
             className="opacity-50 hover:opacity-100 cursor-pointer"
@@ -131,16 +157,7 @@ export default function InvoicesPage() {
     },
     {
       key: "create_invoice_date",
-      label: (
-        <span className="flex items-center gap-2">
-          Created Date{" "}
-          {/* <ArrowDownUp
-            size={16}
-            className="opacity-50 hover:opacity-100 cursor-pointer"
-            onClick={() => handleSort("create_invoice_date")}
-          /> */}
-        </span>
-      ),
+      label: <span className="flex items-center gap-2">Created Date</span>,
       render: (row) =>
         dateHelper(row.create_invoice_date, OFFER_EXPIRED_DATE_FORMAT),
     },
@@ -149,16 +166,7 @@ export default function InvoicesPage() {
     { key: "customer_code", label: "Code" },
     {
       key: "amount",
-      label: (
-        <span className="flex items-center gap-2">
-          Amount
-          {/* <ArrowDownUp
-            size={16}
-            className="opacity-50 hover:opacity-100 cursor-pointer"
-            onClick={() => handleSort("amount")}
-          /> */}
-        </span>
-      ),
+      label: "Amount",
       render: (r) => (
         <>
           {r.amount}{" "}
@@ -191,7 +199,7 @@ export default function InvoicesPage() {
             className="text-blue-400 hover:text-blue-600 size-4 cursor-pointer"
           />
 
-          <Modal title="Edit Invoice" icon="edit" type="icon" size="md">
+          <Modal title="Edit Invoice" icon="edit" type="icon" size="xl">
             {(closeModal) => (
               <InvoiceForm
                 key={row.id}
@@ -217,32 +225,25 @@ export default function InvoicesPage() {
     },
   ];
 
-  // ✅ Handle Create/Update Success
-  const handleFormSuccess = (invoice: Invoice, isEdit: boolean) => {
-    if (isEdit) {
-      setInvoices((prev) =>
-        prev.map((i) =>
-          Number(i.id) === Number(invoice.id) ? { ...i, ...invoice } : i,
-        ),
-      );
-    } else {
-      fetchInvoices(1);
-      setPage(1);
-    }
-  };
-
   return (
     <>
       <div className="flex justify-between items-center mb-4 gap-6">
         <h1 className="text-xl font-semibold">Invoices</h1>
 
         <div className="flex gap-2 items-center">
-          <Modal icon="filter" label="Filters" title="Invoice Filters">
+          <Modal icon="filter" label="Filters" title="Invoice Filters" size="xl">
             {(closeModal) => (
               <InvoiceFilter
                 filters={filters}
                 setFilters={setFilters}
-                setAppliedFilters={setAppliedFilters}
+                setAppliedFilters={(value) => {
+                  setInvoices([]);
+                  setFailed(false);
+                  setHasMore(true);
+                  setPage(1);
+                  setAppliedFilters(value);
+                  closeModal();
+                }}
                 setPage={setPage}
                 closeModal={closeModal}
               />
@@ -253,7 +254,7 @@ export default function InvoicesPage() {
             icon="add"
             label="Create Invoice"
             title="Create Invoice"
-            size="md"
+            size="xl"
           >
             {(closeModal) => (
               <InvoiceForm
@@ -270,13 +271,12 @@ export default function InvoicesPage() {
         </div>
       </div>
 
-      <CommonTable columns={columns} data={invoices} loading={loading} />
-
-      {/* ✅ Pagination below table */}
-      <Pagination
-        page={page}
-        totalPages={totalPages}
-        onPageChange={(newPage) => setPage(newPage)}
+      <CommonTable
+        columns={columns}
+        data={invoices}
+        loading={loading}
+        hasMore={hasMore}
+        onLoadMore={fetchInvoices}
       />
     </>
   );

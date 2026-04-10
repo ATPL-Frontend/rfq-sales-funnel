@@ -23,7 +23,6 @@ export default function CustomersPage() {
 
   // ✅ Fetch customers with infinite scroll
   const fetchCustomers = useCallback(async () => {
-    console.log("Fetching customers with filters:", appliedFilters);
     if (loading || !hasMore || failed) return;
 
     setLoading(true);
@@ -152,7 +151,7 @@ export default function CustomersPage() {
       label: "Actions",
       render: (row) => (
         <div className="flex gap-2">
-          <Modal title="Edit Customer" icon="edit" type="icon">
+          <Modal title="Edit Customer" icon="edit" type="icon" size="xl">
             {(closeModal) => (
               <CustomerForm
                 key={row.id}
@@ -178,7 +177,7 @@ export default function CustomersPage() {
   ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)]">
+    <div className="flex flex-col">
       <div className="flex justify-between items-center mb-4 gap-6">
         <h1 className="text-xl font-semibold">
           Customers <Badge variant="secondary">{totalCustomers}</Badge>
@@ -193,7 +192,7 @@ export default function CustomersPage() {
             onChange={(e) => setFilters({ ...filters, q: e.target.value })}
           />
 
-          <Modal icon="userplus" label="Add Customer" title="Create Customer">
+          <Modal icon="userplus" label="Add Customer" title="Create Customer" size="xl">
             {(closeModal) => (
               <CustomerForm
                 key="create"

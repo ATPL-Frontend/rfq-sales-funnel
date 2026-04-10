@@ -44,6 +44,7 @@ const remarkOptions = [
   "Waiting for vendor quotation",
   "Waiting for Salesperson",
   "Waiting for Drawing Revision",
+  "Working on Progress",
   "Salesperson will cover rest",
   "Partially Submitted",
   "Sent to Salesperson (100%)",
@@ -438,7 +439,7 @@ export default function RfqForm({
           placeholder="Paste or type DCA123, DCA345"
           normalize={(v) => v.trim().toUpperCase()}
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-primary">
           Paste values separated by comma, space, or new line.
         </p>
       </div>
