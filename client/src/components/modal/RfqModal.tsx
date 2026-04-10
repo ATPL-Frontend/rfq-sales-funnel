@@ -399,11 +399,17 @@ export default function RfqForm({
             placeholder="0 - 100"
             value={isDone ? "" : form.progress}
             onChange={(e) =>
-              setForm((prev) => ({
-                ...prev,
-                progress:
-                  e.target.value === "" ? "" : String(Number(e.target.value)),
-              }))
+              setForm((prev) => {
+                const value =
+                  e.target.value === "" ? "" : String(Number(e.target.value));
+
+                return {
+                  ...prev,
+                  progress: value,
+                  remarks:
+                    value === "100" ? "Send to Sales person" : prev.remarks,
+                };
+              })
             }
             disabled={isDone}
           />
@@ -415,7 +421,8 @@ export default function RfqForm({
               onCheckedChange={(checked) =>
                 setForm((prev) => ({
                   ...prev,
-                  progress: checked ? "Done" : "",
+                  progress: checked === true ? "Done" : "",
+                  remarks: checked === true ? "Send to customer" : prev.remarks,
                 }))
               }
             />
