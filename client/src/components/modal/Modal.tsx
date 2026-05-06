@@ -54,8 +54,15 @@ export function Modal({
     }
   };
 
-  const sizeClass =
-    size === "sm" ? "max-w-md" : size === "lg" ? "max-w-lg" : size === "xl" ? "max-w-xl" : size === "2xl" ? "max-w-2xl" : "max-w-md";
+  const sizeClassMap = {
+    sm: "sm:max-w-md",
+    md: "sm:max-w-lg",
+    lg: "sm:max-w-2xl",
+    xl: "sm:max-w-4xl",
+    "2xl": "sm:max-w-6xl",
+  };
+
+  const sizeClass = sizeClassMap[size];
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -74,8 +81,7 @@ export function Modal({
 
       {/* ✅ Make content clip children and layout correctly */}
       <DialogContent
-        // className={`sm:${sizeClass} w-5/6 p-0 max-h-[90vh] overflow-hidden flex flex-col`}
-        className={`sm:${sizeClass} w-5/6 p-0 max-h-[90vh] overflow-hidden flex flex-col`}
+         className={`${sizeClass} w-5/6 p-0 max-h-[90vh] overflow-hidden flex flex-col`}
       >
         {/* ✅ Header (non-scroll) */}
         <div className="p-6 pb-0">

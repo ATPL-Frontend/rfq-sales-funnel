@@ -25,7 +25,24 @@ type Invoice = {
   currency: string;
   gst: boolean;
   created_at: string;
+  updated_at: string;
 };
+
+const normalizeInvoice = (invoice: any): Invoice => ({
+  id: invoice.id,
+  invoice_date: invoice.invoice_date,
+  create_invoice_date: invoice.create_invoice_date,
+  customer_id: invoice.customer_id,
+  customer_name: invoice.customer_name,
+  customer_email: invoice.customer_email,
+  invoice_no: invoice.invoice_no,
+  customer_code: invoice.customer_code,
+  amount: invoice.amount,
+  currency: invoice.currency,
+  gst: invoice.gst,
+  created_at: invoice.created_at,
+  updated_at: invoice.updated_at,
+});
 
 export default function InvoicesPage() {
   const navigate = useNavigate();
@@ -123,15 +140,26 @@ export default function InvoicesPage() {
     }
   };
 
-  const handleFormSuccess = (invoice: Invoice, isEdit: boolean) => {
+  const handleFormSuccess = (
+    savedInvoice: Invoice | Invoice[],
+    isEdit: boolean,
+  ) => {
+    const invoice = Array.isArray(savedInvoice)
+      ? savedInvoice[0]
+      : savedInvoice;
+
+    const normalizedInvoice = normalizeInvoice(invoice);
+
     if (isEdit) {
       setInvoices((prev) =>
-        prev.map((i) =>
-          Number(i.id) === Number(invoice.id) ? { ...i, ...invoice } : i,
+        prev.map((item) =>
+          Number(item.id) === Number(normalizedInvoice.id)
+            ? normalizedInvoice
+            : item,
         ),
       );
     } else {
-      setInvoices((prev) => [invoice, ...prev]);
+      setInvoices((prev) => [normalizedInvoice, ...prev]);
     }
   };
 
@@ -231,7 +259,12 @@ export default function InvoicesPage() {
         <h1 className="text-xl font-semibold">Invoices</h1>
 
         <div className="flex gap-2 items-center">
-          <Modal icon="filter" label="Filters" title="Invoice Filters" size="xl">
+          <Modal
+            icon="filter"
+            label="Filters"
+            title="Invoice Filters"
+            size="xl"
+          >
             {(closeModal) => (
               <InvoiceFilter
                 filters={filters}
