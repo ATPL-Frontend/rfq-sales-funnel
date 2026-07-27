@@ -22,6 +22,7 @@ import {
   FileText,
   FileUser,
   MessageSquareQuote,
+  Receipt,
   Users,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -66,6 +67,11 @@ const menu = [
         url: "/app/invoice-frequency",
       },
     ],
+  },
+  {
+    title: "Buy & Sale",
+    url: "/app/buy-sale",
+    icon: Receipt,
   },
 ];
 
