@@ -33,6 +33,7 @@ import { loadAccessControlFromDB } from "./utils/roles.js";
 // 🚦 Routers
 // ===============================
 import authRoutes from "./routes/auth.routes.js";
+import buySaleRoutes from "./routes/buySale.routes.js";
 import customerRoutes from "./routes/customer.routes.js";
 import invoiceRoutes from "./routes/invoice.routes.js";
 import rfqRoutes from "./routes/rfq.routes.js";
@@ -68,7 +69,7 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
 
 app.use(express.json({ limit: "1mb" }));
@@ -88,7 +89,7 @@ app.use("/api/auth", authLimiter);
 // 🩺 Health Check
 // ===============================
 app.get("/api/alive", (_req, res) =>
-  res.json({ message: "Server is alive and healthy 🚀" })
+  res.json({ message: "Server is alive and healthy 🚀" }),
 );
 
 // ===============================
@@ -100,9 +101,31 @@ app.use("/api/customers", customerRoutes);
 app.use("/api/rfqs", rfqRoutes);
 app.use("/api/sales-funnels", salesFunnelRoutes);
 app.use("/api/invoices", invoiceRoutes);
+app.use("/api/buy-sale", buySaleRoutes);
 
 // 🆕 Add Role & Permission management APIs
 app.use("/api", rolePermissionRoutes);
+
+app.use((error, req, res, next) => {
+  if (error?.name === "MulterError") {
+    return res.status(400).json({
+      success: false,
+      message:
+        error.code === "LIMIT_FILE_SIZE"
+          ? "The Excel file must not exceed 20 MB."
+          : error.message,
+    });
+  }
+
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+
+  next();
+});
 
 // ===============================
 // 🚨 404 & Error Handlers
@@ -136,7 +159,7 @@ async function ensureSuperAdmin() {
   try {
     const [existing] = await pool.query(
       "SELECT id FROM users WHERE email = ?",
-      [email]
+      [email],
     );
     if (existing.length > 0) {
       console.log("👑 Super-admin already exists — skipping creation.");
@@ -162,12 +185,12 @@ async function ensureSuperAdmin() {
     const hashed = await bcrypt.hash(password, 10);
     const [result] = await pool.query(
       "INSERT INTO users (name, email, short_form, password) VALUES (?, ?, ?, ?)",
-      [name, email, short_form, hashed]
+      [name, email, short_form, hashed],
     );
 
     await pool.query(
       "INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)",
-      [result.insertId, roleId]
+      [result.insertId, roleId],
     );
 
     console.log(`✅ Super-admin created: ${email} / ${password}`);
@@ -206,7 +229,7 @@ async function ensureSuperAdmin() {
     await loadAccessControlFromDB();
 
     app.listen(PORT, () =>
-      console.log(`✅ Server running at: http://localhost:${PORT}`)
+      console.log(`✅ Server running at: http://localhost:${PORT}`),
     );
 
     process.on("SIGINT", () => {

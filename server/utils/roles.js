@@ -5,44 +5,102 @@ import { pool } from "../lib/dbconnect-mysql.js";
 const ac = new AccessControl();
 
 /**
- * ✅ Load all roles & permissions dynamically from the database
- * Populates AccessControl at runtime.
+ * Load all roles and permissions dynamically from the database.
  */
 export const loadAccessControlFromDB = async () => {
   try {
     const [rows] = await pool.query(`
-      SELECT r.name AS role, p.action, p.resource
+      SELECT
+        r.name AS role,
+        p.action,
+        p.resource
       FROM role_permissions rp
-      JOIN roles r ON rp.role_id = r.id
-      JOIN permissions p ON rp.permission_id = p.id
+      JOIN roles r
+        ON rp.role_id = r.id
+      JOIN permissions p
+        ON rp.permission_id = p.id
     `);
 
-    // Clear old grants
+    // Clear previously loaded grants
     ac.reset();
 
-    // If DB has records, use them
     if (rows.length > 0) {
       for (const row of rows) {
-        if (!row.role || !row.action || !row.resource) continue;
-        ac.grant(row.role)[row.action](row.resource);
+        if (!row.role || !row.action || !row.resource) {
+          continue;
+        }
+
+        const grant = ac.grant(row.role);
+
+        switch (row.action) {
+          case "createOwn":
+            grant.createOwn(row.resource);
+            break;
+
+          case "createAny":
+            grant.createAny(row.resource);
+            break;
+
+          case "readOwn":
+            grant.readOwn(row.resource);
+            break;
+
+          case "readAny":
+            grant.readAny(row.resource);
+            break;
+
+          case "updateOwn":
+            grant.updateOwn(row.resource);
+            break;
+
+          case "updateAny":
+            grant.updateAny(row.resource);
+            break;
+
+          case "deleteOwn":
+            grant.deleteOwn(row.resource);
+            break;
+
+          case "deleteAny":
+            grant.deleteAny(row.resource);
+            break;
+
+          default:
+            console.warn(
+              `Unknown permission action ignored: ${row.action}`,
+            );
+            break;
+        }
       }
-      console.log(`✅ AccessControl loaded from DB (${rows.length} grants)`);
+
+      console.log(
+        `AccessControl loaded from DB (${rows.length} grants)`,
+      );
+
       return;
     }
 
-    // No records found — use default fallback
-    console.warn("⚠️ No role-permission data found in DB — using default fallback grants.");
+    console.warn(
+      "No role-permission data found in DB. Using fallback grants.",
+    );
+
     defineFallbackRoles();
-  } catch (err) {
-    console.error("❌ Failed to load AccessControl from DB:", err.message);
-    console.warn("⚠️ Falling back to static roles.");
+  } catch (error) {
+    console.error(
+      "Failed to load AccessControl from DB:",
+      error.message,
+    );
+
+    console.warn("Falling back to static roles.");
+
+    ac.reset();
     defineFallbackRoles();
   }
 };
 
 /**
- * 🧱 Define static fallback roles
- * Used when DB is empty or fails.
+ * Static fallback roles.
+ * Used only when database permissions are empty or unavailable.
  */
 function defineFallbackRoles() {
   // USER
@@ -53,9 +111,11 @@ function defineFallbackRoles() {
     .createOwn("rfq")
     .readOwn("customer")
     .readOwn("sales-funnel")
-    .readOwn("invoice");
+    .readOwn("invoice")
+    .readAny("buy-sale")
+    .updateAny("buy-sale");
 
-  // SALES-PERSON
+  // SALES PERSON
   ac.grant("sales-person")
     .extend("user")
     .createAny("rfq")
@@ -69,7 +129,10 @@ function defineFallbackRoles() {
     .updateAny("sales-funnel")
     .createAny("invoice")
     .readAny("invoice")
-    .updateAny("invoice");
+    .updateAny("invoice")
+
+    // Buy-Sale
+    .readAny("buy-sale");
 
   // ADMIN
   ac.grant("admin")
@@ -79,19 +142,52 @@ function defineFallbackRoles() {
     .deleteAny("rfq")
     .deleteAny("customer")
     .deleteAny("sales-funnel")
-    .deleteAny("invoice");
+    .deleteAny("invoice")
 
-  // SUPER-ADMIN (explicit CRUD for "all" resources)
+    // Buy-Sale
+    .createAny("buy-sale")
+    .readAny("buy-sale")
+    .updateAny("buy-sale")
+    .deleteAny("buy-sale");
+
+  // SUPER ADMIN
   ac.grant("super-admin")
     .extend("admin")
-    .createAny("all")
-    .readAny("all")
-    .updateAny("all")
-    .deleteAny("all");
 
-  console.log("✅ Default static AccessControl roles loaded");
+    // Explicit permissions for existing resources
+    .createAny("user")
+    .readAny("user")
+    .updateAny("user")
+    .deleteAny("user")
+
+    .createAny("rfq")
+    .readAny("rfq")
+    .updateAny("rfq")
+    .deleteAny("rfq")
+
+    .createAny("customer")
+    .readAny("customer")
+    .updateAny("customer")
+    .deleteAny("customer")
+
+    .createAny("sales-funnel")
+    .readAny("sales-funnel")
+    .updateAny("sales-funnel")
+    .deleteAny("sales-funnel")
+
+    .createAny("invoice")
+    .readAny("invoice")
+    .updateAny("invoice")
+    .deleteAny("invoice")
+
+    // Explicit Buy-Sale permissions
+    .createAny("buy-sale")
+    .readAny("buy-sale")
+    .updateAny("buy-sale")
+    .deleteAny("buy-sale");
+
+  console.log("Default static AccessControl roles loaded");
 }
 
-// Export both the AccessControl instance and loader function
 export { ac };
 export default ac;

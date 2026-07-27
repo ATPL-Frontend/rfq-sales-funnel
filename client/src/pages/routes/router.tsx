@@ -15,6 +15,7 @@ import NotFoundPage from "../misc/NotFoundPage";
 import InvoiceDetailsPage from "../app/InvoiceDetailsPage";
 import InvoiceSummary from "../app/InvoiceSummary";
 import InvoiceFrequency from "../app/InvoiceFrequency";
+import BuySale from "../app/BuySale";
 
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/app" replace /> },
@@ -49,6 +50,7 @@ export const router = createBrowserRouter([
       { path: "invoices/:id", element: <InvoiceDetailsPage /> },
       { path: "summary", element: <InvoiceSummary /> },
       { path: "invoice-frequency", element: <InvoiceFrequency /> },
+      { path: "buy-sale", element: <BuySale /> },
     ],
   },
   { path: "*", element: <NotFoundPage /> },
