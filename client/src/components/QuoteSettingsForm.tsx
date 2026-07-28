@@ -31,7 +31,7 @@ const numberFields: Array<{
 
 export function QuoteSettingsForm({ settings, onChange }: Props) {
   return (
-    <section className="rounded-xl border bg-white p-4 shadow-sm">
+    <section className="rounded-xl border bg-white dark:bg-slate-800 p-4 shadow-sm">
       <h2 className="mb-4 font-semibold">
         Quote calculation settings
       </h2>

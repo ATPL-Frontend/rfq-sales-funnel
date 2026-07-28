@@ -92,14 +92,14 @@ export function BuySaleUploadSection({
         }
       }}
     >
-      <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 md:px-6">
+      <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border bg-white dark:bg-slate-800 shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b px-5 py-4 md:px-6">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900">
+            <h2 className="text-xl font-semibold">
               Manage Excel Data
             </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Upload the latest stock, part mapping and item price files.
               Successful uploads replace the previous data.
             </p>
@@ -108,7 +108,7 @@ export function BuySaleUploadSection({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 hover:text-slate-900"
             aria-label="Close upload modal"
           >
             <X className="size-5" />
@@ -131,7 +131,7 @@ export function BuySaleUploadSection({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-4 border-t border-slate-200 bg-slate-50 px-5 py-4 md:px-6">
+        <div className="flex items-center justify-between gap-4 border-t bg-slate-50 dark:bg-slate-800 px-5 py-4 md:px-6">
           <p className="text-xs text-slate-500">
             Supported file formats: .xlsx and .xls
           </p>
@@ -139,7 +139,7 @@ export function BuySaleUploadSection({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+            className="inline-flex h-10 items-center justify-center rounded-lg border bg-white dark:bg-red-400/60 px-5 text-sm font-medium text-slate-700 dark:text-white transition hover:bg-slate-100"
           >
             Close
           </button>
@@ -178,14 +178,14 @@ function UploadCard({
   }
 
   return (
-    <article className="flex min-h-[410px] flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="flex min-h-[410px] flex-col rounded-2xl border bg-white dark:bg-slate-800 p-5 shadow-sm">
       <div className="flex items-start gap-3">
-        <div className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+        <div className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-900 text-emerald-700">
           <FileSpreadsheet className="size-5" />
         </div>
 
         <div className="min-w-0">
-          <h3 className="font-semibold text-slate-900">{config.title}</h3>
+          <h3 className="font-semibold text-slate-900 dark:text-muted-foreground">{config.title}</h3>
 
           <p className="mt-1 text-sm leading-5 text-slate-500">
             {config.description}
@@ -195,7 +195,7 @@ function UploadCard({
 
       {config.type === "stock" && (
         <label className="mt-5 flex items-center gap-4">
-          <span className="mb-1.5 block text-sm font-medium text-slate-700">
+          <span className="mb-1.5 block text-sm font-medium text-muted-foreground">
             Stock location
           </span>
 
@@ -203,7 +203,7 @@ function UploadCard({
             value={stockSheet}
             onChange={(event) => onStockSheetChange(event.target.value)}
             disabled={state.loading}
-            className="h-10 flex-1 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+            className="h-10 flex-1 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-muted-foreground outline-none transition focus:border-emerald-500 dark:focus:border-none focus:ring-4 dark:focus:ring-none dark:focus:outline-none focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100"
           >
             <option value="Kunshan">Kunshan</option>
             <option value="Malaysia">Malaysia</option>
@@ -227,27 +227,27 @@ function UploadCard({
         {!hasFile ? (
           <label
             htmlFor={inputId}
-            className="group flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center transition hover:border-emerald-500 hover:bg-emerald-50/50"
+            className="group flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-5 text-center transition hover:border-emerald-500 hover:bg-emerald-50/50"
           >
-            <div className="inline-flex size-11 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm transition group-hover:text-emerald-700">
+            <div className="inline-flex size-11 items-center justify-center rounded-full bg-white dark:bg-slate-300 text-slate-500 shadow-sm transition group-hover:text-emerald-700">
               <UploadCloud className="size-5" />
             </div>
 
-            <span className="mt-3 text-sm font-semibold text-slate-900">
+            <span className="mt-3 text-sm font-semibold text-muted-foreground">
               Click to select an Excel file
             </span>
 
             <span className="mt-1 text-xs text-slate-500">XLSX or XLS</span>
           </label>
         ) : (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+          <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/40 p-4">
             <div className="flex items-start gap-3">
               <div className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-white text-emerald-700 shadow-sm">
                 <FileSpreadsheet className="size-5" />
               </div>
 
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-slate-900">
+                <p className="truncate text-sm font-semibold text-muted-foreground">
                   {state.file?.name}
                 </p>
 
@@ -260,7 +260,7 @@ function UploadCard({
                 <button
                   type="button"
                   onClick={clearSelectedFile}
-                  className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-white hover:text-red-600"
+                  className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-white dark:hover:bg-slate-600 hover:text-red-600"
                   aria-label="Remove selected file"
                 >
                   <X className="size-4" />
@@ -287,7 +287,7 @@ function UploadCard({
           type="button"
           disabled={!state.file || state.loading}
           onClick={() => onUpload(config.type)}
-          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-700 dark:hover:bg-slate-950 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-600 dark:disabled:hover:bg-slate-600"
         >
           {state.loading ? (
             <>
@@ -303,14 +303,14 @@ function UploadCard({
         </button>
 
         {state.message && (
-          <div className="mt-3 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
+          <div className="mt-3 flex items-start gap-2 rounded-xl border bg-emerald-50 dark:bg-emerald-900 px-3 py-2.5 text-sm text-emerald-800 dark:text-emerald-400">
             <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
             <span>{state.message}</span>
           </div>
         )}
 
         {state.error && (
-          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+          <div className="mt-3 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/50 px-3 py-2.5 text-sm text-red-700 dark:text-red-400">
             {state.error}
           </div>
         )}

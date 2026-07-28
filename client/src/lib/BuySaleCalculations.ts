@@ -41,7 +41,7 @@ export function createEmptyQuoteLine(): QuoteLine {
     cartonUnitPrice: null,
 
     leadTime: "",
-    ncnr: "",
+    ncnr: "Yes",
     remark: "",
 
     searching: false,
@@ -153,7 +153,7 @@ export function calculateQuoteLine(
 }
 
 export function formatCurrency(value: number, currency: "AUD" | "USD"): string {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("en-AU", {
     style: "currency",
     currency,
     minimumFractionDigits: 2,

@@ -66,8 +66,8 @@ export function InternalQuoteRow({
   }, [line.enteredPartNumber, line.searchMessage, onSearch, onUpdate]);
 
   return (
-    <tr className="h-10 bg-white align-top transition-colors hover:bg-slate-50">
-      <td className="sticky left-0 z-10 border-r border-slate-200 bg-white p-1">
+    <tr className="h-10 align-top transition-colors hover:bg-slate-50 dark:hover:bg-slate-700">
+      <td className="sticky left-0 z-10 border-r p-1 bg-white dark:bg-slate-800">
         <div className="mb-1 flex items-center gap-1">
           {/* <span className="inline-flex size-5 shrink-0 items-center justify-center rounded bg-slate-100 text-[10px] font-semibold text-slate-500">
             {rowNumber}
@@ -84,7 +84,7 @@ export function InternalQuoteRow({
               }}
               className="
                 h-8 w-full rounded-md border border-slate-300
-                bg-white py-1 pl-2 pr-5 text-xs outline-none
+                bg-white dark:bg-slate-800 py-1 pl-2 pr-5 text-xs outline-none
                 transition focus:border-emerald-500
                 focus:ring-2 focus:ring-emerald-100
               "
@@ -105,8 +105,8 @@ export function InternalQuoteRow({
             className={`line-clamp-2 text-[11px] leading-4 ${
               line.searchMessage.toLowerCase().includes("failed") ||
               line.searchMessage.toLowerCase().includes("not found")
-                ? "text-red-600"
-                : "text-emerald-700"
+                ? "text-red-600 dark:text-red-400"
+                : "text-emerald-700 dark:text-emerald-400"
             }`}
             title={line.searchMessage}
           >
@@ -147,8 +147,8 @@ export function InternalQuoteRow({
         <strong
           className={
             line.stockQuantity >= line.requiredQuantity
-              ? "text-emerald-700"
-              : "text-red-600"
+              ? "text-emerald-700 dark:text-emerald-400"
+              : "text-red-600 dark:text-red-400"
           }
         >
           {line.stockQuantity.toLocaleString()}
@@ -161,7 +161,7 @@ export function InternalQuoteRow({
           onChange={(event) =>
             onPriceTypeChange(event.target.value as PriceType)
           }
-          className="h-8 w-full rounded border px-2 text-xs"
+          className="h-8 w-full rounded border px-2 text-xs dark:bg-slate-800"
         >
           <option value="manual">Manual</option>
 
@@ -176,7 +176,7 @@ export function InternalQuoteRow({
 
         {(line.bagQuantity !== null || line.cartonQuantity !== null) && (
           <p
-            className="mt-0.5 truncate text-[10px] leading-3 text-slate-500"
+            className="mt-0.5 truncate text-[10px] leading-3 text-slate-500 dark:text-slate-400"
             title={[
               line.bagQuantity !== null
                 ? `Bag quantity: ${line.bagQuantity.toLocaleString()}`
@@ -233,11 +233,11 @@ export function InternalQuoteRow({
         className="min-w-52"
       />
 
-      <td className="border p-1 text-center">
+      <td className="border p-1 text-center align-middle">
         <button
           type="button"
           onClick={onRemove}
-          className="inline-flex size-8 items-center justify-center rounded text-red-600 hover:bg-red-50"
+          className="inline-flex size-6 items-center justify-center rounded text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-800/20"
         >
           <Trash2 className="size-4" />
         </button>
@@ -260,7 +260,7 @@ function EditableCell({
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-8 w-full rounded border px-1"
+        className="h-8 w-full rounded border dark:focus:outline-slate-600 px-1"
       />
     </td>
   );
@@ -274,7 +274,7 @@ function CalculatedCell({
   currency: "AUD" | "USD";
 }) {
   return (
-    <td className="border px-1 py-3 text-center font-semibold">
+    <td className="border px-1 py-3 text-center dark:text-slate-300 font-semibold">
       {formatCurrency(value, currency)}
     </td>
   );

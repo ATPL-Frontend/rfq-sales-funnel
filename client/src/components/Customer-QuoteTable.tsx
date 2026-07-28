@@ -32,15 +32,13 @@ export function CustomerQuoteTable({
   onUpdate,
 }: Props) {
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-slate-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <section className="overflow-hidden rounded-xl border bg-white dark:bg-slate-800 shadow-sm">
+      <div className="flex flex-col gap-3 border-b bg-white dark:bg-slate-800 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold text-slate-900">
-              Customer quotation
-            </h2>
+            <h2 className="text-base font-semibold">Customer quotation</h2>
 
-            <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+            <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-white">
               {lines.length}
             </span>
           </div>
@@ -70,12 +68,18 @@ export function CustomerQuoteTable({
       </div>
 
       {copyMessage ? (
-        <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">
+        <div className="border-b border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900 px-4 py-2.5 text-sm text-emerald-700 dark:text-emerald-400">
           {copyMessage}
         </div>
       ) : null}
 
-      <div className="overflow-x-auto">
+      <div
+        className="overflow-x-auto
+          dark:[&::-webkit-scrollbar]:h-2.5
+          [&::-webkit-scrollbar-track]:bg-slate-400 
+          [&::-webkit-scrollbar-thumb]:bg-slate-900 
+          [&::-webkit-scrollbar-thumb]:rounded-full"
+      >
         <table
           id="customer-quote-table"
           className="w-full min-w-[960px] table-fixed border-collapse text-xs"
@@ -93,14 +97,14 @@ export function CustomerQuoteTable({
           </colgroup>
 
           <thead>
-            <tr className="border-b border-slate-300 bg-slate-100 text-slate-700">
+            <tr className="border-b bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
               <HeaderCell>Ampec P/N</HeaderCell>
               <HeaderCell>Cust P/N</HeaderCell>
               <HeaderCell>Rev</HeaderCell>
               <HeaderCell>Description</HeaderCell>
               <HeaderCell>Qty</HeaderCell>
 
-              <HeaderCell className="bg-red-50 text-red-700">
+              <HeaderCell className="bg-red-50 dark:bg-red-800/50 text-red-700 dark:text-red-300">
                 <span className="block">U/P</span>
                 <span className="font-normal">AUD, ex GST</span>
               </HeaderCell>
@@ -111,11 +115,11 @@ export function CustomerQuoteTable({
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y">
             {lines.map((line) => (
               <tr
                 key={line.id}
-                className="bg-white align-middle transition-colors hover:bg-slate-50"
+                className="bg-white dark:bg-slate-800 align-middle transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
               >
                 <ReadOnlyCell>{line.ampecPartNumber}</ReadOnlyCell>
 
@@ -133,7 +137,7 @@ export function CustomerQuoteTable({
 
                 <ReadOnlyCell>{line.requiredQuantity || ""}</ReadOnlyCell>
 
-                <td className="border-r border-slate-200 bg-emerald-50 px-2 py-2 text-center font-semibold text-emerald-900">
+                <td className="border-r bg-emerald-50 dark:bg-emerald-800/50 px-2 py-2 text-center font-semibold text-emerald-900 dark:text-emerald-300">
                   {formatCurrency(line.finalUnitPriceAud, "AUD")}
                 </td>
 
@@ -144,13 +148,13 @@ export function CustomerQuoteTable({
                   className="text-center"
                 />
 
-                <td className="border-r border-slate-200 p-1">
+                <td className="border-r p-1">
                   <select
                     value={line.ncnr}
                     onChange={(event) =>
                       onUpdate(line.id, "ncnr", event.target.value)
                     }
-                    className="h-8 w-full rounded border border-slate-300 bg-white px-2 text-xs outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                    className="h-8 w-full rounded border border-slate-300 bg-white dark:bg-slate-800 px-2 text-xs outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
                   >
                     <option value="">Select</option>
                     <option value="Yes">Yes</option>
@@ -166,23 +170,23 @@ export function CustomerQuoteTable({
               </tr>
             ))}
 
-            <tr className="bg-slate-50">
-              <td colSpan={3} className="border-r border-slate-200 px-2 py-2" />
+            <tr className="bg-slate-50 dark:bg-slate-700">
+              <td colSpan={3} className="border-r px-2 py-2" />
 
-              <td className="border-r border-slate-200 px-2 py-2 text-center font-semibold text-slate-800">
+              <td className="border-r px-2 py-2 text-center font-semibold text-slate-800 dark:text-slate-300">
                 Freight &amp; Handling
               </td>
 
-              <td className="border-r border-slate-200 px-2 py-2 text-center font-medium">
+              <td className="border-r px-2 py-2 text-center font-medium">
                 1
               </td>
 
-              <td className="border-r border-slate-200 bg-yellow-100 px-2 py-2 text-center">
+              <td className="border-r bg-yellow-100 dark:bg-yellow-300/40 px-2 py-2 text-center">
                 <div className="font-semibold text-slate-900">
                   {formatCurrency(settings.freightCharge, "AUD")}
                 </div>
 
-                <div className="mt-0.5 text-[10px] italic leading-3 text-slate-600">
+                <div className="mt-0.5 text-[10px] italic leading-3 text-slate-600 dark:text-slate-700">
                   {settings.freightNote}
                 </div>
               </td>
@@ -217,7 +221,7 @@ function HeaderCell({
   return (
     <th
       scope="col"
-      className={`border-r border-slate-200 px-2 py-2.5 text-center text-[10px] font-semibold uppercase leading-4 tracking-wide last:border-r-0 ${className}`}
+      className={`border-r px-2 py-2.5 text-center text-[11px] font-semibold uppercase leading-4 tracking-wide last:border-r-0 ${className}`}
     >
       {children}
     </th>
@@ -233,7 +237,7 @@ function ReadOnlyCell({
 }) {
   return (
     <td
-      className={`border-r border-slate-200 px-1 py-2 text-center text-xs text-slate-700 ${className}`}
+      className={`border-r px-1 py-2 text-center text-xs text-slate-700 dark:text-slate-300 ${className}`}
     >
       <div className="line-clamp-2 leading-4">{children}</div>
     </td>
@@ -252,12 +256,12 @@ function EditableQuoteCell({
   className?: string;
 }) {
   return (
-    <td className="border-r border-slate-200 p-1">
+    <td className="border-r p-1">
       <input
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className={`h-8 w-full rounded border border-slate-200 px-1 text-xs outline-none transition focus:border-2 focus:ring-border-500 ${className}`}
+        className={`h-8 w-full rounded border px-1 text-xs outline-none dark:outline-slate-400 transition focus:border-2 focus:ring-border-500 ${className}`}
       />
     </td>
   );
