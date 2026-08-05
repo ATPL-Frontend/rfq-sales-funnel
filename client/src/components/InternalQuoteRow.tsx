@@ -80,7 +80,10 @@ export function InternalQuoteRow({
               placeholder="Enter part number"
               autoComplete="off"
               onChange={(event) => {
-                onUpdate("enteredPartNumber", event.target.value);
+                const value = event.target.value;
+
+                onUpdate("enteredPartNumber", value);
+                onUpdate("ampecPartNumber", value);
               }}
               className="
                 h-8 w-full rounded-md border border-slate-300
@@ -123,11 +126,6 @@ export function InternalQuoteRow({
       <EditableCell
         value={line.customerPartNumber}
         onChange={(value) => onUpdate("customerPartNumber", value)}
-      />
-
-      <EditableCell
-        value={line.revision}
-        onChange={(value) => onUpdate("revision", value)}
       />
 
       <EditableCell
@@ -223,9 +221,13 @@ export function InternalQuoteRow({
 
       <CalculatedCell value={line.finalUnitPriceUsd} currency="USD" />
 
-      <td className="border p-1 py-3 text-center align-top font-medium">
-        {line.moq !== null ? line.moq.toLocaleString() : "—"}
-      </td>
+      <NumberInput
+        value={line.moq}
+        min={0}
+        step={1}
+        onChange={(value) => onUpdate("moq", value)}
+        className="w-full"
+      />
 
       <EditableCell
         value={line.remark}

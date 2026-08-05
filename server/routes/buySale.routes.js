@@ -7,6 +7,16 @@ import {
   uploadStockList,
 } from "../controllers/buySale.controller.js";
 
+import {
+  saveBuySaleQuotation,
+} from "../controllers/buySaleQuotation.controller.js";
+
+import {
+  getBuySaleItems,
+  getSavedBuySaleQuotations,
+} from "../controllers/buySaleList.controller.js";
+
+
 import { excelUpload } from "../middleware/excelUpload.middleware.js";
 
 import { authenticate, authorize } from "../utils/authMiddleware.js";
@@ -50,6 +60,27 @@ router.get(
   authenticate,
   authorize("readAny", "buy-sale"),
   lookupBuySalePart,
+);
+
+router.post(
+  "/quotations",
+  authenticate,
+  authorize("createAny", "buy-sale"),
+  saveBuySaleQuotation,
+);
+
+router.get(
+  "/items",
+  authenticate,
+  authorize("readAny", "buy-sale"),
+  getBuySaleItems,
+);
+
+router.get(
+  "/quotations",
+  authenticate,
+  authorize("readAny", "buy-sale"),
+  getSavedBuySaleQuotations,
 );
 
 export default router;

@@ -21,10 +21,11 @@ export function createEmptyQuoteLine(): QuoteLine {
     enteredPartNumber: "",
     ampecPartNumber: "",
     customerPartNumber: "",
-    revision: "",
     description: "",
 
     requiredQuantity: 1,
+    moq: 1,
+
     stockQuantity: 0,
     stockLocation: "Kunshan",
 
@@ -125,30 +126,15 @@ export function calculateQuoteLine(
     settings.shippingMargin,
   );
 
-  const finalUnitPriceUsd = finalUnitPriceAud * toNumber(settings.audToUsdRate);
-
-  let moq: number | null = null;
-
-  if (line.priceType === "standard") {
-    moq = line.bagQuantity;
-  }
-
-  if (line.priceType === "carton") {
-    moq = line.cartonQuantity;
-  }
+  const finalUnitPriceUsd =
+    finalUnitPriceAud * toNumber(settings.audToUsdRate);
 
   return {
     ...line,
-
     convertedPriceAud: roundCurrency(convertedPriceAud),
-
     componentSellingPriceAud: roundCurrency(componentSellingPriceAud),
-
     finalUnitPriceAud: roundCurrency(finalUnitPriceAud),
-
     finalUnitPriceUsd: roundCurrency(finalUnitPriceUsd),
-
-    moq,
   };
 }
 

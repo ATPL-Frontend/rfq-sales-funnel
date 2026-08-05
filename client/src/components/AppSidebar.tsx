@@ -70,8 +70,21 @@ const menu = [
   },
   {
     title: "Buy & Sale",
-    url: "/app/buy-sale",
     icon: Receipt,
+    subMenus: [
+      {
+        title: "Quote Template",
+        url: "/app/buy-sale",
+      },
+      {
+        title: "Quote List",
+        url: "/app/quote-list",
+      },
+      {
+        title: "Item List",
+        url: "/app/item-list",
+      },
+    ],
   },
 ];
 

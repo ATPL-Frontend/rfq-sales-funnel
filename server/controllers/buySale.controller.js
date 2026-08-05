@@ -2,7 +2,6 @@ import XLSX from "xlsx";
 
 import { pool } from "../lib/dbconnect-mysql.js";
 import {
-  bulkInsert,
   findColumnIndex,
   findHeaderRow,
   normalizePartNumber,
@@ -120,18 +119,17 @@ export async function uploadStockList(req, res) {
       [sheetName],
     );
 
-    await bulkInsert(
-      connection,
+    await connection.query(
       `
-      INSERT INTO pem_stock (
-        part_number,
-        normalized_part_number,
-        nett_inventory,
-        stock_location
-      )
+        INSERT INTO pem_stock (
+          part_number,
+          normalized_part_number,
+          nett_inventory,
+          stock_location
+        )
+        VALUES ?
       `,
-      stockRows,
-      4,
+      [stockRows],
     );
 
     await connection.commit();
@@ -263,10 +261,17 @@ export async function uploadPartMappings(req, res) {
 
     await connection.beginTransaction();
 
-    await connection.query(`DELETE FROM part_number_mappings`);
+    const mappingValues = rows.map((row) => [
+      row.captivePartNumber,
+      row.normalizedCaptivePartNumber,
+      row.pemPartNumber,
+      row.normalizedPemPartNumber,
+      row.description || null,
+    ]);
 
-    await bulkInsert(
-      connection,
+    const placeholders = mappingValues.map(() => "(?, ?, ?, ?, ?)").join(", ");
+
+    await connection.query(
       `
       INSERT INTO part_number_mappings (
         captive_part_number,
@@ -275,9 +280,25 @@ export async function uploadPartMappings(req, res) {
         normalized_pem_part_number,
         description
       )
+      VALUES ${placeholders}
+      AS new
+      ON DUPLICATE KEY UPDATE
+        captive_part_number =
+          new.captive_part_number,
+
+        pem_part_number =
+          new.pem_part_number,
+
+        normalized_pem_part_number =
+          new.normalized_pem_part_number,
+
+        description =
+          new.description,
+
+        updated_at =
+          CURRENT_TIMESTAMP
       `,
-      mappingRows,
-      5,
+      mappingValues.flat(),
     );
 
     await connection.commit();
@@ -326,12 +347,12 @@ export async function uploadItemPrices(req, res) {
     const rows = sheetToRows(sheet);
 
     /*
-     * This Excel uses two header rows:
+     * The price Excel uses two header rows:
      *
-     * Product    | Product | PE / Bag | Carton/   | PE / Bag   | Carton/
-     * Number     | Family  | Order Qty| Order Qty | Order Price| Order Price
+     * Product    | Product | PE / Bag  | Carton/   | PE / Bag    | Carton/
+     * Number     | Family  | Order Qty | Order Qty | Order Price | Order Price
      *
-     * We combine both rows before locating columns.
+     * Combine both rows before locating the required columns.
      */
     let firstHeaderRowIndex = -1;
     let secondHeaderRowIndex = -1;
@@ -339,6 +360,7 @@ export async function uploadItemPrices(req, res) {
 
     for (let index = 0; index < rows.length - 1; index += 1) {
       const firstRow = Array.isArray(rows[index]) ? rows[index] : [];
+
       const secondRow = Array.isArray(rows[index + 1]) ? rows[index + 1] : [];
 
       const maximumColumns = Math.max(firstRow.length, secondRow.length);
@@ -351,6 +373,7 @@ export async function uploadItemPrices(req, res) {
         columnIndex += 1
       ) {
         const firstPart = String(firstRow[columnIndex] ?? "").trim();
+
         const secondPart = String(secondRow[columnIndex] ?? "").trim();
 
         candidateHeaders.push(
@@ -459,7 +482,9 @@ export async function uploadItemPrices(req, res) {
     const priceRows = [];
     const seenProducts = new Set();
 
-    // Data begins after the second header row.
+    /*
+     * Data starts immediately after the second header row.
+     */
     const dataRows = rows.slice(secondHeaderRowIndex + 1);
 
     for (const row of dataRows) {
@@ -475,6 +500,10 @@ export async function uploadItemPrices(req, res) {
         continue;
       }
 
+      /*
+       * Ignore duplicate products inside the same Excel file.
+       * The first valid occurrence is used.
+       */
       if (seenProducts.has(normalizedProductNumber)) {
         continue;
       }
@@ -485,16 +514,15 @@ export async function uploadItemPrices(req, res) {
           : null;
 
       const bagQuantity = toDecimal(row[bagQuantityIndex]);
+
       const cartonQuantity = toDecimal(row[cartonQuantityIndex]);
 
       /*
-       * Both prices in this PEM file are prices per 1,000 pieces.
+       * Both prices are prices per 1,000 pieces.
        *
        * Example:
-       * Bag quantity: 500
-       * PE/Bag order price: $803.75
-       *
-       * Unit price is $803.75 / 1,000, not $803.75 / 500.
+       * PE/Bag price: 803.75
+       * Unit price: 803.75 / 1,000
        */
       const standardPricePer1000 = toDecimal(row[standardPriceIndex]);
 
@@ -528,35 +556,84 @@ export async function uploadItemPrices(req, res) {
 
     await connection.beginTransaction();
 
-    await connection.query(`
-      DELETE FROM pem_item_prices
-    `);
+    /*
+     * Do not delete pem_item_prices.
+     *
+     * Existing products missing from this Excel remain unchanged.
+     * Existing matching products are updated.
+     * New products are inserted.
+     */
+    const batchSize = 500;
 
-    await bulkInsert(
-      connection,
-      `
-      INSERT INTO pem_item_prices (
-        product_number,
-        normalized_product_number,
-        product_family,
-        bag_quantity,
-        carton_quantity,
-        standard_price_per_1000,
-        carton_price_per_1000,
-        price_list_date
-      )
-      `,
-      priceRows,
-      8,
-    );
+    let processedRows = 0;
+    let affectedRows = 0;
+
+    for (
+      let startIndex = 0;
+      startIndex < priceRows.length;
+      startIndex += batchSize
+    ) {
+      const batch = priceRows.slice(startIndex, startIndex + batchSize);
+
+      const placeholders = batch
+        .map(() => "(?, ?, ?, ?, ?, ?, ?, ?)")
+        .join(", ");
+
+      const values = batch.flat();
+
+      const [result] = await connection.query(
+        `
+        INSERT INTO pem_item_prices (
+          product_number,
+          normalized_product_number,
+          product_family,
+          bag_quantity,
+          carton_quantity,
+          standard_price_per_1000,
+          carton_price_per_1000,
+          price_list_date
+        )
+        VALUES ${placeholders}
+        ON DUPLICATE KEY UPDATE
+          product_number =
+            VALUES(product_number),
+
+          product_family =
+            VALUES(product_family),
+
+          bag_quantity =
+            VALUES(bag_quantity),
+
+          carton_quantity =
+            VALUES(carton_quantity),
+
+          standard_price_per_1000 =
+            VALUES(standard_price_per_1000),
+
+          carton_price_per_1000 =
+            VALUES(carton_price_per_1000),
+
+          price_list_date =
+            VALUES(price_list_date),
+
+          updated_at =
+            CURRENT_TIMESTAMP
+        `,
+        values,
+      );
+
+      processedRows += batch.length;
+      affectedRows += result.affectedRows;
+    }
 
     await connection.commit();
 
     return res.json({
       success: true,
-      message: `${priceRows.length} item prices imported successfully.`,
+      message: `${processedRows} item prices processed successfully. Existing matching products were updated and previous unmatched prices were preserved.`,
       data: {
-        imported_rows: priceRows.length,
+        processed_rows: processedRows,
+        affected_rows: affectedRows,
         worksheet: firstSheetName,
         price_list_date: priceListDate,
       },
@@ -565,7 +642,7 @@ export async function uploadItemPrices(req, res) {
     try {
       await connection.rollback();
     } catch {
-      // Transaction may not have started yet.
+      // The transaction may not have started.
     }
 
     console.error("Price Excel upload error:", error);
@@ -603,7 +680,11 @@ export async function lookupBuySalePart(req, res) {
 
     const normalizedEnteredPartNumber = normalizePartNumber(enteredPartNumber);
 
-    const [directRows] = await pool.query(
+    /*
+     * First check whether the entered part exists directly
+     * in either stock or price data.
+     */
+    const [directStockRows] = await pool.query(
       `
       SELECT
         part_number,
@@ -615,13 +696,58 @@ export async function lookupBuySalePart(req, res) {
       [normalizedEnteredPartNumber],
     );
 
+    const [directPriceRows] = await pool.query(
+      `
+      SELECT
+        product_number,
+        normalized_product_number
+      FROM pem_item_prices
+      WHERE normalized_product_number = ?
+      LIMIT 1
+      `,
+      [normalizedEnteredPartNumber],
+    );
+
     let matchType = "direct";
-    let ampecPartNumber = enteredPartNumber;
-    let normalizedAmpecPartNumber = normalizedEnteredPartNumber;
+    let matchedPemPartNumber = enteredPartNumber;
+    let normalizedMatchedPemPartNumber = normalizedEnteredPartNumber;
+
     let customerPartNumber = "";
     let description = "";
 
-    if (!directRows.length) {
+    const hasDirectMatch =
+      directStockRows.length > 0 || directPriceRows.length > 0;
+
+    if (hasDirectMatch) {
+      matchedPemPartNumber =
+        directStockRows[0]?.part_number ||
+        directPriceRows[0]?.product_number ||
+        enteredPartNumber;
+
+      normalizedMatchedPemPartNumber =
+        normalizePartNumber(matchedPemPartNumber);
+
+      const [descriptionRows] = await pool.query(
+        `
+        SELECT
+          captive_part_number,
+          description
+        FROM part_number_mappings
+        WHERE normalized_pem_part_number = ?
+        ORDER BY id ASC
+        LIMIT 1
+        `,
+        [normalizedMatchedPemPartNumber],
+      );
+
+      if (descriptionRows.length) {
+        description = descriptionRows[0].description || "";
+      }
+    } else {
+      /*
+       * No direct stock or price match.
+       * Try Captive-to-PEM mapping.
+       */
       const [mappingRows] = await pool.query(
         `
         SELECT
@@ -640,37 +766,20 @@ export async function lookupBuySalePart(req, res) {
       if (!mappingRows.length) {
         return res.status(404).json({
           success: false,
-          message:
-            "Part number was not found in stock or alternative part mapping.",
+          message: "Part number was not found in stock, mapping or price data.",
         });
       }
 
       const mapping = mappingRows[0];
 
       matchType = "mapping";
-      ampecPartNumber = mapping.pem_part_number;
-      normalizedAmpecPartNumber = mapping.normalized_pem_part_number;
+      matchedPemPartNumber = mapping.pem_part_number;
+
+      normalizedMatchedPemPartNumber = mapping.normalized_pem_part_number;
+
       customerPartNumber = mapping.captive_part_number;
+
       description = mapping.description || "";
-    } else {
-      ampecPartNumber = directRows[0].part_number;
-
-      const [descriptionRows] = await pool.query(
-        `
-        SELECT
-          captive_part_number,
-          description
-        FROM part_number_mappings
-        WHERE normalized_pem_part_number = ?
-        ORDER BY id ASC
-        LIMIT 1
-        `,
-        [normalizedAmpecPartNumber],
-      );
-
-      if (descriptionRows.length) {
-        description = descriptionRows[0].description || "";
-      }
     }
 
     const [stockRows] = await pool.query(
@@ -684,63 +793,75 @@ export async function lookupBuySalePart(req, res) {
         AND stock_location = ?
       LIMIT 1
       `,
-      [normalizedAmpecPartNumber, stockLocation],
+      [normalizedMatchedPemPartNumber, stockLocation],
     );
 
     const [priceRows] = await pool.query(
       `
-        SELECT
-          product_number,
-          product_family,
-          bag_quantity,
-          carton_quantity,
-          standard_price_per_1000,
-          carton_price_per_1000,
-          price_list_date
-        FROM pem_item_prices
-        WHERE normalized_product_number = ?
-        LIMIT 1
+      SELECT
+        product_number,
+        product_family,
+        bag_quantity,
+        carton_quantity,
+        standard_price_per_1000,
+        carton_price_per_1000,
+        price_list_date
+      FROM pem_item_prices
+      WHERE normalized_product_number = ?
+      LIMIT 1
       `,
-      [normalizedAmpecPartNumber],
+      [normalizedMatchedPemPartNumber],
     );
 
     const stock = stockRows[0] || null;
     const price = priceRows[0] || null;
 
+    /*
+     * A mapping may exist even if neither stock nor price
+     * currently exists. Return it with zero stock so the user
+     * can still complete the quote manually.
+     */
     const bagQuantity =
-      price?.bag_quantity !== null && price?.bag_quantity !== undefined
-        ? Number(price.bag_quantity)
-        : null;
+      price?.bag_quantity == null ? null : Number(price.bag_quantity);
 
     const cartonQuantity =
-      price?.carton_quantity !== null && price?.carton_quantity !== undefined
-        ? Number(price.carton_quantity)
-        : null;
+      price?.carton_quantity == null ? null : Number(price.carton_quantity);
 
     const standardPricePer1000 =
-      price?.standard_price_per_1000 !== null &&
-      price?.standard_price_per_1000 !== undefined
-        ? Number(price.standard_price_per_1000)
-        : null;
+      price?.standard_price_per_1000 == null
+        ? null
+        : Number(price.standard_price_per_1000);
 
     const cartonPricePer1000 =
-      price?.carton_price_per_1000 !== null &&
-      price?.carton_price_per_1000 !== undefined
-        ? Number(price.carton_price_per_1000)
-        : null;
+      price?.carton_price_per_1000 == null
+        ? null
+        : Number(price.carton_price_per_1000);
 
-    // Both Excel prices represent the price for 1,000 pieces.
     const standardUnitPrice =
-      standardPricePer1000 !== null ? standardPricePer1000 / 1000 : null;
+      standardPricePer1000 == null ? null : standardPricePer1000 / 1000;
 
     const cartonUnitPrice =
-      cartonPricePer1000 !== null ? cartonPricePer1000 / 1000 : null;
+      cartonPricePer1000 == null ? null : cartonPricePer1000 / 1000;
 
     return res.json({
       success: true,
+      message:
+        !stock && price
+          ? "Part found in price list. No stock record was found."
+          : stock && !price
+            ? "Part found in stock. No price record was found."
+            : "Part found.",
+
       data: {
         enteredPartNumber,
-        ampecPartNumber,
+
+        /*
+         * Frontend displays the search value as Ampec P/N.
+         * This field contains the resolved PEM number for lookup.
+         */
+        ampecPartNumber: enteredPartNumber,
+        matchedPemPartNumber,
+
         customerPartNumber,
         description,
         matchType,
@@ -764,7 +885,7 @@ export async function lookupBuySalePart(req, res) {
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Unable to look up the part number.",
     });
   }
 }

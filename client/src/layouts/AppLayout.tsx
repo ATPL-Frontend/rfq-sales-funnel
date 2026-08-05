@@ -94,7 +94,7 @@ const AppLayout = () => {
           <div className="flex items-center gap-2">
             <ModeToggle />
             <LogOut
-              className="size-8 p-2 bg-background hover:bg-accent rounded cursor-pointer transition-colors border"
+              className="size-8 p-2 bg-background hover:bg-accent rounded-md shadow cursor-pointer transition-colors border"
               onClick={handleLogout}
             />
           </div>
