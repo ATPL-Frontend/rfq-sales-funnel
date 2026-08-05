@@ -296,7 +296,7 @@ export default function RfqPage() {
       label: "Actions",
       render: (row) => (
         <div className="flex gap-3 items-center">
-          <Modal title="Edit RFQ" icon="edit" type="icon" size="md">
+          <Modal title="Edit RFQ" icon="edit" type="icon" size="lg">
             {(closeModal) => (
               <RfqForm
                 key={row.id}
@@ -350,7 +350,7 @@ export default function RfqPage() {
             )}
           </Modal>
 
-          <Modal icon="add" label="Create RFQ" title="Create RFQ" size="2xl">
+          <Modal icon="add" label="Create RFQ" title="Create RFQ" size="lg">
             {(closeModal) => (
               <RfqForm
                 key="create-rfq"

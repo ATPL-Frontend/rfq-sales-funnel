@@ -82,12 +82,11 @@ export function InternalQuoteTable({
             [&::-webkit-scrollbar-track]:bg-slate-400 
             [&::-webkit-scrollbar-thumb]:bg-slate-900 
             [&::-webkit-scrollbar-thumb]:rounded-full">
-        <table className="w-full min-w-[1420px] table-fixed border-collapse text-xs">
+        <table className="w-full min-w-[1360px] table-fixed border-collapse text-xs">
           <colgroup>
             <col className="w-40" />
             <col className="w-30" />
             <col className="w-30" />
-            <col className="w-15" />
             <col className="w-57" /> 
             <col className="w-18" />
             <col className="w-19" />
@@ -110,7 +109,6 @@ export function InternalQuoteTable({
 
               <HeaderCell>Ampec P/N</HeaderCell>
               <HeaderCell>Customer P/N</HeaderCell>
-              <HeaderCell>Rev</HeaderCell>
               <HeaderCell>Description</HeaderCell>
               <HeaderCell>Qty</HeaderCell>
               <HeaderCell>

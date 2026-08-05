@@ -13,9 +13,12 @@ import type {
 type Props = {
   lines: CalculatedQuoteLine[];
   settings: QuoteSettings;
-  copyMessage: string;
+  saving: boolean;
+
+  onSave: () => void;
   onCopy: () => void;
   onClear: () => void;
+
   onUpdate: <K extends keyof QuoteLine>(
     id: string,
     field: K,
@@ -26,10 +29,11 @@ type Props = {
 export function CustomerQuoteTable({
   lines,
   settings,
-  copyMessage,
   onCopy,
   onClear,
   onUpdate,
+  saving,
+  onSave,
 }: Props) {
   return (
     <section className="overflow-hidden rounded-xl border bg-white dark:bg-slate-800 shadow-sm">
@@ -52,6 +56,15 @@ export function CustomerQuoteTable({
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
+            onClick={onSave}
+            disabled={saving}
+            className="h-9 gap-2 bg-blue-600 hover:bg-blue-500"
+          >
+            {saving ? "Saving..." : "Save quotation"}
+          </Button>
+
+          <Button
+            type="button"
             variant="destructive"
             onClick={onClear}
             className="h-9 gap-2"
@@ -67,12 +80,6 @@ export function CustomerQuoteTable({
         </div>
       </div>
 
-      {copyMessage ? (
-        <div className="border-b border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900 px-4 py-2.5 text-sm text-emerald-700 dark:text-emerald-400">
-          {copyMessage}
-        </div>
-      ) : null}
-
       <div
         className="overflow-x-auto
           dark:[&::-webkit-scrollbar]:h-2.5
@@ -82,25 +89,23 @@ export function CustomerQuoteTable({
       >
         <table
           id="customer-quote-table"
-          className="w-full min-w-[960px] table-fixed border-collapse text-xs"
+          className="w-full min-w-[928px] table-fixed border-collapse text-xs"
         >
           <colgroup>
             <col className="w-30" />
             <col className="w-30" />
-            <col className="w-12" />
             <col className="w-50" />
             <col className="w-8" />
             <col className="w-18" />
             <col className="w-18" />
             <col className="w-16" />
-            <col className="w-20" />
+            <col className="w-24" />
           </colgroup>
 
           <thead>
             <tr className="border-b bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
               <HeaderCell>Ampec P/N</HeaderCell>
               <HeaderCell>Cust P/N</HeaderCell>
-              <HeaderCell>Rev</HeaderCell>
               <HeaderCell>Description</HeaderCell>
               <HeaderCell>Qty</HeaderCell>
 
@@ -124,12 +129,6 @@ export function CustomerQuoteTable({
                 <ReadOnlyCell>{line.ampecPartNumber}</ReadOnlyCell>
 
                 <ReadOnlyCell>{line.customerPartNumber}</ReadOnlyCell>
-
-                <EditableQuoteCell
-                  value={line.revision}
-                  onChange={(value) => onUpdate(line.id, "revision", value)}
-                  className="text-center"
-                />
 
                 <ReadOnlyCell className="text-left">
                   {line.description}
@@ -171,15 +170,13 @@ export function CustomerQuoteTable({
             ))}
 
             <tr className="bg-slate-50 dark:bg-slate-700">
-              <td colSpan={3} className="border-r px-2 py-2" />
+              <td colSpan={2} className="border-r px-2 py-2" />
 
               <td className="border-r px-2 py-2 text-center font-semibold text-slate-800 dark:text-slate-300">
                 Freight &amp; Handling
               </td>
 
-              <td className="border-r px-2 py-2 text-center font-medium">
-                1
-              </td>
+              <td className="border-r px-2 py-2 text-center font-medium">1</td>
 
               <td className="border-r bg-yellow-100 dark:bg-yellow-300/40 px-2 py-2 text-center">
                 <div className="font-semibold text-slate-900">
@@ -196,17 +193,6 @@ export function CustomerQuoteTable({
           </tbody>
         </table>
       </div>
-
-      {/* <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-3">
-        <p className="text-xs text-slate-500">
-          Only customer-facing values are included when copying.
-        </p>
-
-        <Button type="button" size="sm" onClick={onCopy} className="gap-2">
-          <Clipboard className="size-3.5" />
-          Copy quote
-        </Button>
-      </div> */}
     </section>
   );
 }

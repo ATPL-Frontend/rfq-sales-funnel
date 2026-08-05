@@ -1,5 +1,4 @@
 import axios from "axios";
-import * as React from "react";
 
 import { BuySaleUploadSection } from "@/components/BuySaleUploadSection";
 import { CustomerQuoteTable } from "@/components/Customer-QuoteTable";
@@ -19,6 +18,7 @@ import api from "@/lib/api";
 
 import { Button } from "@/components/ui/button";
 import type {
+  CalculatedQuoteLine,
   PartLookupResult,
   PriceType,
   QuoteLine,
@@ -27,11 +27,22 @@ import type {
   UploadType,
 } from "@/types/buySale.types";
 import { UploadCloud } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 
 type ApiResponse<T> = {
   success: boolean;
   message?: string;
   data: T;
+};
+
+type SaveQuotationResponse = {
+  success: boolean;
+  message: string;
+  data: {
+    inserted_rows: number;
+    first_inserted_id: number;
+  };
 };
 
 type UploadResult = {
@@ -46,7 +57,7 @@ const uploadEndpoints: Record<UploadType, string> = {
   price: "/api/buy-sale/uploads/prices",
 };
 
-const createInitialUploads = (): Record<UploadType, UploadState> => ({
+export const createInitialUploads = (): Record<UploadType, UploadState> => ({
   stock: {
     file: null,
     loading: false,
@@ -67,7 +78,20 @@ const createInitialUploads = (): Record<UploadType, UploadState> => ({
   },
 });
 
-function getErrorMessage(error: unknown, fallbackMessage: string): string {
+export async function saveBuySaleQuotation(
+  lines: CalculatedQuoteLine[],
+): Promise<SaveQuotationResponse> {
+  const response = await api.post<SaveQuotationResponse>(
+    "/api/buy-sale/quotations",
+    {
+      lines,
+    },
+  );
+
+  return response.data;
+}
+
+export function getErrorMessage(error: unknown, fallbackMessage: string): string {
   if (axios.isAxiosError(error)) {
     const responseMessage = error.response?.data?.message;
 
@@ -87,7 +111,7 @@ function getErrorMessage(error: unknown, fallbackMessage: string): string {
   return fallbackMessage;
 }
 
-async function uploadBuySaleExcel(params: {
+export async function uploadBuySaleExcel(params: {
   type: UploadType;
   file: File;
   sheetName?: string;
@@ -126,38 +150,63 @@ async function lookupBuySalePart(params: {
 }
 
 export default function BuySale() {
-  const [stockSheet, setStockSheet] = React.useState("Kunshan");
+  const [stockSheet, setStockSheet] = useState("Kunshan");
 
-  const [uploads, setUploads] = React.useState<Record<UploadType, UploadState>>(
-    () => createInitialUploads(),
+  const [uploads, setUploads] = useState<Record<UploadType, UploadState>>(() =>
+    createInitialUploads(),
   );
-  const [uploadModalOpen, setUploadModalOpen] = React.useState(false);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
-  const [settings, setSettings] =
-    React.useState<QuoteSettings>(initialQuoteSettings);
+  const [settings, setSettings] = useState<QuoteSettings>(initialQuoteSettings);
 
-  const [lines, setLines] = React.useState<QuoteLine[]>(() => [
+  const [lines, setLines] = useState<QuoteLine[]>(() => [
     createEmptyQuoteLine(),
   ]);
 
-  const [copyMessage, setCopyMessage] = React.useState("");
-
-  const copyMessageTimerRef = React.useRef<number | null>(null);
-
-  const calculatedLines = React.useMemo(
+  const calculatedLines = useMemo(
     () => lines.map((line) => calculateQuoteLine(line, settings)),
     [lines, settings],
   );
 
-  React.useEffect(() => {
-    return () => {
-      if (copyMessageTimerRef.current !== null) {
-        window.clearTimeout(copyMessageTimerRef.current);
-      }
-    };
-  }, []);
+  const [savingQuote, setSavingQuote] = useState(false);
 
-  const updateSetting = React.useCallback(
+  const handleSaveQuotation = useCallback(async () => {
+    if (savingQuote) {
+      return;
+    }
+
+    const validLines = calculatedLines.filter(
+      (line) =>
+        line.ampecPartNumber.trim() ||
+        line.customerPartNumber.trim() ||
+        line.description.trim(),
+    );
+
+    if (!validLines.length) {
+      toast.error("Add at least one quotation item before saving.");
+      return;
+    }
+
+    setSavingQuote(true);
+
+    const loadingToastId = toast.loading("Saving quotation...");
+
+    try {
+      const response = await saveBuySaleQuotation(validLines);
+
+      toast.success(response.message, {
+        id: loadingToastId,
+      });
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Unable to save the quotation."), {
+        id: loadingToastId,
+      });
+    } finally {
+      setSavingQuote(false);
+    }
+  }, [calculatedLines, savingQuote]);
+
+  const updateSetting = useCallback(
     <K extends keyof QuoteSettings>(field: K, value: QuoteSettings[K]) => {
       setSettings((current) => ({
         ...current,
@@ -167,7 +216,7 @@ export default function BuySale() {
     [],
   );
 
-  const updateLine = React.useCallback(
+  const updateLine = useCallback(
     <K extends keyof QuoteLine>(id: string, field: K, value: QuoteLine[K]) => {
       setLines((current) =>
         current.map((line) =>
@@ -183,27 +232,24 @@ export default function BuySale() {
     [],
   );
 
-  const patchLine = React.useCallback(
-    (id: string, values: Partial<QuoteLine>) => {
-      setLines((current) =>
-        current.map((line) =>
-          line.id === id
-            ? {
-                ...line,
-                ...values,
-              }
-            : line,
-        ),
-      );
-    },
-    [],
-  );
+  const patchLine = useCallback((id: string, values: Partial<QuoteLine>) => {
+    setLines((current) =>
+      current.map((line) =>
+        line.id === id
+          ? {
+              ...line,
+              ...values,
+            }
+          : line,
+      ),
+    );
+  }, []);
 
-  const addLine = React.useCallback(() => {
+  const addLine = useCallback(() => {
     setLines((current) => [...current, createEmptyQuoteLine()]);
   }, []);
 
-  const removeLine = React.useCallback((id: string) => {
+  const removeLine = useCallback((id: string) => {
     setLines((current) => {
       const remainingLines = current.filter((line) => line.id !== id);
 
@@ -213,36 +259,33 @@ export default function BuySale() {
     });
   }, []);
 
-  const changePriceType = React.useCallback(
-    (id: string, priceType: PriceType) => {
-      setLines((current) =>
-        current.map((line) => {
-          if (line.id !== id) {
-            return line;
-          }
+  const changePriceType = useCallback((id: string, priceType: PriceType) => {
+    setLines((current) =>
+      current.map((line) => {
+        if (line.id !== id) {
+          return line;
+        }
 
-          let itemPriceUsd = line.itemPriceUsd;
+        let itemPriceUsd = line.itemPriceUsd;
 
-          if (priceType === "standard") {
-            itemPriceUsd = toNumber(line.standardUnitPrice);
-          }
+        if (priceType === "standard") {
+          itemPriceUsd = toNumber(line.standardUnitPrice);
+        }
 
-          if (priceType === "carton") {
-            itemPriceUsd = toNumber(line.cartonUnitPrice);
-          }
+        if (priceType === "carton") {
+          itemPriceUsd = toNumber(line.cartonUnitPrice);
+        }
 
-          return {
-            ...line,
-            priceType,
-            itemPriceUsd,
-          };
-        }),
-      );
-    },
-    [],
-  );
+        return {
+          ...line,
+          priceType,
+          itemPriceUsd,
+        };
+      }),
+    );
+  }, []);
 
-  const updateRequiredQuantity = React.useCallback(
+  const updateRequiredQuantity = useCallback(
     (id: string, requiredQuantity: number) => {
       setLines((current) =>
         current.map((line) => {
@@ -253,6 +296,7 @@ export default function BuySale() {
           const updatedLine: QuoteLine = {
             ...line,
             requiredQuantity,
+            moq: requiredQuantity,
           };
 
           const selectedPrice = getPriceForQuantity(
@@ -271,7 +315,7 @@ export default function BuySale() {
     [],
   );
 
-  const searchPart = React.useCallback(
+  const searchPart = useCallback(
     async (id: string) => {
       const line = lines.find((item) => item.id === id);
 
@@ -311,7 +355,7 @@ export default function BuySale() {
 
           enteredPartNumber: data.enteredPartNumber || partNumber,
 
-          ampecPartNumber: data.ampecPartNumber || partNumber,
+          ampecPartNumber: data.enteredPartNumber || partNumber,
 
           customerPartNumber: data.customerPartNumber || "",
 
@@ -366,7 +410,7 @@ export default function BuySale() {
         patchLine(id, {
           enteredPartNumber: temporaryLine.enteredPartNumber,
 
-          ampecPartNumber: temporaryLine.ampecPartNumber,
+          ampecPartNumber: temporaryLine.enteredPartNumber,
 
           customerPartNumber: temporaryLine.customerPartNumber,
 
@@ -410,7 +454,7 @@ export default function BuySale() {
     [lines, patchLine, stockSheet],
   );
 
-  const updateUploadFile = React.useCallback(
+  const updateUploadFile = useCallback(
     (type: UploadType, file: File | null) => {
       setUploads((current) => ({
         ...current,
@@ -425,7 +469,7 @@ export default function BuySale() {
     [],
   );
 
-  const uploadExcel = React.useCallback(
+  const uploadExcel = useCallback(
     async (type: UploadType) => {
       const uploadState = uploads[type];
 
@@ -491,44 +535,26 @@ export default function BuySale() {
     [stockSheet, uploads],
   );
 
-  const handleCopy = React.useCallback(async () => {
+  const handleCopy = useCallback(async () => {
     try {
       await copyCustomerQuote(calculatedLines, settings);
 
-      setCopyMessage("Quotation copied. Paste it into Outlook.");
-
-      if (copyMessageTimerRef.current !== null) {
-        window.clearTimeout(copyMessageTimerRef.current);
-      }
-
-      copyMessageTimerRef.current = window.setTimeout(() => {
-        setCopyMessage("");
-        copyMessageTimerRef.current = null;
-      }, 3000);
+      toast.success("Quotation copied successfully.");
     } catch (error: unknown) {
-      setCopyMessage(getErrorMessage(error, "Unable to copy the quotation."));
+      toast.error(getErrorMessage(error, "Failed to copy quotation."));
     }
   }, [calculatedLines, settings]);
 
-  const clearQuote = React.useCallback(() => {
+  const clearQuote = useCallback(() => {
     setSettings(initialQuoteSettings);
     setLines([createEmptyQuoteLine()]);
-    setCopyMessage("");
-
-    if (copyMessageTimerRef.current !== null) {
-      window.clearTimeout(copyMessageTimerRef.current);
-
-      copyMessageTimerRef.current = null;
-    }
   }, []);
 
   return (
     <div className="space-y-4">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">
-            Buy - Sale Quote
-          </h1>
+          <h1 className="text-2xl font-bold">Buy - Sale Quote</h1>
 
           <p className="mt-1 text-sm text-slate-500">
             Search parts, calculate prices and prepare customer quotations.
@@ -560,10 +586,11 @@ export default function BuySale() {
       <CustomerQuoteTable
         lines={calculatedLines}
         settings={settings}
-        copyMessage={copyMessage}
         onCopy={handleCopy}
         onClear={clearQuote}
         onUpdate={updateLine}
+        saving={savingQuote}
+        onSave={handleSaveQuotation}
       />
 
       <BuySaleUploadSection

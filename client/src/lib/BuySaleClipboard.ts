@@ -1,8 +1,8 @@
-import { formatCurrency } from "./BuySaleCalculations";
 import type {
   CalculatedQuoteLine,
   QuoteSettings,
 } from "../types/buySale.types";
+import { formatCurrency } from "./BuySaleCalculations";
 
 function escapeHtml(value: string): string {
   return String(value ?? "")
@@ -19,9 +19,7 @@ function buildCustomerQuoteHtml(
 ): string {
   const validLines = lines.filter(
     (line) =>
-      line.ampecPartNumber ||
-      line.customerPartNumber ||
-      line.description,
+      line.ampecPartNumber || line.customerPartNumber || line.description,
   );
 
   const rows = validLines
@@ -48,17 +46,6 @@ function buildCustomerQuoteHtml(
             vertical-align:middle;
           ">
             ${escapeHtml(line.customerPartNumber)}
-          </td>
-
-          <td style="
-            border:1px solid #cbd5e1;
-            padding:8px 10px;
-            text-align:center;
-            font-size:12px;
-            color:#334155;
-            vertical-align:middle;
-          ">
-            ${escapeHtml(line.revision)}
           </td>
 
           <td style="
@@ -147,12 +134,11 @@ function buildCustomerQuoteHtml(
       "
     >
       <colgroup>
-        <col style="width:12%;" />
-        <col style="width:12%;" />
-        <col style="width:7%;" />
-        <col style="width:25%;" />
+        <col style="width:13%;" />
+        <col style="width:13%;" />
+        <col style="width:28%;" />
         <col style="width:9%;" />
-        <col style="width:12%;" />
+        <col style="width:13%;" />
         <col style="width:10%;" />
         <col style="width:9%;" />
         <col style="width:20%;" />
@@ -160,13 +146,7 @@ function buildCustomerQuoteHtml(
 
       <thead>
         <tr>
-          ${[
-            "Ampec P/N",
-            "Cust P/N",
-            "REV",
-            "Description",
-            "QTY (Pcs)",
-          ]
+          ${["Ampec P/N", "Cust P/N", "Description", "QTY (Pcs)"]
             .map(
               (header) => `
                 <th style="
@@ -232,7 +212,7 @@ function buildCustomerQuoteHtml(
         ${rows}
 
         <tr>
-          <td colspan="3" style="
+          <td colspan="2" style="
             border:1px solid #cbd5e1;
             background:#f8fafc;
             padding:8px 10px;
@@ -300,15 +280,12 @@ function buildCustomerQuoteText(
 ): string {
   const validLines = lines.filter(
     (line) =>
-      line.ampecPartNumber ||
-      line.customerPartNumber ||
-      line.description,
+      line.ampecPartNumber || line.customerPartNumber || line.description,
   );
 
   const header = [
     "Ampec P/N",
     "Cust P/N",
-    "REV",
     "Description",
     "QTY (Pcs)",
     "U/P (AUD, ex GST)",
@@ -321,7 +298,6 @@ function buildCustomerQuoteText(
     [
       line.ampecPartNumber,
       line.customerPartNumber,
-      line.revision,
       line.description,
       line.requiredQuantity,
       formatCurrency(line.finalUnitPriceAud, "AUD"),
@@ -333,7 +309,6 @@ function buildCustomerQuoteText(
 
   rows.push(
     [
-      "",
       "",
       "",
       "Freight & Handling",

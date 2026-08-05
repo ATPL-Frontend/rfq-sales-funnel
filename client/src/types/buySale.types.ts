@@ -24,10 +24,11 @@ export type QuoteLine = {
   enteredPartNumber: string;
   ampecPartNumber: string;
   customerPartNumber: string;
-  revision: string;
   description: string;
 
   requiredQuantity: number;
+  moq: number;
+
   stockQuantity: number;
   stockLocation: string;
 
@@ -56,7 +57,6 @@ export type CalculatedQuoteLine = QuoteLine & {
   componentSellingPriceAud: number;
   finalUnitPriceAud: number;
   finalUnitPriceUsd: number;
-  moq: number | null;
 };
 
 export type PartLookupResult = {
