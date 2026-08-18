@@ -102,7 +102,7 @@ export function InternalQuoteTable({
           </colgroup>
 
           <thead className="sticky top-0 z-10">
-            <tr className="border-b bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+            <tr className="border-b bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 align-top">
               <HeaderCell className="sticky left-0 z-20 bg-slate-100 dark:bg-slate-700">
                 Part search
               </HeaderCell>
@@ -143,7 +143,7 @@ export function InternalQuoteTable({
 
               <HeaderCell>MOQ</HeaderCell>
               <HeaderCell>Remark</HeaderCell>
-              <HeaderCell>
+              <HeaderCell className="sticky right-0 z-20 bg-slate-100 dark:bg-slate-700">
                 <span className="sr-only">Action</span>
               </HeaderCell>
             </tr>

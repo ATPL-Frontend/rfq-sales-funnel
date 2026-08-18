@@ -62,7 +62,7 @@ export default function CommonTable<T>({
       className={`border rounded-lg overflow-x-auto w-full ${className ?? ""}`}
     >
       {/* Table for medium+ screens */}
-      <table className="hidden md:table min-w-full border-collapse text-sm">
+      <table className="hidden md:table min-w-full border-collapse text-xs">
         <thead className="bg-secondary/90">
           <tr>
             {columns.map((col) => (

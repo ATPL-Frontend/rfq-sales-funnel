@@ -37,7 +37,11 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+
+    if (saving) return;
     setSaving(true);
+    
     try {
       if (customer) {
         // update existing
@@ -123,7 +127,7 @@ export default function CustomerForm({ customer, onSuccess, onCancel }: Props) {
             salesperson_id: val ? Number(val) : null,
           }))
         }
-        placeholder="Select customer"
+        placeholder="Select Salesperson"
       />
 
       <div className="grid grid-cols-2 gap-4">

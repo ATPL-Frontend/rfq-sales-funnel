@@ -10,6 +10,7 @@ import {
 
 type TruncateTextCellProps = {
   value?: string | null;
+  toolTipText?: string;
   fallback?: string;
   className?: string;
   textClassName?: string;
@@ -21,6 +22,7 @@ type TruncateTextCellProps = {
 
 export function TruncateTextCell({
   value,
+  toolTipText,
   fallback = "-",
   className = "",
   textClassName = "",
@@ -37,9 +39,10 @@ export function TruncateTextCell({
 
   const handleCopy = async () => {
     if (!finalCopyValue.trim()) return;
+    console.log("Copying value:", finalCopyValue.split("\\").slice(3).join("\\"));
 
     try {
-      await navigator.clipboard.writeText(finalCopyValue);
+      await navigator.clipboard.writeText(finalCopyValue.split("\\").slice(3).join("\\"));
       setCopied(true);
       toast.success(copySuccessMessage);
       setTimeout(() => setCopied(false), 1200);
@@ -54,7 +57,7 @@ export function TruncateTextCell({
         <Tooltip>
           <TooltipTrigger asChild>
             <span
-              className={`truncate text-sm text-slate-700 dark:text-slate-300 cursor-default ${showCopy ? "flex-1" : "w-full"} ${textClassName}`}
+              className={`truncate text-xs text-slate-700 dark:text-slate-300 cursor-default ${showCopy ? "flex-1" : "w-full"} ${textClassName}`}
             >
               {text}
             </span>
@@ -63,7 +66,7 @@ export function TruncateTextCell({
             side="top"
             className={`max-w-xs wrap-break-word ${tooltipClassName}`}
           >
-            <p>{text}</p>
+            <p>{toolTipText || text}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>

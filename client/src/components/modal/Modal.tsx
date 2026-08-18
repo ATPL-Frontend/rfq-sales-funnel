@@ -17,7 +17,7 @@ import * as React from "react";
 
 type ModalProps = {
   disabled?: boolean;
-  type?: "button" | "icon";
+  type?: "button" | "icon" | "text";
   label?: string;
   title?: string;
   icon?: "filter" | "add" | "edit" | "userplus" | React.ReactNode;
@@ -49,6 +49,8 @@ export function Modal({
         return <SlidersHorizontal className="size-4" />;
       case "userplus":
         return <UserPlus className="size-4" />;
+      case "plus":
+        return <Plus className="size-4" />;
       default:
         return <BadgeAlert className="size-4" />;
     }
@@ -72,6 +74,10 @@ export function Modal({
             {renderIcon()}
             <span className="sm:block hidden">{label}</span>
           </Button>
+        ) : type === "text" ? (
+          <span className="flex gap-1 cursor-pointer hover:underline text-blue-600 hover:text-blue-700 text-xs">
+            {renderIcon()} {label}
+          </span>
         ) : (
           <div className="cursor-pointer text-emerald-600 hover:text-emerald-700">
             {renderIcon()}
@@ -81,7 +87,7 @@ export function Modal({
 
       {/* ✅ Make content clip children and layout correctly */}
       <DialogContent
-         className={`${sizeClass} w-5/6 p-0 max-h-[90vh] overflow-hidden flex flex-col`}
+        className={`${sizeClass} w-5/6 p-0 max-h-[90vh] overflow-hidden flex flex-col`}
       >
         {/* ✅ Header (non-scroll) */}
         <div className="p-6 pb-0">

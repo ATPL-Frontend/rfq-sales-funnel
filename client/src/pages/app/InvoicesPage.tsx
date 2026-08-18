@@ -195,17 +195,18 @@ export default function InvoicesPage() {
     {
       key: "amount",
       label: "Amount",
+      align: "right",
       render: (r) => (
-        <>
+        <div className="text-right gap-1">
           {r.amount}{" "}
           <span
-            className={`font-semibold text-sm ${
+            className={`font-bold text-xs ${
               r.currency === "AUD" ? "text-primary" : "text-violet-600"
             }`}
           >
             {r.currency}
           </span>
-        </>
+        </div>
       ),
     },
     {
