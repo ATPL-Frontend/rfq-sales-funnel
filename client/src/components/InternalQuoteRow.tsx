@@ -235,7 +235,7 @@ export function InternalQuoteRow({
         className="min-w-52"
       />
 
-      <td className="border p-1 text-center align-middle">
+      <td className="border p-1 text-center align-middle sticky right-0 z-10 bg-muted dark:bg-muted/80">
         <button
           type="button"
           onClick={onRemove}

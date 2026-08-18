@@ -8,10 +8,11 @@ import { Progress } from "@/components/Progress";
 import SearchBar from "@/components/SearchBar";
 import { TruncateTextCell } from "@/components/TruncateTextCell";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import api from "@/lib/api";
 import { formatDateDDMMYYYY } from "@/lib/dateHelper";
 import type { Rfq, SalesPerson, Users } from "@/types/index.ts";
-import { CircleCheckBig } from "lucide-react";
+import { CircleCheckBig, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import type { Column } from "../../components/CommonTable";
@@ -45,6 +46,7 @@ export default function RfqPage() {
   const [rfqs, setRfqs] = useState<Rfq[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalRfqs, setTotalRfqs] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const [filters, setFilters] = useState<RfqFilterValues>(initialFilters);
@@ -57,6 +59,64 @@ export default function RfqPage() {
   const [userList, setUserList] = useState<Users[]>([]);
   const [salesPerson, setSalesPerson] = useState<SalesPerson[] | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const hasAppliedFilters = Object.values(appliedFilters).some(
+    (value) => value !== "",
+  );
+
+  const clearAllFilters = () => {
+    setFilters(initialFilters);
+    setAppliedFilters(initialFilters);
+    setPage(1);
+  };
+
+  const clearSingleFilter = (key: keyof RfqFilterValues) => {
+    const updatedFilters = {
+      ...appliedFilters,
+      [key]: "",
+    };
+
+    setFilters((prev) => ({
+      ...prev,
+      [key]: "",
+    }));
+
+    setAppliedFilters(updatedFilters);
+    setPage(1);
+  };
+
+  const filterLabels: Record<keyof RfqFilterValues, string> = {
+    customer_id: "Customer",
+    receive_date: "Receive Date",
+    start_date: "Start Date",
+    end_date: "End Date",
+    progress_type: "Progress",
+    currency: "Currency",
+    content: "Content",
+    prepared_by_id: "Prepared By",
+    salesperson_id: "Salesperson",
+  };
+
+  const formatFilterValue = (key: keyof RfqFilterValues, value: string) => {
+    if (key === "progress_type") {
+      if (value === "done") return "Done";
+      if (value === "percentage") return "Percentage";
+    }
+
+    if (key === "prepared_by_id") {
+      const user = userList.find((item) => String(item.id) === String(value));
+      return user?.name || value;
+    }
+
+    if (key === "salesperson_id") {
+      const user = salesPerson?.find(
+        (item) => String(item.id) === String(value),
+      );
+      return user?.name || value;
+    }
+
+    return value;
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -100,6 +160,7 @@ export default function RfqPage() {
         setRfqs(data.data || []);
 
         setTotalPages(data.total_pages || 1);
+        setTotalRfqs(data.total || 0);
       } catch {
         toast.error("Failed to load RFQs");
       } finally {
@@ -184,7 +245,7 @@ export default function RfqPage() {
   };
 
   const columns: Column<Rfq>[] = [
-    { key: "id", label: "ID" },
+    // { key: "id", label: "ID" },
     {
       key: "receive_date",
       label: "Receive Date",
@@ -211,8 +272,25 @@ export default function RfqPage() {
       ),
     },
     { key: "quantity", label: "Qty", align: "right" },
-    { key: "price", label: "Price", align: "right" },
-    { key: "currency", label: "Currency" },
+    {
+      key: "amount",
+      label: "Price",
+      align: "right",
+      render: (row: any) => (
+        <div className="text-right">
+          {row.price}
+          <span
+            className={`font-bold text-xs ml-1 ${
+              row.currency === "AUD" ? "text-primary" : "text-violet-600"
+            }`}
+          >
+            {row.currency}
+          </span>
+        </div>
+      ),
+    },
+    // { key: "price", label: "Price", align: "right" },
+    // { key: "currency", label: "Currency" },
     { key: "work_type", label: "Work Type" },
     {
       key: "prepared_by",
@@ -233,7 +311,8 @@ export default function RfqPage() {
       render: (row: any) => (
         <TruncateTextCell
           value={row.salesperson?.short_form || row.salesperson?.name}
-          className="w-28"
+          toolTipText={row.salesperson?.name}
+          className="w-22"
         />
       ),
     },
@@ -295,7 +374,7 @@ export default function RfqPage() {
       key: "actions",
       label: "Actions",
       render: (row) => (
-        <div className="flex gap-3 items-center">
+        <div className="flex gap-3 items-center justify-center">
           <Modal title="Edit RFQ" icon="edit" type="icon" size="lg">
             {(closeModal) => (
               <RfqForm
@@ -327,7 +406,9 @@ export default function RfqPage() {
   return (
     <section className="space-y-4">
       <div className="flex justify-between items-center gap-6">
-        <h1 className="text-xl font-semibold">RFQ</h1>
+        <h1 className="text-xl font-semibold">
+          RFQ <Badge variant="secondary">{totalRfqs}</Badge>
+        </h1>
 
         <div className="flex flex-1 justify-end sm:w-auto items-center sm:gap-2 gap-1">
           <SearchBar
@@ -335,6 +416,7 @@ export default function RfqPage() {
             onSearchChange={setApiSearch}
             searchPlaceholder="Search Customer, DCA..."
           />
+
           <Modal icon="filter" label="Filters" title="RFQ Filters" size="xl">
             {(closeModal) => (
               <RfqFilter
@@ -368,6 +450,56 @@ export default function RfqPage() {
           {/* </SearchBar> */}
         </div>
       </div>
+
+      {hasAppliedFilters && (
+        <div className="rounded-lg border bg-card px-3 py-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="mr-1 text-xs font-medium text-muted-foreground">
+              Applied filters
+            </span>
+
+            {Object.entries(appliedFilters).map(([key, value]) => {
+              if (!value) return null;
+
+              const filterKey = key as keyof RfqFilterValues;
+
+              return (
+                <div
+                  key={key}
+                  className="group inline-flex h-7 items-center gap-1.5 rounded-md border bg-secondary px-2.5 text-xs font-medium text-secondary-foreground transition-colors hover:bg-accent"
+                >
+                  <span className="text-muted-foreground">
+                    {filterLabels[filterKey]}:
+                  </span>
+
+                  <span className="max-w-40 truncate">
+                    {formatFilterValue(filterKey, value)}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => clearSingleFilter(filterKey)}
+                    className="ml-0.5 inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                    aria-label={`Clear ${filterLabels[filterKey]} filter`}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              );
+            })}
+
+            <Button
+              onClick={clearAllFilters}
+              size="sm"
+              className="ml-auto"
+              variant="destructive"
+            >
+              <RotateCcw className="size-3.5" />
+              Clear all
+            </Button>
+          </div>
+        </div>
+      )}
 
       <CommonTable columns={columns} data={rfqs} loading={loading} />
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />

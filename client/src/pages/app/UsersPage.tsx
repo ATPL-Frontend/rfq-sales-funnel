@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { UserList } from "@/types/index.ts";
 import { CircleCheckBig, CircleOff, Eye } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import type { Column } from "../../components/CommonTable";
@@ -25,6 +25,7 @@ export default function UsersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [roleList, setRoleList] = useState<string[]>([]);
+  const loadMoreLockRef = useRef(false);
 
   const [filters, setFilters] = useState({
     q: "",
@@ -34,7 +35,9 @@ export default function UsersPage() {
   });
 
   const [appliedFilters, setAppliedFilters] = useState(filters);
+
   const types = ["system_user", "sales_person"];
+
   const statusList = [
     { value: "true", label: "Active" },
     { value: "false", label: "Inactive" },
@@ -44,6 +47,7 @@ export default function UsersPage() {
   const fetchUsers = useCallback(
     async (pageNum = 1) => {
       setLoading(true);
+
       try {
         const { data } = await api.get("/api/users", {
           params: {
@@ -56,13 +60,28 @@ export default function UsersPage() {
           },
         });
 
-        setUsers(data.data || []);
-        setPage(data.page || pageNum);
+        const newUsers: UserList[] = data.data || [];
+
+        setUsers((prev) => {
+          if (pageNum === 1) {
+            return newUsers;
+          }
+
+          const existingIds = new Set(prev.map((user) => user.id));
+
+          const uniqueNewUsers = newUsers.filter(
+            (user) => !existingIds.has(user.id),
+          );
+
+          return [...prev, ...uniqueNewUsers];
+        });
+
         setTotalPages(data.total_pages || 1);
       } catch {
         toast.error("Failed to load users");
       } finally {
         setLoading(false);
+        loadMoreLockRef.current = false;
       }
     },
     [appliedFilters],
@@ -71,7 +90,11 @@ export default function UsersPage() {
   const fetchRoles = useCallback(async () => {
     try {
       const { data } = await api.get("/api/roles");
-      const roleNames = data.data.map((r: any) => r.name);
+
+      const roleNames = (data.data || []).map(
+        (role: { name: string }) => role.name,
+      );
+
       setRoleList(roleNames);
     } catch {
       toast.error("Failed to load roles");
@@ -84,12 +107,19 @@ export default function UsersPage() {
 
   useEffect(() => {
     const delayDebounce = setTimeout(() => {
-      setAppliedFilters((prev) => ({
-        ...prev,
-        q: filters.q,
-      }));
+      setAppliedFilters((prev) => {
+        if (prev.q === filters.q) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          q: filters.q,
+        };
+      });
+
       setPage(1);
-    }, 500); // 500ms debounce
+    }, 500);
 
     return () => clearTimeout(delayDebounce);
   }, [filters.q]);
@@ -98,28 +128,62 @@ export default function UsersPage() {
     fetchUsers(page);
   }, [fetchUsers, page]);
 
+  const handleLoadMore = useCallback(() => {
+    if (loading) {
+      return;
+    }
+
+    if (loadMoreLockRef.current) {
+      return;
+    }
+
+    if (page >= totalPages) {
+      return;
+    }
+
+    loadMoreLockRef.current = true;
+
+    setPage((currentPage) => {
+      if (currentPage >= totalPages) {
+        loadMoreLockRef.current = false;
+        return currentPage;
+      }
+
+      return currentPage + 1;
+    });
+  }, [loading, page, totalPages]);
+
   // ===============================
   // CRUD HANDLERS
   // ===============================
   const confirmDelete = async (id: string | number) => {
     try {
       await api.delete(`/api/users/${id}`);
+
       toast.success("User deleted successfully");
-      setUsers((prev) => prev.filter((u) => u.id !== id));
+
+      setUsers((prev) => prev.filter((user) => user.id !== id));
     } catch {
       toast.error("Failed to delete user");
-      throw new Error("delete failed"); // important so modal can keep open
+
+      throw new Error("delete failed");
     }
   };
 
   const handleFormSuccess = (user: UserList, isEdit: boolean) => {
     if (isEdit) {
       setUsers((prev) =>
-        prev.map((u) => (u.id === user.id ? { ...u, ...user } : u)),
+        prev.map((existingUser) =>
+          existingUser.id === user.id
+            ? { ...existingUser, ...user }
+            : existingUser,
+        ),
       );
-    } else {
-      setUsers((prev) => [user, ...prev]);
+
+      return;
     }
+
+    setUsers((prev) => [user, ...prev]);
   };
 
   // ===============================
@@ -138,7 +202,10 @@ export default function UsersPage() {
         </Link>
       ),
     },
-    { key: "email", label: "Email" },
+    {
+      key: "email",
+      label: "Email",
+    },
     {
       key: "roles",
       label: "Role",
@@ -148,8 +215,10 @@ export default function UsersPage() {
         </span>
       ),
     },
-    { key: "short_form", label: "Short Form" },
-
+    {
+      key: "short_form",
+      label: "Short Form",
+    },
     {
       key: "user_type",
       label: <div className="text-center">Accessibility</div>,
@@ -165,6 +234,7 @@ export default function UsersPage() {
                 )}
               </span>
             </TooltipTrigger>
+
             <TooltipContent side="top">
               {row.user_type === "sales_person"
                 ? "Sales Person (no system login)"
@@ -217,12 +287,16 @@ export default function UsersPage() {
         <h1 className="text-xl font-semibold">Users</h1>
 
         <div className="flex flex-1 justify-end sm:w-auto items-center sm:gap-2 gap-1">
-          {/* SEARCH (left of filter button) */}
           <Input
             className="w-full sm:max-w-72 md:max-w-60 lg:max-w-80 h-8"
             placeholder="Search name, email or code..."
             value={filters.q}
-            onChange={(e) => setFilters({ ...filters, q: e.target.value })}
+            onChange={(e) =>
+              setFilters((prev) => ({
+                ...prev,
+                q: e.target.value,
+              }))
+            }
           />
 
           <Modal icon="filter" label="Filters" title="User Filters" size="xl">
@@ -257,13 +331,12 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* TABLE */}
       <CommonTable
         columns={columns}
         data={users}
         loading={loading}
         hasMore={page < totalPages}
-        onLoadMore={() => setPage((p) => p + 1)}
+        onLoadMore={handleLoadMore}
       />
     </>
   );

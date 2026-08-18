@@ -57,7 +57,7 @@ export default function AuthPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="example@ampec.cpm.au"
+                placeholder="example@ampec.com.au"
                 required
               />
             </div>

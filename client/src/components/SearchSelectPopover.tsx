@@ -71,7 +71,7 @@ export default function UserSelectPopover({
 
   return (
     <div className="space-y-1">
-      <Label className="text-sm font-medium">{label} <span className="text-red-500">*</span></Label>
+      <Label className="text-sm font-medium">{label}</Label>
 
       <Popover open={open} onOpenChange={setOpen} modal>
         <PopoverTrigger asChild>

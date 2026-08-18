@@ -19,6 +19,8 @@ import type { Rfq, SalesPerson } from "@/types/index.ts";
 import SearchSelectPopover from "../SearchSelectPopover";
 import { DialogFooter } from "../ui/dialog";
 import { Popover, PopoverAnchor, PopoverContent } from "../ui/popover";
+import CustomerForm from "./CustomerModal";
+import { Modal } from "./Modal";
 
 type Customer = {
   id: number;
@@ -69,6 +71,7 @@ export default function RfqForm({
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null,
   );
+  console.log("rfq", selectedCustomer);
 
   const storedUser = JSON.parse(localStorage.getItem("auth_user") || "{}");
   const loggedInUserId = storedUser?.id ? String(storedUser.id) : "";
@@ -95,7 +98,7 @@ export default function RfqForm({
         ? "Done"
         : rfq?.progress
           ? String(rfq.progress)
-          : "",
+          : 0,
     rfq_location: rfq?.rfq_location || "",
     remarks: rfq?.remarks || "",
     contents: Array.isArray((rfq as any)?.contents)
@@ -105,6 +108,7 @@ export default function RfqForm({
 
   const [remarksFocused, setRemarksFocused] = useState(false);
   const [remarksWidth, setRemarksWidth] = useState(0);
+  // const [customers, setCustomers] = useState<CustomerList[]>([]);
   const remarksAnchorRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -186,6 +190,7 @@ export default function RfqForm({
       contents: form.contents,
     };
 
+    if (saving) return;
     setSaving(true);
 
     try {
@@ -207,11 +212,23 @@ export default function RfqForm({
     }
   };
 
+  // const handleFormSuccess = (customer: CustomerList, isEdit: boolean) => {
+  //   if (isEdit) {
+  //     setCustomers((prev) =>
+  //       prev.map((c) => (c.id === customer.id ? customer : c)),
+  //     );
+  //   } else {
+  //     setCustomers((prev) => [customer, ...prev]);
+  //   }
+  // };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="space-y-1 flex gap-2">
         <div className="space-y-1 flex-1">
-          <label className="text-sm font-medium">Receive Date</label>
+          <label className="text-sm font-medium">
+            Receive Date <span className="text-red-500">*</span>
+          </label>
           <Input
             type="date"
             value={form.receive_date}
@@ -223,7 +240,9 @@ export default function RfqForm({
         </div>
 
         <div className="space-y-1 flex-1">
-          <label className="text-sm font-medium">Start Date</label>
+          <label className="text-sm font-medium">
+            Start Date <span className="text-red-500">*</span>
+          </label>
           <Input
             type="date"
             value={form.start_date}
@@ -236,7 +255,51 @@ export default function RfqForm({
       </div>
 
       <div className="space-y-1">
-        <label className="text-sm font-medium">Customer</label>
+        <div className="flex justify-between items-center">
+          <label className="text-sm font-medium">
+            Customer <span className="text-red-500">*</span>
+          </label>
+          <Modal
+            icon="plus"
+            label="New Customer"
+            title="Create Customer"
+            size="xl"
+            type="text"
+          >
+            {(closeModal) => (
+              <CustomerForm
+                key="create"
+                customer={null}
+                onSuccess={(createdCustomer) => {
+                  const selected: Customer = {
+                    ...createdCustomer,
+
+                    currency:
+                      createdCustomer.currency === "USD" ? "USD" : "AUD",
+
+                    gst: createdCustomer.gst ? 1 : 0,
+
+                    salesperson_id: createdCustomer.salesperson_id ?? undefined,
+                  };
+
+                  setSelectedCustomer(selected);
+
+                  setForm((prev) => ({
+                    ...prev,
+                    customer_id: String(selected.id),
+                    salesperson_id: selected.salesperson_id
+                      ? String(selected.salesperson_id)
+                      : prev.salesperson_id,
+                  }));
+
+                  closeModal();
+                }}
+                onCancel={closeModal}
+              />
+            )}
+          </Modal>
+        </div>
+
         <AsyncSearchSelect<Customer>
           value={form.customer_id}
           initialOption={selectedCustomer}
@@ -286,23 +349,27 @@ export default function RfqForm({
 
       <div className="space-y-1 flex gap-2">
         <div className="space-y-1 flex-1">
-          <label className="text-sm font-medium">Quantity</label>
+          <label className="text-sm font-medium">Quantity <span className="text-red-500">*</span></label>
           <Input
             type="number"
             value={form.quantity}
             placeholder="Ex: 100"
+            onWheel={(event) => {
+              event.currentTarget.blur();
+            }}
             onChange={(e) =>
               setForm((prev) => ({
                 ...prev,
                 quantity: e.target.value === "" ? "" : Number(e.target.value),
               }))
             }
+            required
           />
         </div>
 
         <div className="space-y-1 flex-1">
           <label className="text-sm font-medium">
-            End Date {isDone ? "*" : ""}
+            End Date {isDone ? <span className="text-red-500">*</span> : ""}
           </label>
           <Input
             type="date"
@@ -318,12 +385,15 @@ export default function RfqForm({
       <div className="space-y-1 flex gap-2">
         <div className="space-y-1 flex-1">
           <label className="text-sm font-medium">
-            Price {isDone ? "*" : ""}
+            Price {isDone ? <span className="text-red-500">*</span> : ""}
           </label>
           <Input
             type="number"
             value={form.price}
             placeholder="$100.00"
+            onWheel={(event) => {
+              event.currentTarget.blur();
+            }}
             onChange={(e) =>
               setForm((prev) => ({
                 ...prev,
@@ -398,6 +468,9 @@ export default function RfqForm({
             max={100}
             placeholder="0 - 100"
             value={isDone ? "" : form.progress}
+            onWheel={(event) => {
+              event.currentTarget.blur();
+            }}
             onChange={(e) =>
               setForm((prev) => {
                 const value =
@@ -434,7 +507,7 @@ export default function RfqForm({
       </div>
 
       <div className="space-y-1">
-        <label className="text-sm font-medium">DCA Numbers</label>
+        <label className="text-sm font-medium">Part Numbers</label>
         <TagsInput
           value={form.contents}
           onChange={(contents) =>
