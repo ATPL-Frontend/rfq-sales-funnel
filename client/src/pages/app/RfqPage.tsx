@@ -3,7 +3,6 @@ import RfqFilter from "@/components/filter/RfqFilter";
 import { DeleteModal } from "@/components/modal/DeleteModal";
 import { Modal } from "@/components/modal/Modal";
 import RfqForm from "@/components/modal/RfqModal";
-import Pagination from "@/components/Pagination";
 import { Progress } from "@/components/Progress";
 import SearchBar from "@/components/SearchBar";
 import { TruncateTextCell } from "@/components/TruncateTextCell";
@@ -13,7 +12,7 @@ import api from "@/lib/api";
 import { formatDateDDMMYYYY } from "@/lib/dateHelper";
 import type { Rfq, SalesPerson, Users } from "@/types/index.ts";
 import { CircleCheckBig, RotateCcw, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import type { Column } from "../../components/CommonTable";
 import CommonTable from "../../components/CommonTable";
@@ -48,6 +47,7 @@ export default function RfqPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalRfqs, setTotalRfqs] = useState(0);
   const [loading, setLoading] = useState(false);
+  const loadMoreLockRef = useRef(false);
 
   const [filters, setFilters] = useState<RfqFilterValues>(initialFilters);
   const [appliedFilters, setAppliedFilters] =
@@ -65,6 +65,8 @@ export default function RfqPage() {
   );
 
   const clearAllFilters = () => {
+    loadMoreLockRef.current = false;
+
     setFilters(initialFilters);
     setAppliedFilters(initialFilters);
     setPage(1);
@@ -75,6 +77,8 @@ export default function RfqPage() {
       ...appliedFilters,
       [key]: "",
     };
+
+    loadMoreLockRef.current = false;
 
     setFilters((prev) => ({
       ...prev,
@@ -120,8 +124,16 @@ export default function RfqPage() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedApiSearch(apiSearch);
+      setDebouncedApiSearch((prev) => {
+        if (prev === apiSearch) {
+          return prev;
+        }
+
+        return apiSearch;
+      });
+
       setPage(1);
+      loadMoreLockRef.current = false;
     }, 400);
 
     return () => clearTimeout(timer);
@@ -149,15 +161,21 @@ export default function RfqPage() {
           },
         });
 
-        // setRfqs(
-        //   (data.data || []).map((rfq: any) => ({
-        //     ...rfq,
-        //     prepared_by: Array.isArray(rfq.prepared_by)
-        //       ? rfq.prepared_by.map((u: any) => Number(u.id))
-        //       : [],
-        //   })),
-        // );
-        setRfqs(data.data || []);
+        const newRfqs: Rfq[] = data.data || [];
+
+        setRfqs((prev) => {
+          if (pageNum === 1) {
+            return newRfqs;
+          }
+
+          const existingIds = new Set(prev.map((rfq) => rfq.id));
+
+          const uniqueNewRfqs = newRfqs.filter(
+            (rfq) => !existingIds.has(rfq.id),
+          );
+
+          return [...prev, ...uniqueNewRfqs];
+        });
 
         setTotalPages(data.total_pages || 1);
         setTotalRfqs(data.total || 0);
@@ -165,6 +183,7 @@ export default function RfqPage() {
         toast.error("Failed to load RFQs");
       } finally {
         setLoading(false);
+        loadMoreLockRef.current = false;
       }
     },
     [appliedFilters, debouncedApiSearch],
@@ -177,10 +196,11 @@ export default function RfqPage() {
       const { data } = await api.get("/api/users?limit=200");
       const allUsers = data.data || [];
 
-      const systemUsers = allUsers.filter(
-        (u: any) => u.user_type === "system_user",
-      );
-      setUserList(systemUsers);
+      // const systemUsers = allUsers.filter(
+      //   (u: any) => u.user_type === "system_user",
+      // );
+      // setUserList(systemUsers);
+      setUserList(allUsers);
 
       const salesPersons = allUsers
         .filter(
@@ -207,13 +227,42 @@ export default function RfqPage() {
     fetchRfqs(page);
   }, [fetchRfqs, page]);
 
+  const handleLoadMore = useCallback(() => {
+    if (loading) {
+      return;
+    }
+
+    if (loadMoreLockRef.current) {
+      return;
+    }
+
+    if (page >= totalPages) {
+      return;
+    }
+
+    loadMoreLockRef.current = true;
+
+    setPage((currentPage) => {
+      if (currentPage >= totalPages) {
+        loadMoreLockRef.current = false;
+        return currentPage;
+      }
+
+      return currentPage + 1;
+    });
+  }, [loading, page, totalPages]);
+
   const confirmDelete = async (id: string | number) => {
     setDeleteLoading(true);
 
     try {
       await api.delete(`/api/rfqs/${id}`);
+
+      setRfqs((prev) => prev.filter((rfq) => rfq.id !== id));
+
+      setTotalRfqs((prev) => Math.max(prev - 1, 0));
+
       toast.success("RFQ deleted successfully");
-      fetchRfqs(page);
     } catch (err) {
       toast.error("Failed to delete RFQ");
       throw err;
@@ -223,13 +272,6 @@ export default function RfqPage() {
   };
 
   const handleFormSuccess = (rfq: any, isEdit: boolean) => {
-    // const normalized: Rfq = {
-    //   ...rfq,
-    //   prepared_by: Array.isArray(rfq.prepared_by)
-    //     ? rfq.prepared_by.map((p: any) => Number(p.id))
-    //     : [],
-    // };
-
     const normalized: Rfq = {
       ...rfq,
     };
@@ -238,9 +280,16 @@ export default function RfqPage() {
       setRfqs((prev) =>
         prev.map((r) => (r.id === normalized.id ? { ...r, ...normalized } : r)),
       );
+
+      return;
+    }
+
+    loadMoreLockRef.current = false;
+
+    if (page === 1) {
+      fetchRfqs(1);
     } else {
       setPage(1);
-      fetchRfqs(1);
     }
   };
 
@@ -423,6 +472,7 @@ export default function RfqPage() {
                 filters={filters}
                 setFilters={setFilters}
                 setAppliedFilters={(value) => {
+                  loadMoreLockRef.current = false;
                   setAppliedFilters(value);
                   setPage(1);
                 }}
@@ -501,8 +551,13 @@ export default function RfqPage() {
         </div>
       )}
 
-      <CommonTable columns={columns} data={rfqs} loading={loading} />
-      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+      <CommonTable
+        columns={columns}
+        data={rfqs}
+        loading={loading}
+        hasMore={page < totalPages}
+        onLoadMore={handleLoadMore}
+      />
     </section>
   );
 }
