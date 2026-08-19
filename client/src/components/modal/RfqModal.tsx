@@ -60,6 +60,16 @@ const WORK_TYPE_OPTIONS = [
   "Engineering Work",
 ];
 
+const getTodayDate = () => {
+  const now = new Date();
+
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
 export default function RfqForm({
   rfq,
   salesPerson,
@@ -71,14 +81,14 @@ export default function RfqForm({
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null,
   );
-  console.log("rfq", selectedCustomer);
 
   const storedUser = JSON.parse(localStorage.getItem("auth_user") || "{}");
   const loggedInUserId = storedUser?.id ? String(storedUser.id) : "";
+  const today = getTodayDate();
 
   const [form, setForm] = useState({
-    receive_date: rfq?.receive_date || "",
-    start_date: rfq?.start_date || "",
+    receive_date: rfq?.receive_date || today,
+    start_date: rfq?.start_date || today,
     end_date: rfq?.end_date || "",
     customer_id: rfq?.customer_id ? String(rfq.customer_id) : "",
     salesperson_id: rfq?.salesperson_id ? String(rfq.salesperson_id) : "",
