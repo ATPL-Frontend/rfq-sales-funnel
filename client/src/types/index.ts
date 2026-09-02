@@ -128,3 +128,36 @@ export type SalesFunnel = {
   created_at: string;
   updated_at: string;
 };
+
+export type ParsedCableSearch = {
+  input: string;
+  vendor_code: string;
+  cable_standard: string | null;
+  awg: number | null;
+  color_codes: string[];
+  color_names: string[];
+};
+
+export type CablePriceResult = {
+  id: number;
+  vendor_code: string;
+  cable_standard: string;
+  section_name: string | null;
+  description: string;
+  color_name: string | null;
+  unit_price: number | string;
+  currency: string;
+  price_basis: string | null;
+  file_name: string;
+  sheet_name: string;
+  source_row: number | null;
+  imported_at: string;
+};
+
+export type CablePriceSummary = {
+  total_items: number;
+  total_standards: number;
+  total_sheets: number;
+  imported_at: string | null;
+  file_name: string | null;
+};
