@@ -49,7 +49,7 @@ router.get(
 router.put(
   "/:id",
   authenticate,
-  authorize("updateAny", "rfq"),
+  authorize("updateOwn", "rfq"),
   updateRFQ
 );
 

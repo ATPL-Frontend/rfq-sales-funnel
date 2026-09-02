@@ -18,6 +18,7 @@ import InvoiceFrequency from "../app/InvoiceFrequency";
 import BuySale from "../app/BuySale";
 import SavedQuotationListPage from "../app/QuoteList";
 import BuySaleItemListPage from "../app/ItemList";
+import CablePricePage from "../app/CablePricePage";
 
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/app" replace /> },
@@ -55,6 +56,7 @@ export const router = createBrowserRouter([
       { path: "buy-sale", element: <BuySale /> },
       { path: "quote-list", element: <SavedQuotationListPage /> },
       { path: "item-list", element: <BuySaleItemListPage /> },
+      { path: "cable-prices", element: <CablePricePage /> },
     ],
   },
   { path: "*", element: <NotFoundPage /> },

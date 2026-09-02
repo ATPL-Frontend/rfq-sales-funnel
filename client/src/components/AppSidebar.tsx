@@ -84,6 +84,10 @@ const menu = [
         title: "Item List",
         url: "/app/item-list",
       },
+      {
+        title: "Cable Price List (3F)",
+        url: "/app/cable-prices",
+      },
     ],
   },
 ];

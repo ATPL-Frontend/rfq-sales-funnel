@@ -34,6 +34,7 @@ import { loadAccessControlFromDB } from "./utils/roles.js";
 // ===============================
 import authRoutes from "./routes/auth.routes.js";
 import buySaleRoutes from "./routes/buySale.routes.js";
+import cablePriceRoutes from "./routes/cablePrice.routes.js";
 import customerRoutes from "./routes/customer.routes.js";
 import invoiceRoutes from "./routes/invoice.routes.js";
 import rfqRoutes from "./routes/rfq.routes.js";
@@ -41,6 +42,7 @@ import salesFunnelRoutes from "./routes/salesFunnel.routes.js";
 import userRoutes from "./routes/user.routes.js";
 
 // 🆕 NEW: Role & Permission routes
+import { createCablePriceTables } from "./models/cablePrice.model.js";
 import rolePermissionRoutes from "./routes/rolePermission.routes.js";
 
 // ===============================
@@ -95,13 +97,14 @@ app.get("/api/alive", (_req, res) =>
 // ===============================
 // 🧭 API Routes
 // ===============================
-app.use("/api/auth", authRoutes);
+app.use("/api/auth", authRoutes); 
 app.use("/api/users", userRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/rfqs", rfqRoutes);
 app.use("/api/sales-funnels", salesFunnelRoutes);
 app.use("/api/invoices", invoiceRoutes);
 app.use("/api/buy-sale", buySaleRoutes);
+app.use("/api/cable-prices", cablePriceRoutes);
 
 // 🆕 Add Role & Permission management APIs
 app.use("/api", rolePermissionRoutes);
@@ -221,6 +224,7 @@ async function ensureSuperAdmin() {
     await createRFQPreparedPeopleTable();
     await createSalesFunnelTable();
     await createInvoiceTable();
+    // await createCablePriceTables();
 
     console.log("👑 Ensuring super-admin user exists...");
     await ensureSuperAdmin();

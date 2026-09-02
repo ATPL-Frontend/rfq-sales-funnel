@@ -91,7 +91,10 @@ export async function saveBuySaleQuotation(
   return response.data;
 }
 
-export function getErrorMessage(error: unknown, fallbackMessage: string): string {
+export function getErrorMessage(
+  error: unknown,
+  fallbackMessage: string,
+): string {
   if (axios.isAxiosError(error)) {
     const responseMessage = error.response?.data?.message;
 
@@ -470,10 +473,8 @@ export default function BuySale() {
   );
 
   const uploadExcel = useCallback(
-    async (type: UploadType) => {
-      const uploadState = uploads[type];
-
-      if (!uploadState.file || uploadState.loading) {
+    async (type: UploadType, file: File) => {
+      if (!file) {
         return;
       }
 
@@ -481,6 +482,7 @@ export default function BuySale() {
         ...current,
         [type]: {
           ...current[type],
+          file,
           loading: true,
           message: "",
           error: "",
@@ -490,7 +492,7 @@ export default function BuySale() {
       try {
         const response = await uploadBuySaleExcel({
           type,
-          file: uploadState.file,
+          file,
           sheetName: type === "stock" ? stockSheet : undefined,
         });
 
@@ -521,18 +523,23 @@ export default function BuySale() {
           },
         }));
       } catch (error: unknown) {
+        const message = getErrorMessage(error, "Excel upload failed.");
+
         setUploads((current) => ({
           ...current,
           [type]: {
             ...current[type],
+            file,
             loading: false,
             message: "",
-            error: getErrorMessage(error, "Excel upload failed."),
+            error: message,
           },
         }));
+
+        throw error;
       }
     },
-    [stockSheet, uploads],
+    [stockSheet],
   );
 
   const handleCopy = useCallback(async () => {
@@ -561,11 +568,7 @@ export default function BuySale() {
           </p>
         </div>
 
-        <Button
-          type="button"
-          onClick={() => setUploadModalOpen(true)}
-          className=""
-        >
+        <Button type="button" onClick={() => setUploadModalOpen(true)}>
           <UploadCloud className="size-4" />
           Update Data
         </Button>
