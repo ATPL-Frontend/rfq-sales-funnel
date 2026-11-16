@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { pool } from "../lib/dbconnect-mysql.js";
+import { getCablePriceFilterOptions } from "../models/cablePrice.model.js";
 
 export async function replaceCablePrices({
   vendorCode,
@@ -31,7 +32,7 @@ export async function replaceCablePrices({
       const chunk = items.slice(start, start + chunkSize);
 
       const placeholders = chunk
-        .map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         .join(", ");
 
       const params = [];
@@ -40,9 +41,11 @@ export async function replaceCablePrices({
         params.push(
           vendorCode,
           item.cable_standard,
+          item.awg ?? null,
           item.section_name || null,
           item.description,
           item.color_name || null,
+          item.color_type || null,
           item.unit_price,
           currency,
           item.price_basis || null,
@@ -57,24 +60,26 @@ export async function replaceCablePrices({
 
       await connection.query(
         `
-        INSERT INTO cable_prices (
-          vendor_code,
-          cable_standard,
-          section_name,
-          description,
-          color_name,
-          unit_price,
-          currency,
-          price_basis,
-          packing_roll,
-          moq,
-          file_name,
-          sheet_name,
-          source_row,
-          imported_by
-        )
-        VALUES ${placeholders}
-      `,
+          INSERT INTO cable_prices (
+            vendor_code,
+            cable_standard,
+            awg,
+            section_name,
+            description,
+            color_name,
+            color_type,
+            unit_price,
+            currency,
+            price_basis,
+            packing_roll,
+            moq,
+            file_name,
+            sheet_name,
+            source_row,
+            imported_by
+          )
+          VALUES ${placeholders}
+        `,
         params,
       );
     }
@@ -94,29 +99,52 @@ export async function replaceCablePrices({
 
 export async function searchCablePrices({
   vendorCode = "3F",
-  cableStandard,
+  cableStandard = null,
   awg = null,
+  colorType = null,
   colorNames = [],
-  query,
-  limit = 100,
+  query = "",
+  limit = 200,
 }) {
   const where = ["vendor_code = ?"];
+
   const params = [vendorCode];
+
+  // =================================
+  // UL STANDARD FILTER
+  // =================================
 
   if (cableStandard) {
     where.push("cable_standard = ?");
+
     params.push(cableStandard);
   }
 
-  if (awg !== null) {
-    where.push(`
-      description REGEXP ?
-    `);
+  // =================================
+  // AWG FILTER
+  // =================================
 
-    params.push(`(^|[^0-9])${awg}[[:space:]]*AWG([^0-9]|$)`);
+  if (awg !== null && awg !== undefined && awg !== "") {
+    where.push("awg = ?");
+
+    params.push(Number(awg));
   }
 
-  if (!cableStandard && !awg && query) {
+  // =================================
+  // SINGLE / DUAL COLOR FILTER
+  // =================================
+
+  if (colorType === "single" || colorType === "dual") {
+    where.push("color_type = ?");
+
+    params.push(colorType);
+  }
+
+  // =================================
+  // NORMAL TEXT SEARCH FALLBACK
+  // =================================
+
+  if (query && !cableStandard && !awg) {
     where.push(`
       (
         description LIKE ?
@@ -128,13 +156,17 @@ export async function searchCablePrices({
     params.push(`%${query}%`, `%${query}%`, `%${query}%`);
   }
 
+  // =================================
+  // COLOR CODE SEARCH RANKING
+  // =================================
+
   let colorOrderSql = "";
 
   if (colorNames.length) {
-    const colorConditions = [];
+    const conditions = [];
 
     for (const color of colorNames) {
-      colorConditions.push(`
+      conditions.push(`
         (
           LOWER(description) LIKE ?
           OR LOWER(COALESCE(color_name, '')) LIKE ?
@@ -143,54 +175,99 @@ export async function searchCablePrices({
 
       params.push(
         `%${String(color).toLowerCase()}%`,
+
         `%${String(color).toLowerCase()}%`,
       );
     }
 
     colorOrderSql = `
       CASE
-        WHEN ${colorConditions.join(" OR ")}
+        WHEN ${conditions.join(" OR ")}
         THEN 0
         ELSE 1
       END,
     `;
   }
 
-  params.push(limit);
+  params.push(Number(limit));
 
   const [rows] = await pool.query(
     `
-      SELECT
-        id,
-        vendor_code,
-        cable_standard,
-        section_name,
-        description,
-        color_name,
-        unit_price,
-        currency,
-        price_basis,
-        packing_roll,
-        moq,
-        file_name,
-        sheet_name,
-        source_row,
-        imported_at
+        SELECT
+          id,
+          vendor_code,
+          cable_standard,
+          awg,
+          section_name,
+          description,
+          color_name,
+          color_type,
+          unit_price,
+          currency,
+          price_basis,
+          packing_roll,
+          moq,
+          file_name,
+          sheet_name,
+          source_row,
+          imported_at
 
-      FROM cable_prices
+        FROM cable_prices
 
-      WHERE ${where.join(" AND ")}
+        WHERE ${where.join(" AND ")}
 
-      ORDER BY
-        ${colorOrderSql}
-        cable_standard ASC,
-        description ASC
-      LIMIT ?
-    `,
+        ORDER BY
+          ${colorOrderSql}
+          cable_standard ASC,
+          awg ASC,
+          description ASC
+
+        LIMIT ?
+      `,
     params,
   );
 
   return rows;
+}
+
+function extractAwg(value) {
+  const text = String(value || "");
+
+  const match = text.match(/(?:^|[^0-9])(\d{1,3})\s*AWG\b/i);
+
+  if (!match) {
+    return null;
+  }
+
+  const awg = Number(match[1]);
+
+  return Number.isFinite(awg) ? awg : null;
+}
+
+function detectColorType(description) {
+  const text = String(description || "").trim();
+
+  if (!text) {
+    return null;
+  }
+
+  if (/\bdual[\s-]*colou?r\b/i.test(text)) {
+    return "dual";
+  }
+
+  if (/\bsingle[\s-]*colou?r\b/i.test(text)) {
+    return "single";
+  }
+
+  if (
+    /\b(black|white|red|green|yellow|blue|brown|gray|grey|orange|pink|violet|purple|clear|transparent)\b/i.test(
+      text,
+    )
+  ) {
+    return "single";
+  }
+
+  return null;
 }
 
 export async function analyzeCablePriceWorkbook(req, res) {
@@ -456,6 +533,31 @@ function cleanText(value) {
 
 function compactText(value) {
   return cleanText(value).toUpperCase().replace(/\s+/g, "");
+}
+
+export async function cablePriceFilterOptions(
+  req,
+  res,
+) {
+  try {
+    const data =
+      await getCablePriceFilterOptions(
+        "3F",
+      );
+
+    return res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+
+      message:
+        error.message ||
+        "Failed to load cable filter options.",
+    });
+  }
 }
 
 function parsePrice(value) {
@@ -953,12 +1055,16 @@ function parseSheet({ sheet, sheetName, priceColumn }) {
     }
 
     const colors = extractColors(description);
+    const awg = extractAwg(description);
+    const colorType = detectColorType(description);
 
     items.push({
       cable_standard: rowStandard,
+      awg,
       section_name: currentSection || rowStandard,
       description,
       color_name: colors.length ? colors.join(", ") : null,
+      color_type: colorType,
       unit_price: price,
       price_basis: priceBasis || `Column ${priceColumn}`,
       packing_roll: packingRoll || null,
@@ -1159,34 +1265,50 @@ export async function searchCablePrice(req, res) {
   try {
     const q = String(req.query.q || "").trim();
 
-    if (!q) {
-      return res.json({
-        success: true,
-        parsed: null,
-        data: [],
-      });
-    }
+    const explicitStandard = String(req.query.cable_standard || "")
+      .trim()
+      .toUpperCase();
 
-    const parsed = parseCableSearch(q);
+    const explicitAwg = req.query.awg ? Number(req.query.awg) : null;
+
+    const colorType = String(req.query.color_type || "")
+      .trim()
+      .toLowerCase();
+
+    const parsed = q ? parseCableSearch(q) : null;
+    const cableStandard = explicitStandard || parsed?.cableStandard || null;
+    const awg = explicitAwg || parsed?.awg || null;
+    const vendorCode = parsed?.vendorCode || "3F";
+    const colorNames = parsed?.colorNames || [];
 
     const rows = await searchCablePrices({
-      vendorCode: parsed.vendorCode,
-      cableStandard: parsed.cableStandard,
-      awg: parsed.awg,
-      colorNames: parsed.colorNames,
+      vendorCode,
+      cableStandard,
+      awg,
+      colorType,
+      colorNames,
       query: q,
-      limit: 100,
+      limit: 200,
     });
 
     return res.json({
       success: true,
-      parsed: {
-        input: q,
-        vendor_code: parsed.vendorCode,
-        cable_standard: parsed.cableStandard,
-        awg: parsed.awg,
-        color_codes: parsed.colorCodes,
-        color_names: parsed.colorNames,
+
+      parsed: q
+        ? {
+            input: q,
+            vendor_code: vendorCode,
+            cable_standard: parsed?.cableStandard || null,
+            awg: parsed?.awg || null,
+            color_codes: parsed?.colorCodes || [],
+            color_names: parsed?.colorNames || [],
+          }
+        : null,
+
+      filters: {
+        awg: explicitAwg,
+        cable_standard: explicitStandard || null,
+        color_type: colorType || null,
       },
 
       data: rows,
@@ -1196,6 +1318,7 @@ export async function searchCablePrice(req, res) {
 
     return res.status(500).json({
       success: false,
+
       message: error.message || "Cable price search failed.",
     });
   }

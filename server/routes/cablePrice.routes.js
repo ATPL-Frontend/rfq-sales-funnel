@@ -3,6 +3,7 @@ import multer from "multer";
 
 import {
   analyzeCablePriceWorkbook,
+  cablePriceFilterOptions,
   cablePriceSummary,
   searchCablePrice,
   uploadCablePrices,
@@ -29,6 +30,8 @@ const upload = multer({
     callback(null, true);
   },
 });
+
+router.get("/filter-options", authenticate, cablePriceFilterOptions);
 
 router.get("/search", authenticate, searchCablePrice);
 
