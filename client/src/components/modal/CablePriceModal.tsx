@@ -18,33 +18,25 @@ type CablePriceSummary = {
   total_items: number | string;
   total_standards: number | string;
   total_sheets: number | string;
-
   imported_at: string | null;
-
   file_name: string | null;
 };
 
 type YellowColumn = {
   column: string;
-
   yellow_cells: number;
-
   cells?: string[];
-
   values?: string[];
 };
 
 type PriceRangeColumn = {
   column: string;
-
   range_label: string;
-
   row_number: number;
 };
 
 type WorkbookColumn = {
   column: string;
-
   label: string;
 };
 
@@ -56,33 +48,23 @@ type WorkbookPreviewRow = {
 
 type WorkbookSheetAnalysis = {
   sheet_name: string;
-
   yellow_columns: YellowColumn[];
-
   price_range_columns: PriceRangeColumn[];
-
   suggested_price_column: string | null;
-
   requires_price_column_selection: boolean;
-
   columns: WorkbookColumn[];
-
   preview_rows: WorkbookPreviewRow[];
 };
 
 type WorkbookAnalysis = {
   file_name: string;
-
   requires_price_column_selection: boolean;
-
   sheets: WorkbookSheetAnalysis[];
 };
 
 type Props = {
   summary: CablePriceSummary | null;
-
   onSuccess: () => void | Promise<void>;
-
   onCancel: () => void;
 };
 
@@ -92,19 +74,12 @@ export default function CablePriceModal({
   onCancel,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
   const [file, setFile] = useState<File | null>(null);
-
   const [analysis, setAnalysis] = useState<WorkbookAnalysis | null>(null);
-
   const [priceColumns, setPriceColumns] = useState<Record<string, string>>({});
-
   const [dragging, setDragging] = useState(false);
-
   const [analyzing, setAnalyzing] = useState(false);
-
   const [uploading, setUploading] = useState(false);
-
   const busy = analyzing || uploading;
 
   // =========================================
@@ -126,13 +101,9 @@ export default function CablePriceModal({
   // =========================================
   const resetUpload = () => {
     setFile(null);
-
     setAnalysis(null);
-
     setPriceColumns({});
-
     setDragging(false);
-
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -155,20 +126,15 @@ export default function CablePriceModal({
 
       return;
     }
-
     setFile(selectedFile);
-
     setAnalysis(null);
-
     setPriceColumns({});
-
     setAnalyzing(true);
 
     try {
       const formData = new FormData();
 
       formData.append("file", selectedFile);
-
       const { data } = await api.post("/api/cable-prices/analyze", formData);
 
       if (!data?.success || !data?.data) {
@@ -186,14 +152,6 @@ export default function CablePriceModal({
 
       setAnalysis(workbookAnalysis);
 
-      /*
-       * Automatically select customer-marked
-       * yellow price columns when detected.
-       *
-       * Example:
-       * Y13 = 13401-13700 yellow
-       * => Y selected automatically.
-       */
       const initialSelections: Record<string, string> = {};
 
       for (const sheet of workbookAnalysis.sheets) {
@@ -242,15 +200,10 @@ export default function CablePriceModal({
 
     try {
       const formData = new FormData();
-
       formData.append("file", file);
-
       formData.append("vendor_code", "3F");
-
       formData.append("currency", "USD");
-
       formData.append("price_columns", JSON.stringify(priceColumns));
-
       const { data } = await api.post("/api/cable-prices/upload", formData);
 
       if (!data?.success) {
@@ -258,7 +211,6 @@ export default function CablePriceModal({
       }
 
       toast.success(data?.message || "Cable price data updated successfully.");
-
       resetUpload();
 
       await onSuccess();
@@ -278,7 +230,6 @@ export default function CablePriceModal({
     }
 
     resetUpload();
-
     onCancel();
   };
 
@@ -720,11 +671,6 @@ function getSheetColumnOptions(sheet: WorkbookSheetAnalysis) {
     }
   >();
 
-  /*
-   * Best option:
-   *
-   * Y — 13401-13700
-   */
   for (const item of sheet.price_range_columns || []) {
     options.set(item.column, {
       column: item.column,
@@ -733,11 +679,6 @@ function getSheetColumnOptions(sheet: WorkbookSheetAnalysis) {
     });
   }
 
-  /*
-   * Include all detected worksheet columns as fallback,
-   * so manual selection is still possible if the
-   * supplier changes the price range format.
-   */
   for (const item of sheet.columns || []) {
     if (!options.has(item.column)) {
       options.set(item.column, {
@@ -748,10 +689,6 @@ function getSheetColumnOptions(sheet: WorkbookSheetAnalysis) {
     }
   }
 
-  /*
-   * Ensure yellow columns are never missing from the
-   * selector even if range detection fails.
-   */
   for (const yellow of sheet.yellow_columns || []) {
     if (!options.has(yellow.column)) {
       const yellowValue = yellow.values?.[0];

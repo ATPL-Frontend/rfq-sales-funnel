@@ -122,46 +122,72 @@ export async function register(req, res) {
   }
 }
 
-/**
- * 🔐 Step 1 — Login (password verified, OTP sent to email)
- */
+
 export async function login(req, res) {
   try {
     const { email, password } = req.body;
+
+    // Validate credentials
+    if (
+      typeof email !== "string" ||
+      !email.trim() ||
+      typeof password !== "string" ||
+      !password
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required",
+      });
+    }
+
+    // Find user with roles
     const [rows] = await pool.query(
       `SELECT u.*, JSON_ARRAYAGG(r.name) AS roles
        FROM users u
        LEFT JOIN user_roles ur ON ur.user_id = u.id
        LEFT JOIN roles r ON r.id = ur.role_id
-       WHERE u.email=?
+       WHERE u.email = ?
        GROUP BY u.id`,
-      [email],
+      [email.trim()]
     );
 
-    if (!rows.length)
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
+    if (!rows.length) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
 
     const user = rows[0];
 
+    // Verify password
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid)
-      return res
-        .status(401)
-        .json({ success: false, message: "Invalid password" });
 
-    // ✅ Generate and save OTP
+    if (!valid) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
+    // Parse roles
+    const roles = safeParseRoles(user.roles);
+
+    /*
+    // ===================================
+    // OTP FUNCTIONALITY DISABLED
+    // ===================================
+
     const otp = generateOTP();
-    const expiry = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes from now
+    const expiry = new Date(
+      Date.now() + 5 * 60 * 1000
+    ).toISOString();
 
-    await pool.query("UPDATE users SET otp_code=?, otp_expires=? WHERE id=?", [
-      otp,
-      expiry,
-      user.id,
-    ]);
+    await pool.query(
+      "UPDATE users SET otp_code=?, otp_expires=? WHERE id=?",
+      [otp, expiry, user.id]
+    );
 
-    // ✅ Send OTP via email
     await sendMail(
       user.email,
       "Your RFQ Login OTP",
@@ -171,83 +197,46 @@ export async function login(req, res) {
        <p>This code will expire in <b>5 minutes</b>.</p>`
     );
 
-    // ✅ Send OTP via SMS
-    // await sendMailResend(
-    //   user.email,
-    //   "Your RFQ Login OTP",
-    //   `<p>Hello ${user.name},</p>
-    //    <p>Your One-Time Password (OTP) is:</p>
-    //    <h2>${otp}</h2>
-    //    <p>This code will expire in <b>5 minutes</b>.</p>`,
-    // );
-
-    res.json({
+    return res.json({
       success: true,
       message: "OTP sent to your email address",
       email: user.email,
     });
-  } catch (err) {
-    console.error("Login (OTP) error:", err);
-    res.status(500).json({ success: false, message: err.message });
-  }
-}
+    */
 
-/**
- * 🔢 Step 2 — Verify OTP and return JWT
- */
-export async function verifyOTP(req, res) {
-  try {
-    const { email, otp } = req.body;
+    // ===================================
+    // DIRECT LOGIN - NO OTP REQUIRED
+    // ===================================
 
-    if (!email || !otp)
-      return res
-        .status(400)
-        .json({ success: false, message: "Email and OTP are required" });
-
-    const [rows] = await pool.query(
-      `SELECT u.*, JSON_ARRAYAGG(r.name) AS roles
-       FROM users u
-       LEFT JOIN user_roles ur ON ur.user_id = u.id
-       LEFT JOIN roles r ON r.id = ur.role_id
-       WHERE u.email=?
-       GROUP BY u.id`,
-      [email],
-    );
-
-    if (!rows.length)
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-
-    const user = rows[0];
-
-    // ---- FIXED HERE ----
-    const roles = safeParseRoles(user.roles);
-
-    // Validate OTP
-    if (user.otp_code !== otp)
-      return res.status(400).json({ success: false, message: "Invalid OTP" });
-
-    const otpExpiry = new Date(user.otp_expires + " UTC");
-
-    if (otpExpiry < new Date()) {
-      return res.status(400).json({ success: false, message: "OTP expired" });
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET is not configured");
     }
 
-    // Create JWT
+    // Generate JWT immediately
     const token = jwt.sign(
-      { id: user.id, email: user.email, roles },
+      {
+        id: user.id,
+        email: user.email,
+        roles,
+      },
       process.env.JWT_SECRET,
-      { expiresIn: "8h" },
+      { expiresIn: "8h" }
     );
 
-    // Clear OTP
+    // Save token and clear any old OTP
     await pool.query(
-      "UPDATE users SET otp_code=NULL, otp_expires=NULL, token=? WHERE id=?",
-      [token, user.id],
+      `UPDATE users
+       SET otp_code = NULL,
+           otp_expires = NULL,
+           token = ?
+       WHERE id = ?`,
+      [token, user.id]
     );
 
-    res.json({
+    console.log(`✅ Login successful: ${user.email}`);
+
+    // Return login response
+    return res.json({
       success: true,
       message: "Login successful",
       token,
@@ -259,8 +248,27 @@ export async function verifyOTP(req, res) {
         roles,
       },
     });
+
   } catch (err) {
-    console.error("verifyOTP error:", err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error("Login error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Login failed. Please try again.",
+    });
   }
+}
+
+
+/**
+ * 🔢 Step 2 — Verify OTP and return JWT
+ */
+// OTP verification disabled.
+// Direct login is now handled by login().
+
+export async function verifyOTP(req, res) {
+  return res.status(410).json({
+    success: false,
+    message: "OTP verification is disabled. Please log in directly.",
+  });
 }

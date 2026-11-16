@@ -7,7 +7,9 @@ import api from "@/lib/api";
 import {
   Cable,
   FileSpreadsheet,
+  Filter,
   Loader2,
+  RotateCcw,
   Search,
   UploadCloud,
 } from "lucide-react";
@@ -28,9 +30,11 @@ type CablePriceResult = {
   id: number;
   vendor_code: string;
   cable_standard: string;
+  awg: number | null;
   section_name: string | null;
   description: string;
   color_name: string | null;
+  color_type: "single" | "dual" | null;
   unit_price: number | string;
   currency: string;
   price_basis: string | null;
@@ -50,18 +54,55 @@ type CablePriceSummary = {
   file_name: string | null;
 };
 
+type FilterOptions = {
+  cable_standards: string[];
+  awgs: number[];
+  color_types: {
+    value: "single" | "dual";
+
+    label: string;
+  }[];
+};
+
+type CableFilters = {
+  awg: string;
+  cable_standard: string;
+  color_type: string;
+};
+
+const initialFilters: CableFilters = {
+  awg: "",
+  cable_standard: "",
+  color_type: "",
+};
+
 export default function CablePricePage() {
   const [search, setSearch] = useState("");
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<CablePriceResult[]>([]);
   const [parsed, setParsed] = useState<ParsedCableSearch | null>(null);
-  const [searchedQuery, setSearchedQuery] = useState("");
   const [summary, setSummary] = useState<CablePriceSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [filters, setFilters] = useState<CableFilters>(initialFilters);
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
+    cable_standards: [],
+    awgs: [],
+    color_types: [
+      {
+        value: "single",
+        label: "Single Color",
+      },
+      {
+        value: "dual",
+        label: "Dual Color",
+      },
+    ],
+  });
 
   // =========================================
-  // LOAD CURRENT DATA SUMMARY
+  // SUMMARY
   // =========================================
+
   const fetchSummary = useCallback(async () => {
     setSummaryLoading(true);
 
@@ -76,80 +117,150 @@ export default function CablePricePage() {
     }
   }, []);
 
+  // =========================================
+  // FILTER OPTIONS
+  // =========================================
+
+  const fetchFilterOptions = useCallback(async () => {
+    try {
+      const { data } = await api.get("/api/cable-prices/filter-options");
+
+      if (data?.data) {
+        setFilterOptions(data.data);
+      }
+    } catch {
+      toast.error("Failed to load cable filters.");
+    }
+  }, []);
+
+  // =========================================
+  // LOAD ITEMS
+  // =========================================
+
+  const loadItems = useCallback(
+    async ({
+      query = search,
+      selectedFilters = filters,
+      showLoading = true,
+    }: {
+      query?: string;
+
+      selectedFilters?: CableFilters;
+
+      showLoading?: boolean;
+    } = {}) => {
+      if (showLoading) {
+        setSearching(true);
+      }
+
+      try {
+        const { data } = await api.get("/api/cable-prices/search", {
+          params: {
+            q: query.trim() || undefined,
+            awg: selectedFilters.awg || undefined,
+            cable_standard: selectedFilters.cable_standard || undefined,
+            color_type: selectedFilters.color_type || undefined,
+          },
+        });
+
+        setResults(data?.data || []);
+
+        setParsed(data?.parsed || null);
+      } catch (error: any) {
+        toast.error(
+          error?.response?.data?.message || "Failed to load cable prices.",
+        );
+      } finally {
+        if (showLoading) {
+          setSearching(false);
+        }
+      }
+    },
+    [filters, search],
+  );
+
+  // =========================================
+  // INITIAL LOAD
+  // =========================================
+
   useEffect(() => {
-    fetchSummary();
-  }, [fetchSummary]);
+    void fetchSummary();
+
+    void fetchFilterOptions();
+
+    void loadItems({
+      query: "",
+      selectedFilters: initialFilters,
+    });
+  }, []);
 
   // =========================================
   // SEARCH
   // =========================================
-  const runSearch = useCallback(async (query: string, showLoading = true) => {
-    const q = query.trim();
-
-    if (!q) {
-      setResults([]);
-      setParsed(null);
-      setSearchedQuery("");
-
-      return;
-    }
-
-    if (showLoading) {
-      setSearching(true);
-    }
-
-    try {
-      const { data } = await api.get("/api/cable-prices/search", {
-        params: {
-          q,
-        },
-      });
-
-      setResults(data?.data || []);
-
-      setParsed(data?.parsed || null);
-
-      setSearchedQuery(q);
-    } catch (error: any) {
-      toast.error(
-        error?.response?.data?.message || "Failed to search cable prices.",
-      );
-    } finally {
-      if (showLoading) {
-        setSearching(false);
-      }
-    }
-  }, []);
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    void runSearch(search);
+    void loadItems();
   };
 
-  const clearSearch = () => {
+  // =========================================
+  // FILTER CHANGE
+  // =========================================
+
+  const updateFilter = (key: keyof CableFilters, value: string) => {
+    const nextFilters = {
+      ...filters,
+
+      [key]: value,
+    };
+
+    setFilters(nextFilters);
+
+    void loadItems({
+      selectedFilters: nextFilters,
+    });
+  };
+
+  // =========================================
+  // CLEAR
+  // =========================================
+
+  const clearAll = () => {
     setSearch("");
-    setResults([]);
+    setFilters(initialFilters);
     setParsed(null);
-    setSearchedQuery("");
+
+    void loadItems({
+      query: "",
+      selectedFilters: initialFilters,
+    });
   };
 
-  // =========================================
-  // AFTER NEW EXCEL IMPORT
-  // =========================================
-  const handleUploadSuccess = useCallback(async () => {
-    await fetchSummary();
+  const hasFilters = Boolean(
+    search.trim() ||
+    filters.awg ||
+    filters.cable_standard ||
+    filters.color_type,
+  );
 
-    if (search.trim()) {
-      await runSearch(search, false);
-    }
-  }, [fetchSummary, runSearch, search]);
+  // =========================================
+  // AFTER EXCEL UPDATE
+  // =========================================
+
+  const handleUploadSuccess = useCallback(async () => {
+    await Promise.all([fetchSummary(), fetchFilterOptions()]);
+
+    await loadItems({
+      showLoading: false,
+    });
+  }, [fetchFilterOptions, fetchSummary, loadItems]);
 
   return (
     <section className="space-y-4">
       {/* =====================================
           HEADER
       ====================================== */}
+
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
           <div className="flex items-center gap-2">
@@ -159,16 +270,15 @@ export default function CablePricePage() {
           </div>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            Search the current 3F cable price list.
+            Search and filter the current 3F cable price list.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* CURRENT DATA SUMMARY */}
           {summaryLoading ? (
             <Badge variant="secondary" className="gap-1.5">
               <Loader2 className="size-3 animate-spin" />
-              Loading data
+              Loading
             </Badge>
           ) : summary && Number(summary.total_items) > 0 ? (
             <>
@@ -186,7 +296,6 @@ export default function CablePricePage() {
             </>
           ) : null}
 
-          {/* UPLOAD MODAL */}
           <Modal
             type="button"
             icon={<UploadCloud className="size-4" />}
@@ -210,8 +319,9 @@ export default function CablePricePage() {
       </div>
 
       {/* =====================================
-          SEARCH CARD
+          SEARCH
       ====================================== */}
+
       <div className="rounded-xl border bg-card p-4 shadow-sm">
         <form
           onSubmit={handleSearch}
@@ -223,18 +333,12 @@ export default function CablePricePage() {
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search cable e.g. AHW18UL1007BK-3F"
+              placeholder="Search e.g. AHW18UL1007BK-3F"
               className="pl-9"
             />
           </div>
 
-          {search && (
-            <Button type="button" variant="secondary" onClick={clearSearch}>
-              Clear
-            </Button>
-          )}
-
-          <Button type="submit" disabled={searching || !search.trim()}>
+          <Button type="submit" disabled={searching}>
             {searching ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
@@ -249,23 +353,21 @@ export default function CablePricePage() {
           </Button>
         </form>
 
-        {/* PARSED SEARCH INFORMATION */}
+        {/* SEARCH PARSER */}
         {parsed && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="mr-1 text-xs text-muted-foreground">
-              Searching for:
+            <span className="text-xs text-muted-foreground">
+              Search detected:
             </span>
 
             <Badge variant="secondary">Vendor: {parsed.vendor_code}</Badge>
 
-            {parsed.cable_standard && (
-              <Badge variant="secondary">
-                Standard: {parsed.cable_standard}
-              </Badge>
-            )}
-
             {parsed.awg !== null && (
               <Badge variant="secondary">AWG: {parsed.awg}</Badge>
+            )}
+
+            {parsed.cable_standard && (
+              <Badge variant="secondary">{parsed.cable_standard}</Badge>
             )}
 
             {parsed.color_names.map((color, index) => (
@@ -278,155 +380,229 @@ export default function CablePricePage() {
       </div>
 
       {/* =====================================
-          RESULTS
+          FILTER SECTION
       ====================================== */}
-      {searchedQuery && (
-        <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-          <div className="flex flex-col justify-between gap-2 border-b px-4 py-3 sm:flex-row sm:items-center">
-            <div>
-              <h2 className="font-semibold">Matching Cable Prices</h2>
 
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Results from the current uploaded 3F price list.
+      <div className="rounded-xl border bg-card p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Filter className="size-4 text-primary" />
+
+            <div>
+              <h2 className="text-sm font-semibold">Filters</h2>
+
+              <p className="text-xs text-muted-foreground">
+                Narrow the current cable price list.
               </p>
             </div>
-
-            <Badge variant="secondary">
-              {results.length} {results.length === 1 ? "Result" : "Results"}
-            </Badge>
           </div>
 
-          {results.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse text-sm">
-                <thead className="bg-muted/50 text-xs">
-                  <tr>
-                    <th className="whitespace-nowrap px-4 py-3 text-left font-medium">
-                      Standard
-                    </th>
-
-                    <th className="whitespace-nowrap px-4 py-3 text-left font-medium">
-                      AWG / Description
-                    </th>
-
-                    <th className="whitespace-nowrap px-4 py-3 text-left font-medium">
-                      Color
-                    </th>
-
-                    <th className="whitespace-nowrap px-4 py-3 text-right font-medium">
-                      Price
-                    </th>
-
-                    <th className="whitespace-nowrap px-4 py-3 text-left font-medium">
-                      Price Range
-                    </th>
-
-                    <th className="whitespace-nowrap px-4 py-3 text-left font-medium">
-                      Packing / Roll
-                    </th>
-
-                    <th className="whitespace-nowrap px-4 py-3 text-left font-medium">
-                      MOQ
-                    </th>
-
-                    <th className="whitespace-nowrap px-4 py-3 text-left font-medium">
-                      Source
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {results.map((row) => (
-                    <tr
-                      key={row.id}
-                      className="border-t transition-colors hover:bg-muted/30"
-                    >
-                      {/* STANDARD */}
-                      <td className="px-4 py-3 align-top">
-                        <Badge variant="secondary">{row.cable_standard}</Badge>
-                      </td>
-
-                      {/* DESCRIPTION */}
-                      <td className="min-w-80 max-w-xl px-4 py-3 align-top">
-                        <p className="font-medium">{row.description}</p>
-
-                        {row.section_name &&
-                          row.section_name !== row.cable_standard && (
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {row.section_name}
-                            </p>
-                          )}
-                      </td>
-
-                      {/* COLOR */}
-                      <td className="whitespace-nowrap px-4 py-3 align-top">
-                        {row.color_name || "-"}
-                      </td>
-
-                      {/* PRICE */}
-                      <td className="whitespace-nowrap px-4 py-3 text-right align-top">
-                        <span className="font-semibold">
-                          {formatPrice(row.unit_price)}
-                        </span>
-
-                        <span className="ml-1 text-xs font-medium text-muted-foreground">
-                          {row.currency}
-                        </span>
-                      </td>
-
-                      {/* PRICE BASIS */}
-                      <td className="whitespace-nowrap px-4 py-3 align-top">
-                        {row.price_basis ? (
-                          <Badge variant="outline">{row.price_basis}</Badge>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-
-                      <td className="whitespace-nowrap px-4 py-3 align-top">
-                        {row.packing_roll || "-"}
-                      </td>
-
-                      <td className="whitespace-nowrap px-4 py-3 align-top">
-                        {row.moq || "-"}
-                      </td>
-
-                      {/* SOURCE */}
-                      <td className="px-4 py-3 align-top">
-                        <div className="flex min-w-44 items-start gap-2">
-                          <FileSpreadsheet className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-
-                          <div className="min-w-0">
-                            <p className="max-w-48 truncate text-xs font-medium">
-                              {row.sheet_name}
-                            </p>
-
-                            {row.source_row && (
-                              <p className="mt-0.5 text-xs text-muted-foreground">
-                                Row {row.source_row}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="flex min-h-48 flex-col items-center justify-center px-4 py-10 text-center">
-              <Search className="size-8 text-muted-foreground/50" />
-
-              <p className="mt-3 text-sm font-medium">No cable price found</p>
-
-              <p className="mt-1 max-w-md text-xs text-muted-foreground">
-                No current 3F cable data matched "{searchedQuery}".
-              </p>
-            </div>
+          {hasFilters && (
+            <Button type="button" variant="ghost" size="sm" onClick={clearAll}>
+              <RotateCcw className="size-3.5" />
+              Clear
+            </Button>
           )}
         </div>
-      )}
+
+        <div className="grid gap-3 md:grid-cols-3">
+          {/* AWG */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              Number Before UL / AWG
+            </label>
+
+            <select
+              value={filters.awg}
+              onChange={(event) => updateFilter("awg", event.target.value)}
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">All AWG</option>
+
+              {filterOptions.awgs.map((awg) => (
+                <option key={awg} value={awg}>
+                  {awg} AWG
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* UL */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              UL Standard
+            </label>
+
+            <select
+              value={filters.cable_standard}
+              onChange={(event) =>
+                updateFilter("cable_standard", event.target.value)
+              }
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">All UL Standards</option>
+
+              {filterOptions.cable_standards.map((standard) => (
+                <option key={standard} value={standard}>
+                  {standard}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* COLOR TYPE */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              Color Type
+            </label>
+
+            <select
+              value={filters.color_type}
+              onChange={(event) =>
+                updateFilter("color_type", event.target.value)
+              }
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">All Color Types</option>
+
+              {filterOptions.color_types.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* =====================================
+          RESULTS
+      ====================================== */}
+
+      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+          <div>
+            <h2 className="font-semibold">Cable Price List</h2>
+
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {hasFilters
+                ? "Showing matching cable items."
+                : "Showing all current cable items."}
+            </p>
+          </div>
+
+          <Badge variant="secondary">
+            {results.length} {results.length === 1 ? "Item" : "Items"}
+          </Badge>
+        </div>
+
+        {searching && results.length === 0 ? (
+          <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            Loading cable prices...
+          </div>
+        ) : results.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-collapse text-sm">
+              <thead className="bg-muted/50 text-xs">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium">UL</th>
+                  <th className="px-4 py-3 text-left font-medium">
+                    Description
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium">Color</th>
+                  <th className="px-4 py-3 text-right font-medium">Price</th>
+                  <th className="px-4 py-3 text-left font-medium">
+                    Price Range
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium">
+                    Packing / Roll
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium">MOQ</th>
+                  {/* <th className="px-4 py-3 text-left font-medium">Source</th> */}
+                </tr>
+              </thead>
+
+              <tbody>
+                {results.map((row) => (
+                  <tr key={row.id} className="border-t hover:bg-muted/30">
+                    <td className="whitespace-nowrap px-4 py-3 align-top">
+                      <Badge variant="secondary">{row.cable_standard}</Badge>
+                    </td>
+
+                    <td className="min-w-72 max-w-lg px-4 py-3 align-top">
+                      <p className="font-medium">{row.description}</p>
+
+                      {row.section_name &&
+                        row.section_name !== row.cable_standard && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {row.section_name}
+                          </p>
+                        )}
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 align-top">
+                      {row.color_name || "-"}
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 text-right align-top">
+                      <span className="font-semibold">
+                        {formatPrice(row.unit_price)}
+                      </span>
+
+                      <span className="ml-1 text-xs text-muted-foreground">
+                        {row.currency}
+                      </span>
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 align-top">
+                      {row.price_basis ? (
+                        <Badge variant="outline">{row.price_basis}</Badge>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 align-top">
+                      {row.packing_roll || "-"}
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 align-top">
+                      {row.moq || "-"}
+                    </td>
+
+                    {/* <td className="px-4 py-3 align-top">
+                      <div className="flex min-w-40 items-start gap-2">
+                        <FileSpreadsheet className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+
+                        <div>
+                          <p className="max-w-44 truncate text-xs font-medium">
+                            {row.sheet_name}
+                          </p>
+
+                          {row.source_row && (
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              Row {row.source_row}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </td> */}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="flex min-h-48 flex-col items-center justify-center px-4 py-10 text-center">
+            <Search className="size-8 text-muted-foreground/50" />
+            <p className="mt-3 text-sm font-medium">No cable items found</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Try changing your search or filters.
+            </p>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
